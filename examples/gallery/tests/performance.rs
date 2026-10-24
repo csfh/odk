@@ -90,6 +90,16 @@ fn an_idle_page_is_not_redrawn() {
 /// takes under half of it.
 const FRAME_BUDGET: Duration = Duration::from_millis(4);
 
+/// `GALLERY_FRAME_BUDGET_MS` replaces the budget on a machine slower than the development one (a
+/// shared CI runner); a budget that is too tight there says nothing about the code.
+fn frame_budget() -> Duration {
+    std::env::var("GALLERY_FRAME_BUDGET_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map(Duration::from_millis)
+        .unwrap_or(FRAME_BUDGET)
+}
+
 /// A frame of a page, drawn from scratch, takes at most a quarter of a 60 Hz frame, with the demo
 /// content and with the worst case. The least of several draws is held to it, which load on the
 /// machine cannot make better than it is.
@@ -98,7 +108,7 @@ fn every_page_draws_within_a_frame() {
     let mut app = TestAppContext::single();
     let app = &mut app;
     let _serial = serial();
-    let budget = FRAME_BUDGET;
+    let budget = frame_budget();
     for worst_case in [false, true] {
         for page in Page::ALL {
             let (_, cx) = open(app, page, worst_case);

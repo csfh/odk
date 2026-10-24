@@ -31,4 +31,7 @@ jobs:
           cache-on-failure: true
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
+        env:
+          # The 4 ms draw budget is for the development machine; a shared runner is slower.
+          GALLERY_FRAME_BUDGET_MS: 12
