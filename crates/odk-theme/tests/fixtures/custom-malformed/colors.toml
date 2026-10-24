@@ -1,0 +1,17 @@
+# A custom theme written by hand for ODK's tests: complete, except that `red` has five hex
+# digits, a mistake a theme author can make.
+mode = "dark"
+
+accent = "#7aa2f7"
+muted = "#414868"
+
+background = "#1a1b26"
+dark_background = "#13141c"
+lighter_background = "#24283b"
+
+foreground = "#a9b1d6"
+
+red = "#f7768"
+yellow = "#e0af68"
+green = "#9ece6a"
+blue = "#7aa2f7"

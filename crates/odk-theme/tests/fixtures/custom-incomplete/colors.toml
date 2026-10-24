@@ -1,0 +1,20 @@
+# A custom theme written by hand for ODK's tests. It has every key ODK requires and few others:
+# no bright colours, no orange, cyan, magenta or brown, and its surfaces under the short names
+# Aether writes. It also has a key ODK does not know, holding a Hyprland gradient.
+mode = "light"
+
+accent = "#3b5bdb"
+muted = "#868e96"
+
+background = "#f8f9fa"
+dark_bg = "#e9ecef"
+lighter_bg = "#ffffff"
+
+foreground = "#212529"
+
+red = "#c92a2a"
+yellow = "#e67700"
+green = "#2b8a3e"
+blue = "#3b5bdb"
+
+hyprland_active_border = "rgba(3b5bdbee) rgba(868e96ee) 45deg"

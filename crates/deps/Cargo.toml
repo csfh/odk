@@ -1,0 +1,48 @@
+[package]
+name = "deps"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Makes every build of one package resolve shared dependencies as the whole workspace does"
+
+# Cargo unifies a dependency's features only across the packages in one build, so `cargo build
+# -p hello` and `cargo build --workspace` can compile `libc` or `serde` with different features,
+# and then everything above them, GPUI included, is compiled again. Every workspace member
+# depends on this crate, and it asks for each such dependency with the features the whole
+# workspace uses, so every selection agrees. `tools/check-deps` finds the list; run it
+# after changing dependencies and copy what it prints here.
+
+[dependencies]
+libc = { version = "0.2", features = ["default", "extra_traits", "std"] }
+linux-raw-sys = { version = "0.12", default-features = false, features = ["auxvec", "elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "system", "xdp"] }
+log = { version = "0.4", default-features = false, features = ["kv_unstable_serde", "std"] }
+mio = { version = "1", features = ["default", "log", "net", "os-ext", "os-poll"] }
+once_cell = { version = "1", features = ["alloc", "default", "race", "std"] }
+# Used only by build scripts or macros in some selections but at run time in a workspace build: a workspace build compiles it
+# once with the normal profile and shares it, so every selection must have it as a normal dependency.
+semver = { version = "1", features = ["default", "std"] }
+unicode-ident = "1"
+proc-macro2 = { version = "1", features = ["default", "proc-macro"] }
+quote = { version = "1", features = ["default", "proc-macro"] }
+syn = { version = "3", features = ["clone-impls", "default", "derive", "extra-traits", "fold", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }
+rustix = { version = "1", features = ["default", "event", "fs", "net", "pipe", "process", "shm", "std", "system", "time"] }
+serde = { version = "1", features = ["alloc", "default", "derive", "rc", "std"] }
+serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
+toml_parser = { version = "1", features = ["alloc", "default", "std"] }
+winnow = { version = "1", features = ["alloc", "ascii", "binary", "default", "parser", "std"] }
+hashbrown = { version = "0.17", default-features = false, features = ["default-hasher"] }
+crossbeam-utils = { version = "0.8", features = ["default", "std"] }
+event-listener = { version = "5", features = ["default", "parking", "std"] }
+futures-core = { version = "0.3", features = ["alloc", "default", "std"] }
+smallvec = { version = "1", features = ["const_generics", "const_new", "union", "write"] }
+concurrent-queue = { version = "2", features = ["default", "std"] }
+event-listener-strategy = { version = "0.5", features = ["default", "std"] }
+
+[build-dependencies]
+# A member with no proc macros of its own, such as odk-a11y, otherwise builds these for its build
+# scripts only, with a different profile from a workspace build.
+quote = { version = "1", features = ["default", "proc-macro"] }
+proc-macro2 = { version = "1", features = ["default", "proc-macro"] }
+syn = { version = "3", features = ["clone-impls", "default", "derive", "extra-traits", "fold", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }

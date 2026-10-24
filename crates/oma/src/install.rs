@@ -1,0 +1,328 @@
+//! Installing a Bundle into `~/Applications` (ADR 0009, ADR 0018).
+//!
+//! Minimal for now: it writes no `.desktop` entry, refuses an Identifier that is already
+//! installed (no upgrades, no previous version), and grants only with `accept_permissions`
+//! because there is no consent dialog yet (ADR 0016).
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use crate::fmt::{self, Bundle, Identifier};
+use crate::grants;
+use crate::layout::Layout;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("cannot access {}: {source}", path.display())]
+    Io {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    #[error(transparent)]
+    Invalid(#[from] fmt::Error),
+    #[error(transparent)]
+    Grants(#[from] grants::Error),
+    #[error("{identifier} is already installed at {}; upgrades are not supported yet", path.display())]
+    AlreadyInstalled {
+        identifier: Identifier,
+        path: PathBuf,
+    },
+    #[error("{} already exists", .0.display())]
+    Exists(PathBuf),
+    #[error("it asks for permissions that have not been granted:\n{}\nre-run with --accept-permissions to grant exactly these", lines(.0))]
+    ConsentRequired(Vec<String>),
+    #[error("{} contains something that is neither a file, a directory nor a symlink", .0.display())]
+    Unsupported(PathBuf),
+}
+
+fn lines(lines: &[String]) -> String {
+    lines
+        .iter()
+        .map(|l| format!("  {l}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn io(path: &Path, source: std::io::Error) -> Error {
+    Error::Io {
+        path: path.to_owned(),
+        source,
+    }
+}
+
+/// Every valid Bundle in `~/Applications`. Directories that are not valid Bundles are skipped.
+pub fn installed(layout: &Layout) -> Vec<Bundle> {
+    let Ok(entries) = fs::read_dir(layout.applications()) else {
+        return Vec::new();
+    };
+    let mut found: Vec<Bundle> = entries
+        .flatten()
+        .filter(|e| {
+            e.file_name()
+                .to_str()
+                .is_some_and(|n| n.ends_with(".oma") && !n.starts_with('.'))
+        })
+        .filter_map(|e| Bundle::open(&e.path()).ok())
+        .collect();
+    found.sort_by(|a, b| a.root().cmp(b.root()));
+    found
+}
+
+/// The installed Bundle with this Identifier.
+pub fn find(layout: &Layout, id: &Identifier) -> Option<Bundle> {
+    installed(layout)
+        .into_iter()
+        .find(|b| &b.manifest().identifier == id)
+}
+
+/// Copies the Bundle at `source` into `~/Applications` and returns its new path. The original
+/// is left alone. If the Bundle asks for permissions its consent record lacks, nothing is
+/// installed unless `accept_permissions` is set, which records exactly what it asks for now.
+pub fn install(layout: &Layout, source: &Path, accept_permissions: bool) -> Result<PathBuf, Error> {
+    let bundle = Bundle::open(source)?;
+    let manifest = bundle.manifest();
+    if let Some(existing) = find(layout, &manifest.identifier) {
+        return Err(Error::AlreadyInstalled {
+            identifier: manifest.identifier.clone(),
+            path: existing.root().to_owned(),
+        });
+    }
+
+    let granted = grants::load(layout, &manifest.identifier)?.unwrap_or_default();
+    let missing = grants::missing(&granted, &manifest.permissions);
+    if !grants::is_empty(&missing) && !accept_permissions {
+        return Err(Error::ConsentRequired(fmt::permission_lines(&missing)));
+    }
+
+    let applications = layout.applications();
+    fs::create_dir_all(&applications).map_err(|e| io(&applications, e))?;
+    let name = format!("{}.oma", manifest.name.replace('/', "-"));
+    let target = applications.join(&name);
+    if target.exists() {
+        return Err(Error::Exists(target));
+    }
+    let staging = applications.join(format!(".{name}.partial-{}", std::process::id()));
+    fs::create_dir(&staging).map_err(|e| io(&staging, e))?;
+    let copied = copy_tree(bundle.root(), &staging)
+        .and_then(|()| Bundle::open(&staging).map(drop).map_err(Error::from))
+        .and_then(|()| fs::rename(&staging, &target).map_err(|e| io(&target, e)));
+    if let Err(e) = copied {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(e);
+    }
+
+    if accept_permissions {
+        grants::save(layout, &manifest.identifier, &manifest.permissions)?;
+    }
+    Ok(target)
+}
+
+/// Copies a directory tree, keeping symlinks as symlinks and file modes as they are.
+fn copy_tree(from: &Path, to: &Path) -> Result<(), Error> {
+    for entry in fs::read_dir(from).map_err(|e| io(from, e))? {
+        let entry = entry.map_err(|e| io(from, e))?;
+        let (source, destination) = (entry.path(), to.join(entry.file_name()));
+        let kind = entry.file_type().map_err(|e| io(&source, e))?;
+        if kind.is_symlink() {
+            let target = fs::read_link(&source).map_err(|e| io(&source, e))?;
+            std::os::unix::fs::symlink(target, &destination).map_err(|e| io(&destination, e))?;
+        } else if kind.is_dir() {
+            let mode = fs::metadata(&source)
+                .map_err(|e| io(&source, e))?
+                .permissions();
+            fs::create_dir(&destination).map_err(|e| io(&destination, e))?;
+            copy_tree(&source, &destination)?;
+            fs::set_permissions(&destination, mode).map_err(|e| io(&destination, e))?;
+        } else if kind.is_file() {
+            fs::copy(&source, &destination).map_err(|e| io(&source, e))?;
+        } else {
+            return Err(Error::Unsupported(source));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::testutil::bundle;
+
+    fn layout(dir: &TempDir) -> Layout {
+        Layout::new(
+            dir.path().join("home"),
+            dir.path().join("home/.local/share"),
+        )
+    }
+
+    #[test]
+    fn installs_a_bundle_without_permissions_with_no_consent_needed() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let source = bundle(dir.path(), "Tee", "com.example.t", "1.0.0", "");
+        let installed_path = install(&layout, &source, false).unwrap();
+        assert_eq!(installed_path, layout.applications().join("Tee.oma"));
+        assert!(source.exists(), "the original is left alone");
+        assert!(Bundle::open(&installed_path).is_ok());
+        assert_eq!(
+            grants::load(&layout, &"com.example.t".parse().unwrap()).unwrap(),
+            None,
+            "no record when nothing was asked"
+        );
+        assert_eq!(
+            find(&layout, &"com.example.t".parse().unwrap())
+                .unwrap()
+                .root(),
+            fs::canonicalize(&installed_path).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_bundle_that_asks_for_permissions_needs_consent() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let source = bundle(dir.path(), "Tee", "com.example.t", "1.0.0", "gpu = true");
+        let err = install(&layout, &source, false).unwrap_err();
+        assert!(
+            matches!(&err, Error::ConsentRequired(l) if l == &["Can use the graphics card directly"]),
+            "{err}"
+        );
+        assert!(
+            !layout.applications().join("Tee.oma").exists(),
+            "nothing is installed"
+        );
+        assert!(installed(&layout).is_empty());
+    }
+
+    #[test]
+    fn accepting_records_exactly_what_is_asked() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let source = bundle(
+            dir.path(),
+            "Tee",
+            "com.example.t",
+            "1.0.0",
+            "gpu = true\naudio = true",
+        );
+        install(&layout, &source, true).unwrap();
+        let id: Identifier = "com.example.t".parse().unwrap();
+        let granted = grants::load(&layout, &id).unwrap().unwrap();
+        assert!(granted.gpu && granted.audio && !granted.network);
+    }
+
+    #[test]
+    fn refuses_an_identifier_that_is_already_installed() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let first = bundle(&dir.path().join("a"), "Tee", "com.example.t", "1.0.0", "");
+        install(&layout, &first, false).unwrap();
+        let newer = bundle(
+            &dir.path().join("b"),
+            "Renamed",
+            "com.example.t",
+            "2.0.0",
+            "",
+        );
+        assert!(matches!(
+            install(&layout, &newer, false),
+            Err(Error::AlreadyInstalled { .. })
+        ));
+        assert!(!layout.applications().join("Renamed.oma").exists());
+    }
+
+    #[test]
+    fn refuses_a_different_application_with_the_same_name() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        install(
+            &layout,
+            &bundle(&dir.path().join("a"), "Tee", "com.example.one", "1.0.0", ""),
+            false,
+        )
+        .unwrap();
+        let other = bundle(&dir.path().join("b"), "Tee", "com.example.two", "1.0.0", "");
+        assert!(matches!(
+            install(&layout, &other, false),
+            Err(Error::Exists(_))
+        ));
+    }
+
+    #[test]
+    fn an_invalid_bundle_installs_nothing() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let source = bundle(dir.path(), "Tee", "com.example.t", "1.0.0", "");
+        fs::write(source.join("bin/app"), "#!/bin/sh\n").unwrap();
+        assert!(matches!(
+            install(&layout, &source, false),
+            Err(Error::Invalid(_))
+        ));
+        assert!(
+            !layout.applications().exists()
+                || fs::read_dir(layout.applications()).unwrap().count() == 0
+        );
+    }
+
+    #[test]
+    fn copies_resources_keeping_symlinks_and_modes() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let source = bundle(dir.path(), "Tee", "com.example.t", "1.0.0", "");
+        fs::create_dir_all(source.join("share/sub")).unwrap();
+        fs::write(source.join("share/sub/data.txt"), "x").unwrap();
+        symlink("data.txt", source.join("share/sub/link")).unwrap();
+        fs::set_permissions(
+            source.join("share/sub/data.txt"),
+            fs::Permissions::from_mode(0o640),
+        )
+        .unwrap();
+
+        let target = install(&layout, &source, false).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(target.join("share/sub/data.txt")).unwrap(),
+            "x"
+        );
+        assert_eq!(
+            fs::read_link(target.join("share/sub/link")).unwrap(),
+            Path::new("data.txt")
+        );
+        assert_eq!(
+            fs::metadata(target.join("share/sub/data.txt"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o640
+        );
+        assert_eq!(
+            fs::metadata(target.join("bin/app"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+    }
+
+    #[test]
+    fn leaves_no_staging_directory_behind() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        install(
+            &layout,
+            &bundle(dir.path(), "Tee", "com.example.t", "1.0.0", ""),
+            false,
+        )
+        .unwrap();
+        let names: Vec<_> = fs::read_dir(layout.applications())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["Tee.oma"]);
+    }
+}

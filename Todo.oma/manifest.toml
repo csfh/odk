@@ -1,0 +1,10 @@
+manifest_version = 1
+identifier = "com.example.todo"
+name = "Todo"
+version = "0.1.0"
+executable = "todo"
+
+# Only a window: the list is kept in the application's own data directory, which every
+# application has without asking.
+[permissions]
+gpu = true

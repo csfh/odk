@@ -1,0 +1,17 @@
+[package]
+name = "odk-db"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "A SQLite database handle for ODK applications (ADR 0049)"
+
+[dependencies]
+deps.workspace = true
+async-channel = "2"
+# `bundled`: ODK's own build of SQLite, the same on every machine (ADR 0049).
+rusqlite = { version = "0.41", features = ["bundled"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

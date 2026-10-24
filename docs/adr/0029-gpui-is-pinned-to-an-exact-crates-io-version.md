@@ -1,0 +1,9 @@
+# GPUI is pinned to an exact crates.io version
+
+GPUI is consumed from crates.io, not from a git commit of the Zed repository, and pinned with an exact requirement: `gpui = "=0.2.2"`, the latest release when this was decided. This amends ADR 0004, which said "a specific commit"; the rest of that ADR stands (the wrapper, the raw escape hatch, and the pin being a single workspace-level dependency). The pin is in the workspace `Cargo.toml` under `[workspace.dependencies]`, and `odk-ui` and `omagate` both take it from there.
+
+We chose a crates.io release over a git commit because builds then do not depend on GitHub or on cloning the Zed repository, and the version is easy to read and to bump. An exact `=` requirement, not `0.2`, because GPUI is pre-1.0 and breaking changes arrive in minor releases; a bump is always a deliberate change that we test. The cost is that a release can be older than the Zed repository, so a feature or fix on `main` is unavailable until a release carries it, and that the release shown was last updated in October 2025, so the pin may be well behind. If that blocks us, a new ADR can move to a git commit.
+
+## Consequences
+
+`gpui` 0.2.2 does not compile on Linux as published: it depends on `xattr` 0.2.3 through `zed-async-tar`, which uses `libc::ENOATTR`, a constant current `libc` no longer defines there, and no older `libc` works because other dependencies need a recent one. The workspace therefore patches `xattr` with a local copy that maps it to `ENODATA` (`patches/`). With the patch it builds and opens a Wayland window on the development machine (`spikes/gpui-window`). The patch is a maintenance item: it stays until a `gpui` release moves off the old `xattr`, and a git commit of Zed, which may already have, remains the alternative if patching becomes a burden.

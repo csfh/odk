@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Runs a program under a private, headless sway and takes a screenshot of its display.
+#
+#   tools/headless-shot [--size WxH] [--wait SECONDS] [--keys "KEY KEY ..."] OUT.png -- COMMAND...
+#
+# The compositor has no real outputs and no input devices, and it shares nothing with the
+# user's session: its own runtime directory (so its own Wayland and IPC sockets), no session
+# bus, no X display, and a bare config with nothing started from it. The program and grim see
+# only that display. CLAUDE.md, "Windows: headless only", is why this exists.
+#
+# --keys sends keys to the headless display with wtype, one at a time, after the wait; names
+# are wtype's (Tab, Return, Escape, Right, ...), and "sleep:0.5" pauses. A screenshot is taken
+# after the keys.
+set -euo pipefail
+
+size=1600x1000
+wait=3
+keys=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --size) size=$2; shift 2 ;;
+        --wait) wait=$2; shift 2 ;;
+        --keys) keys=$2; shift 2 ;;
+        --) shift; break ;;
+        -*) echo "unknown option $1" >&2; exit 2 ;;
+        *) out=$1; shift ;;
+    esac
+done
+[[ -n ${out:-} && $# -gt 0 ]] || { sed -n 4p "$0" >&2; exit 2; }
+command -v sway >/dev/null || { echo "sway is not installed (pacman -S sway)" >&2; exit 1; }
+
+runtime=$(mktemp -d /tmp/odk-headless.XXXXXX)
+chmod 700 "$runtime"
+config=$runtime/config
+cat >"$config" <<EOF
+xwayland disable
+default_border none
+output HEADLESS-1 resolution $size scale 1 position 0 0
+EOF
+
+# Everything that could point at the user's session is removed; nothing else changes.
+isolate=(env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS -u SWAYSOCK
+    -u HYPRLAND_INSTANCE_SIGNATURE -u XDG_SESSION_TYPE XDG_RUNTIME_DIR="$runtime")
+
+cleanup() {
+    [[ -n ${app:-} ]] && kill "$app" 2>/dev/null || true
+    [[ -n ${keyboard:-} ]] && kill "$keyboard" 2>/dev/null || true
+    [[ -n ${compositor:-} ]] && kill "$compositor" 2>/dev/null || true
+    wait 2>/dev/null || true
+    rm -rf "$runtime"
+}
+trap cleanup EXIT
+
+"${isolate[@]}" WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
+    sway --config "$config" >"$runtime/sway.log" 2>&1 &
+compositor=$!
+
+socket=""
+for _ in $(seq 50); do
+    socket=$(cd "$runtime" && ls wayland-* 2>/dev/null | grep -v lock | head -1 || true)
+    [[ -n $socket ]] && break
+    kill -0 "$compositor" 2>/dev/null || { cat "$runtime/sway.log" >&2; exit 1; }
+    sleep 0.1
+done
+[[ -n $socket ]] || { echo "headless sway did not start" >&2; cat "$runtime/sway.log" >&2; exit 1; }
+
+display=("${isolate[@]}" WAYLAND_DISPLAY="$socket")
+# A headless sway has no input devices, so its seat offers no keyboard and the program would
+# never bind one. A virtual keyboard that stays connected for the whole run (wtype sleeping
+# before a key it never gets to press) gives the seat one before the program starts; the
+# keys sent later reach the program through it.
+"${display[@]}" wtype -s 3600000 -k F24 &
+keyboard=$!
+sleep 0.3
+"${display[@]}" "$@" >"$runtime/app.log" 2>&1 &
+app=$!
+sleep "$wait"
+kill -0 "$app" 2>/dev/null || { echo "the program exited early:" >&2; cat "$runtime/app.log" >&2; exit 1; }
+
+for key in $keys; do
+    case $key in
+        sleep:*) sleep "${key#sleep:}" ;;
+        *) "${display[@]}" wtype -k "$key"; sleep 0.15 ;;
+    esac
+done
+[[ -n $keys ]] && sleep 0.5
+
+"${display[@]}" grim "$out"
+echo "$out"

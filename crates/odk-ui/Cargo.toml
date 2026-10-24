@@ -1,0 +1,42 @@
+[package]
+name = "odk-ui"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "ODK's UI components, built on GPUI and following the Omarchy theme"
+
+[features]
+# What the benchmarks need of the library: a window on GPUI's test platform and a sample of every
+# component (`test_support`, `samples`). Not for applications.
+test-support = ["gpui/test-support"]
+
+[dependencies]
+deps.workspace = true
+async-channel = "2"
+gpui.workspace = true
+log = "0.4"
+# The same font-kit GPUI uses on Linux, to resolve fontconfig's `monospace` alias (GPUI's own
+# lookup does not apply aliases; docs/checks.md).
+font-kit = { package = "zed-font-kit", version = "=0.14.1-zed", features = ["source-fontconfig-dlopen"] }
+odk-a11y.workspace = true
+odk-theme.workspace = true
+# Grapheme and word boundaries for the text input (ADR 0038); GPUI already builds it through
+# cosmic-text.
+unicode-segmentation = "1"
+
+[dev-dependencies]
+# GPUI's headless test platform, for the checklist tests (docs/spec/component-checklist.md).
+gpui = { workspace = true, features = ["test-support"] }
+# Temporary theme directories for the theme tests.
+tempfile = "3"
+# Benchmarks of every component's frame, on GPUI's test platform (`benches/`, `cargo bench`).
+divan = "0.1"
+
+# The library again, with the test window and the samples the benchmarks draw, so a plain
+# `cargo bench -p odk-ui` has them.
+odk-ui = { workspace = true, features = ["test-support"] }
+
+[[bench]]
+name = "frame"
+harness = false

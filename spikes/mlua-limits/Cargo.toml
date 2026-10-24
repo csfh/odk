@@ -1,0 +1,7 @@
+[package]
+name = "mlua-limits"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mlua = { version = "0.12.2", features = ["luau"] }

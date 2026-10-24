@@ -1,0 +1,10 @@
+[package]
+name = "odk-a11y"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "ODK's accessibility hook: the role and name each component reports"
+
+[dependencies]
+deps.workspace = true

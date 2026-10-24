@@ -1,0 +1,33 @@
+[workspace]
+resolver = "3"
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/oma-consent", "crates/deps", "examples/hello", "examples/gallery", "examples/todo"]
+exclude = ["spikes"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+
+[workspace.dependencies]
+odk = { path = "crates/odk" }
+odk-theme = { path = "crates/odk-theme" }
+odk-a11y = { path = "crates/odk-a11y" }
+odk-ui = { path = "crates/odk-ui" }
+odk-db = { path = "crates/odk-db" }
+deps = { path = "crates/deps" }
+# Exact pin, ADR 0029. Bump deliberately and test; GPUI breaks in minor releases.
+gpui = "=0.2.2"
+
+# GPUI, taffy and the text stack do all of a frame's layout and painting. Unoptimised they are an
+# order of magnitude slower, which made `cargo run -p gallery` unusable (docs/checks.md, "Frame cost").
+# Dependencies are compiled once and then cached, so only the first build pays for it; the
+# workspace's own crates stay at opt-level 1 for fast rebuilds and still-readable backtraces.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# gpui 0.2.2 does not compile on Linux without this; see patches/README.md and ADR 0029.
+[patch.crates-io]
+xattr = { path = "patches/xattr" }

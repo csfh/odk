@@ -1,0 +1,82 @@
+# Release readiness
+
+Where ODK stands for a first release, as of 2026-10-24 (Phase 12), on the development machine (Arch Linux, Hyprland, GPUI 0.2.2, Rust 1.96). Every claim below names how it was checked; a check that did not run says so. Not normative: the ADRs, specs and `docs/spec/component-checklist.md` are.
+
+**Verdict: conditionally ready for a first pre-1.0 release; not production-ready.** Nothing found is a blocker. One High item is open, and it is not ODK's to close (GPUI 0.2.2 has no accessibility tree), and four conditions wait on the user (below). By the criteria in this document, a High item open means "production-ready" cannot be said, so it is not said.
+
+## Criteria and evidence
+
+| Criterion | State | Evidence |
+|---|---|---|
+| Compiles | Passed | `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`: no warnings; `cargo fmt --check`; `tools/check-deps` prints nothing |
+| Automated tests pass | Passed | `cargo test --workspace`: 915 passed, 0 failed, 3 ignored (two print-only reports and the timings printout), after the reduced-motion, database and Todo work |
+| Architecture checks | Passed | `checklist/source.rs`: item 1 (colour literals), 2 (unnamed numbers), 34 (component files draw component tokens only), 40 (no palette, colour maths or snapshot read outside the theme layers, any file), 41 (no timing literal or named corner), 42 (process-wide state is the theme store and a listed few). Items 40 to 42 and the widened item 1 were each broken once by hand and seen to fail |
+| Stable theme loading | Passed | `odk-theme/tests/themes.rs` (11), `switching.rs` (20); the six required fixtures (Tokyo Night, Nord, Catppuccin Mocha, Catppuccin Latte, Vantablack, an incomplete custom theme, and a malformed one), the 22 stock themes installed in `/usr/share/omarchy/themes`, and the emergency palette |
+| Live theme switching | Passed | `switching.rs`: valid switches publish once, an unchanged reload publishes nothing, a malformed or unresolvable theme keeps the last good one, a reload mid-switch fails quietly and the next succeeds; `odk-ui` `theme.rs` and `checklist/{forms,overlays,toast,navigation,button}.rs`: a theme change reaches views on the next frame and keeps values, focus, open overlays and toast deadlines |
+| Valid component tokens | Passed | `components.rs`: every theme passes every component check (over 500 style rows each, composited over every surface); new `theme_by_density_by_radius_matrix`: six themes by three densities by both radii by eight variants by five states, naming theme, density, radius, component and state on failure |
+| Contrast | Passed | Text 4.5:1 and indicators and focus rings 3:1 on drawn (composited) colours, in every theme above; `semantic.rs` (25) |
+| Resolver | Passed | Regular and bright candidates judged by what they are (Tokyo Night's warning, `semantic.rs`), identical regular and bright handled, monochrome themes stay monochrome, deterministic, overrides never switch contrast off, failures are errors |
+| Keyboard | Passed on GPUI's test platform | `checklist/*` (Tab stops, arrows, Enter, Space, Escape, focus return, menu typeahead, dialog containment), `interaction.rs` (one activation, one callback). Keyboard-only use in a real session is a hand check (below) |
+| No known critical rendering defect | Passed, headless | 12 screenshots inspected (below); no defect seen |
+| No theme-specific hard-coded styling | Passed | Item 1 and 40; the legacy-styling sweep found no colour literal, no literal rectangular radius and no motion timing in components |
+| Migration documentation | Done | `docs/migration.md` (its "after" code is compiled by `crates/odk/tests/migration.rs`), `CHANGELOG.md` |
+| Gallery updated | Done | 19 pages; reads `GALLERY_DENSITY`, `GALLERY_CORNERS`, `GALLERY_MOTION` as well as page and theme |
+| API compatibility documented | Done | `docs/migration.md`, `docs/spec/odk-theme-tokens.md` (table of removed names), ADR 0047 |
+| Reproducible visual procedure | Done | `tools/visual-scenarios`, `docs/gallery.md`. Not a pixel-diff gate: see Medium below |
+| Idle cost | Passed | `tools/idle-cpu --all` on the release gallery, run twice (before and after the Phase 12 gallery changes): 19 pages, 0.2% to 0.6% idle, 4.8% and 5.8% on `buttons` and `fields` (a spinner in view; ceiling 8%) |
+| Dependencies and security | Partly | Manifests read and every dependency traced to a use: none unused, no test-only crate in a library's `[dependencies]`, one colour implementation (in-house), one watcher. Since the first version of this table `odk-db` added `rusqlite` with a bundled SQLite, the workspace's first C dependency (`libsqlite3-sys`, built by `cc`), and its feature bookkeeping in `crates/deps`. `cargo audit`, `cargo deny`, `cargo udeps` and `cargo machete` are **not installed**, so no advisory check and no tool-assisted unused check ran |
+
+## What was inspected by eye
+
+Headless only, through `tools/headless-shot` (CLAUDE.md forbids a window on the user's desktop), at 1600 by 1000, in the development machine's fonts and text size (the user's text size here is 14 px, 14/12 of Omarchy's default 12 px, so controls of 28, 34 and 40 px are 33, 40 and 47 px in these shots; the unit tests assert 28, 34 and 40 at the default size). Opened and looked at: Tokyo Night buttons; Vantablack form and overlays; Catppuccin Latte feedback; Catppuccin Mocha form; Nord overlays and an open File menu (opened from the keyboard); the incomplete custom theme's buttons; Tokyo Night buttons at compact density with square corners; text fields at comfortable density; keyboard focus on the first button and on the toolbar. Seen: monochrome Vantablack with focus, invalid and checked states readable without hue; the light themes' surface separation and text; a danger edge and a `!` mark on invalid fields; the 2 px ring outside the control with a gap and no layout shift; compact and comfortable heights consistent across buttons, fields and the selector; square corners at 0 and subtle at 2 px.
+
+Generated but not opened: the rest of the 46 screenshots (for example Nord and Latte buttons, the geometry sets for navigation, the reduced-motion page). Hover, pressed and loading under a real pointer were **not** exercised visually; they are asserted in tests only. Whether 2 px reads as a corner on a real display at scale 1 is ADR 0042's own measurement.
+
+## Measured
+
+| What | Result | How |
+|---|---|---|
+| Whole theme change, off the UI thread (parse, resolve, component tokens, snapshot) | 0.4 to 2.3 ms; resolution is the cost (0.3 to 2.2 ms, light themes more), component tokens 0.1 ms, parsing 0.007 ms | `cargo test --release -p odk-theme --test components print_timings -- --ignored --nocapture`, mean of 200 |
+| A density or radius change | about 0.05 µs: a swap of the foundation under the same colours; nothing resolves again (asserted by pointer equality in the matrix test) | same |
+| One component's frame | 35 µs (Toast) to 1.5 ms (Kbd), median; a page of every component 54 ms; the slowest single sample 3.6 ms (Input) | `cargo bench -p odk-ui`, GPUI's test platform, whose text shaping is a stand-in: a floor to compare changes against, not a frame time |
+| One gallery page drawn (navigation between pages) | 0.7 to 2.3 ms median over the 19 pages, the same with worst-case content | `cargo bench -p gallery`, same stand-in text shaping |
+| The gallery idle | above | `tools/idle-cpu --all` |
+| Memory, overlay opening on a real renderer, theme-watch latency | **Not measured** | |
+
+No performance improvement is claimed: Phase 12 changed no drawing code. Drawing reads the store and never parses a file or resolves a colour (items 3, 40 and the sweeps), and an unchanged theme publishes nothing.
+
+## Defects found and fixed in Phase 12
+
+- `Toast::timeout(Duration::MAX)` overflowed `Instant` and panicked: now a toast that stays (test first, failed, then fixed).
+- `NumberInput::value(NaN or infinity)` showed `NaN` or `inf`; a NaN `min` or `max` was silently ignored; 400 digits parsed to infinity: each is now empty, ignored, or kept as typed.
+- The resolver had one `expect` on a label that is true by construction (every pick from `fill_judge` has one) but was reachable from a theme file in principle: now a `ResolveError`.
+- `Skeleton::block` took any `f32`: negative and non-finite sizes are zero.
+- Stale documents (the removed `Variant`, legacy tokens and `From` impls described in present tense) corrected; the gallery's buttons page read the palette for a label and now reads the semantic layer.
+
+## Open issues
+
+| Severity | Issue | Recommended resolution |
+|---|---|---|
+| **High** | No accessibility tree: GPUI 0.2.2 has no AccessKit or platform bridge, so a screen reader cannot read an ODK window. ODK reports roles and states through `odk_a11y::Describe` and tests keyboard, focus, contrast, motion and not relying on colour alone (`docs/accessibility.md`) | Not ODK's to fix. Say it in the release notes (done); revisit when GPUI gains a tree; ADR 0036 keeps the hook ready |
+| Medium | ADR 0047 (legacy tokens removed, `shell.toml` not a colour source), ADR 0046 (reduced motion, now amended) and ADR 0048 (reduced motion is Hyprland's `animations:enabled`) are *proposed* | The user confirms or amends; each was built on the user's instruction |
+| Medium | Reduced motion from Hyprland was verified only against fake sockets: no `hyprctl reload` or `keyword` was run against the session, so a real change reaching a running application, and that editing `looknfeel.lua` emits `configreloaded` on this Hyprland, are not exercised. Reconnecting after a restart is tested against fake sockets that vanish and return as a new instance. A sandboxed application sees the setting as of its launch or the last `oma omarchy sync`; `hyprctl keyword` changes are seen only at the next reload | A hand check: switch Hyprland's animations off in `looknfeel.lua` with the gallery open under a real session |
+| Medium | Hand checks the user left for themselves (`TODO.md` section 3: hover, press and focus ring under a real pointer on `Select`, `Textarea`, `InputGroup`, `Command`) are not done | About two minutes each in the gallery |
+| Done | License | MIT (`LICENSE`), with the assignment CLA (`CLA.md`), `CONTRIBUTING.md` and `license = "MIT"` in the workspace manifest. Repository metadata (`repository`, `description`) is still not in any `Cargo.toml` |
+| Medium | `odk-db` (ADR 0049, *proposed*) is new and unreviewed by the user: `rusqlite` with a bundled SQLite, one connection on its own thread, migrations by `user_version`, no access for Plugins. It is tested on in-memory and temporary databases, and the sandbox with the system's `sqlite3`; ODK's own build was not run inside the sandbox, and `examples/todo` was run only headless, never under `oma run` | The user confirms or changes the choices in the ADR; a hand run of `Todo.oma` under `oma run` |
+| Medium | No advisory or unused-dependency tool installed, so `cargo audit` and friends did not run | `cargo install cargo-audit cargo-machete`, run in CI; transitive duplicates exist (`thiserror` 1 and 2, `rustix` 0.38 and 1, `toml` 0.8, 0.9 and 1, `winnow`, `async-channel` 1 and 2) and come from GPUI's tree, not ours |
+| Medium | Visual regression is by eye on one machine, not a pixel or perceptual diff gate | `tools/visual-scenarios` makes the shots repeatable; a diff gate needs a baseline per machine and font set. Add when CI exists |
+| Medium | Provisional values: `Size` as a density step, `focus_offset`, `thumb_gap`, the loading cycle, a status dot's 8 px, a progress bar's 4 px (the specs list them under "Open questions") | The user settles them in the gallery |
+| Low | The system monospace font is resolved by `fc-match` synchronously at the first monospace draw (7 ms warm; cold not measured) | Seed it off the UI thread in `follow` if a cold start shows it |
+| Low | A theme file written more often than every 150 ms starves the watcher's callback; theme and shell files are read with no size cap; `Shells` in `app.rs` is not pruned for windows that never show a toast | Each is a one-line change when a reason appears |
+| Low | `Alert::variant` and `Toast::variant` take a `Tone` while `Button::variant` takes a `ButtonVariant`: one name, two meanings | Rename in a breaking change before 1.0, with the others |
+| Low | `group_hover` and `group_active` in `switch.rs`, `radio.rs` and `menu_list.rs` bypass `interaction.rs`'s helper (child reacts to parent; colours are component tokens); two widths of 336 px (`toast.rs`, `hover_card.rs`) | Listed as exceptions in `docs/contributing-components.md`; unify only with a group variant in `interaction.rs` |
+| Low | The theme store is process-wide: real components in two themes at once are not possible (the gallery compares as tokens) | Scoping it is a change to every component's lookup (`docs/checks.md`) |
+| Deferred | A stand-alone `Combobox`, `Pagination`, drag-based components, virtualised lists | Each needs its own design (`docs/spec/odk-ui-components.md`, `TODO.md`) |
+| Deferred | OMA: `.desktop` registration, upgrades, `rollback`, `purge`, path units | `TODO.md` section 4 |
+
+## Where the brief and the repository differ
+
+- **Radius.** The brief says 0.8 px. ADR 0042 (accepted) made the subtle radius 2 px after a drawn 0.8 px corner could not be seen on a real renderer; the brief's other numbers (type roles, motion, density, borders, focus width) match `foundation.rs` and its tests. 0.8 px was not restored: it would contradict an accepted decision made on the user's instruction. GPUI draws a fractional radius as written; at scale 1 it loses about 2% of a corner pixel at 0.8 px and 40% at 2 px (`docs/checks.md`).
+- **Launching the gallery.** The brief asks to launch it on a desktop. CLAUDE.md forbids a window on the user's session; every look above went through the private headless compositor.
+- **Components.** The brief lists Combobox, Pagination and Link as components; they are deferred, deferred, and `ButtonVariant::Link`. Nothing was built to fill the list.
+- **Release.** No commit, tag, push or version was made or chosen; every crate stays 0.0.0 and the 117 files changed before this phase are uncommitted, as they were.

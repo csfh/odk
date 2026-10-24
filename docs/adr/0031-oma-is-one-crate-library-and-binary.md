@@ -1,0 +1,5 @@
+# `oma` is one crate, a library and the binary
+
+The OMA side is a single crate named `oma`. It is both a library and the `oma` binary, and the Bundle format (Manifest parsing, Bundle validation and the permission wording) is the module `oma::fmt`. This amends ADR 0013, which had a separate small format library so that tools such as Flea could read a Bundle without depending on the program that runs it, and ADR 0026, which named that library `oma-fmt`. We chose one crate because it matches how `odk::ui` and `odk::theme` read (ADR 0028), and because a second crate bought little while only `oma` used the format code.
+
+The cost is on the other consumers: Flea, or anything else that depends on `oma` to read a Bundle, builds the whole crate including the command-line and sandbox dependencies (`clap`, and later the Landlock, seccomp and namespace code). If that becomes a problem, Cargo features can gate the heavy parts, or the format can be split out again by a new ADR. The rest of ADR 0013 stands: one workspace, and the OMA and ODK crates never depend on each other.
