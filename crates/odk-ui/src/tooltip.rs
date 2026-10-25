@@ -32,6 +32,7 @@ pub struct Tooltip {
     trigger: AnyElement,
     placement: Placement,
     align: Align,
+    fill: bool,
 }
 
 impl Tooltip {
@@ -46,7 +47,15 @@ impl Tooltip {
             trigger: trigger.into_any_element(),
             placement: Placement::Top,
             align: Align::Start,
+            fill: false,
         }
+    }
+
+    /// The wrapper takes the parent's width. A truncation tooltip uses this so the control it
+    /// wraps stays as narrow as the slot it ellipsizes in.
+    pub(crate) fn fill_width(mut self) -> Self {
+        self.fill = true;
+        self
     }
 
     /// The side of the trigger it prefers; above by default.
@@ -79,6 +88,7 @@ impl RenderOnce for Tooltip {
                 tab_stop: false,
                 placement: self.placement,
                 align: self.align,
+                fill: self.fill,
                 transition: Transition::of(MotionDuration::Fast, MotionDuration::Exit),
                 panel: Box::new(move |window, _| {
                     let style = components().tooltip();

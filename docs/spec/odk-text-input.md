@@ -74,13 +74,13 @@ The history keeps each edit with the selection before and after it. A run of typ
 
 - A wrap belongs to the row after it: the offset where a row begins is drawn, clicked and moved to on that row. Rows wrap one caret width short of the box, so the caret after the last character of a full row stays inside it.
 - A selection is one box for each row it touches. A line break it covers is drawn `BREAK_EMS` (0.4 em, ODK's own) wide, so a selected empty line shows.
-- A `Textarea` wraps its placeholder; an `Input` truncates it.
+- A `Textarea` wraps its placeholder up to its row count and then ends in `…`; an `Input` truncates its placeholder, and an unfocused value that does not fit ends in `…` (focus scrolls).
 
 Everything below is the field's style from `components().field(...)` (or `textarea`), looked up once per render; nothing is a legacy token since 2026-10-23.
 
 - The caret is two border widths wide, in the style's caret colour (text primary), and steady: it does not blink. A blink would keep every focused field redrawing for nothing; it can be added later as a `motion` token that stops under reduced motion.
 - The selection is filled with the style's selection background (`surface.selection`), only while the field has focus, and the selected text is drawn in its foreground (`text.on_selection`), which the component checks hold to 4.5:1 on it.
-- Placeholder text is the style's placeholder colour (`text.placeholder`, `text.disabled` when disabled); a disabled field's text is the disabled treatment's. Text that is too long for a placeholder ends in `…` through `single_line` (`odk-ui-components.md`).
+- Placeholder text is the style's placeholder colour (`text.placeholder`, `text.disabled` when disabled); a disabled field's text is the disabled treatment's. Text that is too long for a placeholder ends in `…` through `truncate_end` (`odk-ui-components.md`, ADR 0058). An `Input` that is not focused paints the same ellipsis over a value that is wider than the box; focusing the field scrolls to the caret instead.
 - The box is the style's geometry (height, padding, corner radius, border width, `body` type) and its colours at rest, under hover and pressed, through `interaction.rs`'s `pointer_states`; a focused field has its focused edge in all three, and a wrong one its danger edge, so the pointer never hides them. Focus adds the ring of checklist 11 outside the box, `focus_offset` away, in `border.focus` or `border.danger`.
 - IME pre-edit text is underlined in the text colour, with the caret inside it where the IME puts it. The platform's candidate window is placed from `bounds_for_range`.
 

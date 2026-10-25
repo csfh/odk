@@ -9,7 +9,7 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::semantic;
 
 use crate::components;
-use crate::layout::{StyledExt, h_flex, single_line};
+use crate::layout::{StyledExt, h_flex, truncate_end};
 use crate::theme::colour;
 
 /// What a status indicator says about something: whether it is on, or how it went.
@@ -89,7 +89,7 @@ impl RenderOnce for StatusIndicator {
             .text_role(s.label_role)
             .text_color(colour(s.label))
             .child(dot)
-            .child(single_line(div().min_w_0().child(self.label)));
+            .child(truncate_end(div().min_w_0().child(self.label)));
         // As wide as its label, not stretched across a column.
         row.style().align_self = Some(gpui::AlignSelf::Start);
         row.max_w_full()

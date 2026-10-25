@@ -12,7 +12,7 @@ use odk_theme::component::States;
 
 use crate::focus::{child_id, part_name};
 use crate::interaction::RingTarget;
-use crate::layout::{StyledExt, h_flex, single_line, text_width};
+use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
 use crate::link::link;
 use crate::theme::colour;
 use crate::{DropdownMenu, MenuItem, components};
@@ -216,14 +216,14 @@ impl RenderOnce for Breadcrumb {
             // that is shorter, so a label shrinks to a stub that still says which step it is,
             // and never vanishes between two separators.
             let floor = text_width(window, &crumb.label, size).min(floor_cap);
-            let mut cell = single_line(div().debug_selector(|| part).min_w(floor));
+            let mut cell = truncate_end(div().debug_selector(|| part).min_w(floor));
             cell.style().flex_shrink = Some(shrink);
             match crumb.on_click.filter(|_| i != last) {
                 Some(handler) => {
                     let id = child_id(&self.id, format!("item-{i}"));
                     row = row.child(
                         cell.child(
-                            single_line(link(&id, crumb.label, &ring, window, cx))
+                            truncate_end(link(&id, crumb.label, &ring, window, cx))
                                 .on_click(move |_, w, cx| handler(w, cx)),
                         ),
                     );

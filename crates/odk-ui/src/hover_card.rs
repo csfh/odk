@@ -91,6 +91,8 @@ pub(crate) struct Hover {
     pub tab_stop: bool,
     pub placement: Placement,
     pub align: Align,
+    /// Take the parent's width, so a trigger that ellipsizes because it is width-bounded still is.
+    pub fill: bool,
     /// How long it takes to appear and to go.
     pub transition: Transition,
     /// The panel, styled and filled, built while it is shown.
@@ -163,6 +165,7 @@ pub(crate) fn render_hover(hover: Hover, window: &mut Window, cx: &mut App) -> A
         tab_stop,
         placement,
         align,
+        fill,
         transition,
         panel,
     } = hover;
@@ -218,8 +221,13 @@ pub(crate) fn render_hover(hover: Hover, window: &mut Window, cx: &mut App) -> A
             0.0,
         ));
     }
-    // As wide as its trigger, so only the trigger itself is hovered.
-    wrapper.style().align_self = Some(gpui::AlignSelf::Start);
+    if fill {
+        // As wide as the parent, so a bounded control inside still has that bound.
+        wrapper = wrapper.w_full().min_w_0();
+    } else {
+        // As wide as its trigger, so only the trigger itself is hovered.
+        wrapper.style().align_self = Some(gpui::AlignSelf::Start);
+    }
     wrapper
         .child(trigger)
         .child(bounds_probe(px(0.0), move |bounds, cx| {
@@ -240,6 +248,7 @@ impl RenderOnce for HoverCard {
                 tab_stop: true,
                 placement: self.placement,
                 align: self.align,
+                fill: false,
                 transition: Transition::of(MotionDuration::Normal, MotionDuration::Exit),
                 panel: Box::new(move |window, cx| {
                     let style = components().popover();

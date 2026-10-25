@@ -11,6 +11,7 @@ use gpui::{
 };
 use odk_a11y::{Accessible, Describe, Role};
 
+use crate::decoration::{Applied, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, part_name};
 use crate::interaction::{RingTarget, focus_ring};
 use crate::layout::bounds_probe;
@@ -51,6 +52,7 @@ pub struct ContextMenu {
     trigger: AnyElement,
     menu: Option<MenuBuilder>,
     focusable: bool,
+    applied: Applied,
 }
 
 impl ContextMenu {
@@ -67,7 +69,15 @@ impl ContextMenu {
             trigger: trigger.into_any_element(),
             menu: None,
             focusable: true,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a size decoration. A menu grows to its longest label up to the window;
+    /// [`crate::FixedWidth`] sets that width instead (ADR 0058).
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     /// Builds the menu; it runs only while the menu is shown.
@@ -128,6 +138,7 @@ impl RenderOnce for ContextMenu {
             .unwrap_or_default();
         let how = Surface {
             fit: Fit::Flip,
+            size: self.applied.size(SizeMode::Autosize),
             ..Surface::menu(at, open, close, scroll)
         };
         let overlay = surface(&self.id, menu, how, window, cx);
@@ -171,6 +182,7 @@ pub struct DropdownMenu {
     label: SharedString,
     menu: Option<MenuBuilder>,
     trigger: Trigger,
+    applied: Applied,
 }
 
 /// How a dropdown's trigger looks.
@@ -193,7 +205,15 @@ impl DropdownMenu {
             label: label.into(),
             menu: None,
             trigger: Trigger::Button,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a size decoration. The menu grows to its longest label up to the window;
+    /// [`crate::FixedWidth`] sets that width instead (ADR 0058).
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     /// A dropdown whose trigger is drawn like a link, labelled `label` and named `name`, whose
@@ -257,6 +277,7 @@ impl RenderOnce for DropdownMenu {
             .unwrap_or_default();
         let how = Surface {
             fit: Fit::Below(b),
+            size: self.applied.size(SizeMode::Autosize),
             ..Surface::menu(at, open, close, scroll)
         };
         let overlay = surface(&self.id, menu, how, window, cx);

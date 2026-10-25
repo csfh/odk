@@ -21,12 +21,15 @@ use odk_theme::component::{MenuItemStyle, States};
 use odk_theme::foundation::{Density, MotionDuration, TypeRole};
 
 use crate::components;
+use crate::decoration::{FlowKind, SizeMode};
 use crate::focus::{
     Axis, FocusNext, FocusPrevious, child_id, focus_handle, move_focus, part_name, roving_target,
 };
 use crate::input::field_glyph;
 use crate::interaction::{Pointer, pointer_states};
-use crate::layout::{StyledExt, h_flex, inside_window, single_line, v_flex};
+use crate::layout::{
+    StyledExt, h_flex, inside_window, middle_ellipsis, tail, text_width, truncate_end, v_flex,
+};
 use crate::overlay::{Layer, Transition, dismiss_catcher, layer_over, lift};
 use crate::placement::{Align, Placement, place};
 use crate::select::{Typed, find, typed_char};
@@ -53,10 +56,7 @@ pub(crate) fn hint_text(
     group: &SharedString,
 ) -> Stateful<Div> {
     let (hover, pressed) = (colour(s.hint.hover), colour(s.hint.pressed));
-    let mut hint = div()
-        .id(id)
-        .flex_shrink_0()
-        .text_role(TypeRole::Mono)
+    let mut hint = tail(div().id(id).text_role(TypeRole::Mono))
         .text_color(colour(s.hint.default))
         .child(chord);
     if s.responds {
@@ -78,6 +78,7 @@ pub struct MenuItem {
     disabled: bool,
     danger: bool,
     on_select: Option<Action>,
+    flow: Option<FlowKind>,
 }
 
 impl MenuItem {
@@ -91,7 +92,23 @@ impl MenuItem {
             disabled: false,
             danger: false,
             on_select: None,
+            flow: None,
         }
+    }
+
+    /// Attaches a text decoration. A menu label ends in `…` once the menu is as wide as the
+    /// window allows; [`crate::MiddleEllipsis`] shortens the middle instead. [`crate::Wrap`] and
+    /// [`crate::Clamp`] stay one line, which is the end ellipsis. The accessible name stays the
+    /// full label.
+    pub fn decorate(mut self, decoration: impl crate::decoration::TextDecoration) -> Self {
+        let mut slot = crate::decoration::Applied::default();
+        decoration.apply_text(&mut slot);
+        let flow = slot.flow(FlowKind::End);
+        self.flow = Some(match flow {
+            FlowKind::Wrap | FlowKind::Clamp(_) => FlowKind::End,
+            other => other,
+        });
+        self
     }
 
     /// A key chord, such as `Ctrl+C`, shown at the end of the item as muted text. It only labels the
@@ -231,6 +248,8 @@ pub(crate) struct Surface {
     pub typeahead: Option<Typeahead>,
     /// The density of its items: a select's own, else the application's.
     pub density: Option<Density>,
+    /// How wide it is. Autosize grows to the longest label, then the window (ADR 0058).
+    pub size: SizeMode,
 }
 
 impl Surface {
@@ -247,6 +266,7 @@ impl Surface {
             scroll,
             typeahead: None,
             density: None,
+            size: SizeMode::Autosize,
         }
     }
 }
@@ -270,6 +290,7 @@ pub(crate) fn surface(
         scroll,
         typeahead,
         density,
+        size,
     } = how;
     let c = components();
     let f = c.foundation().clone();
@@ -352,14 +373,20 @@ pub(crate) fn surface(
         }
         _ => inside_window(viewport.height, margin),
     };
+    let cap = inside_window(viewport.width, margin);
+    let content = menu_content_width(&menu, density, &f, window);
+    let width = match size {
+        SizeMode::Fixed(w) => px(w).min(cap),
+        SizeMode::Autosize => content.max(min_width).min(cap),
+    };
     let mut list = v_flex()
         .debug_selector(|| part_name(id, "menu"))
         .id(child_id(id, "menu"))
         .track_focus(&frame.content)
-        .min_w(min_width)
-        // Never larger than the window; long labels end in `…` instead, and too many entries
+        .w(width)
+        .max_w(cap)
+        // Long labels end in `…` once the menu has reached the window, and too many entries
         // scroll.
-        .max_w(inside_window(viewport.width, margin))
         .max_h(max_h)
         .overflow_y_scroll()
         .track_scroll(&scroll)
@@ -421,7 +448,7 @@ pub(crate) fn surface(
                         .pb(px(f.spacing.s1))
                         .text_role(TypeRole::Small)
                         .text_color(colour(m.heading))
-                        .child(single_line(div().child(label))),
+                        .child(truncate_end(div().child(label))),
                 );
                 continue;
             }
@@ -438,6 +465,17 @@ pub(crate) fn surface(
         let ig = s.geometry;
         #[cfg(test)]
         drawn::record(&part_name(id, &format!("row-{i}")), s);
+        let flow = item.flow.unwrap_or(FlowKind::End);
+        let full_label = item.label.clone();
+        let display_label = if flow == FlowKind::Middle {
+            let budget = label_budget(width, &item, &ig, &f, window);
+            let label_size = px(ig_type_size(&ig, &f));
+            SharedString::from(middle_ellipsis(&full_label, |sample| {
+                text_width(window, &SharedString::from(sample.to_owned()), label_size) <= budget
+            }))
+        } else {
+            full_label.clone()
+        };
         let mut row = h_flex()
             .group(format!("row-{i}"))
             .id(child_id(id, format!("row-{i}")))
@@ -469,13 +507,15 @@ pub(crate) fn surface(
                     .font_family(mono())
                     .child(glyph)
             }))
-            .child(single_line(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .debug_selector(|| part_name(id, &format!("label-{i}")))
-                    .child(item.label),
-            ))
+            .child({
+                truncate_end(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .debug_selector(|| part_name(id, &format!("label-{i}")))
+                        .child(display_label),
+                )
+            })
             .children(item.hint.map(|h| {
                 hint_text(
                     child_id(id, format!("hint-{i}")),
@@ -537,6 +577,80 @@ pub(crate) fn surface(
             .child(menu)
             .into_any_element(),
     )
+}
+
+/// How wide the menu must be to show every label, including its padding, border and hints.
+fn menu_content_width(
+    menu: &Menu,
+    density: Density,
+    f: &odk_theme::foundation::FoundationTokens,
+    window: &Window,
+) -> Pixels {
+    let c = components();
+    let g = c.menu().geometry;
+    let ig = c.menu_item(density, States::NONE, false).geometry;
+    let label_size = px(f.typography.style(ig.type_role).size);
+    let hint_size = px(f.typography.style(TypeRole::Mono).size);
+    let small = px(f.typography.style(TypeRole::Small).size);
+    let mut widest = px(0.0);
+    for entry in &menu.entries {
+        let w = match entry {
+            Entry::Separator => px(0.0),
+            Entry::Heading(label) => {
+                text_width(window, label, small) + both_sides(px(ig.padding_x))
+            }
+            Entry::Item(item) => item_row_width(item, &ig, label_size, hint_size, window),
+        };
+        widest = widest.max(w);
+    }
+    widest + both_sides(px(g.border_width)) + both_sides(px(g.padding_x))
+}
+
+fn item_row_width(
+    item: &MenuItem,
+    ig: &odk_theme::component::ControlGeometry,
+    label_size: Pixels,
+    hint_size: Pixels,
+    window: &Window,
+) -> Pixels {
+    let mut w = both_sides(px(ig.padding_x)) + px(ig.icon_size) + px(ig.gap);
+    w += text_width(window, &item.label, label_size);
+    if item.icon.is_some() {
+        w += px(ig.icon_size) + px(ig.gap);
+    }
+    if let Some(h) = &item.hint {
+        w += px(ig.gap) + text_width(window, h, hint_size);
+    }
+    w
+}
+
+/// The room a label has inside a menu of `menu_width`.
+fn label_budget(
+    menu_width: Pixels,
+    item: &MenuItem,
+    ig: &odk_theme::component::ControlGeometry,
+    f: &odk_theme::foundation::FoundationTokens,
+    window: &Window,
+) -> Pixels {
+    let g = components().menu().geometry;
+    let label_size = px(f.typography.style(ig.type_role).size);
+    let hint_size = px(f.typography.style(TypeRole::Mono).size);
+    let row = item_row_width(item, ig, label_size, hint_size, window);
+    let label = text_width(window, &item.label, label_size);
+    let chrome = row - label + both_sides(px(g.border_width)) + both_sides(px(g.padding_x));
+    (menu_width - chrome).max(px(0.0))
+}
+
+/// Padding or a border on both sides, without a bare `* 2` in a size (checklist item 2).
+fn both_sides(length: Pixels) -> Pixels {
+    length + length
+}
+
+fn ig_type_size(
+    ig: &odk_theme::component::ControlGeometry,
+    f: &odk_theme::foundation::FoundationTokens,
+) -> f32 {
+    f.typography.style(ig.type_role).size
 }
 
 /// What each list item drew on its last frame, for tests: its style, by the row's part name.

@@ -8,6 +8,7 @@ use odk_a11y::{Accessible, Describe, Role};
 
 use odk_theme::foundation::MotionDuration;
 
+use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, part_name};
 use crate::layout::{StyledExt, h_flex, inside_window, v_flex};
 use crate::overlay::{Action, Dismiss, Transition, layer_over, modal, modal_header};
@@ -51,6 +52,7 @@ pub struct Dialog {
     close_on_escape: bool,
     close_on_backdrop: bool,
     close_button: bool,
+    applied: Applied,
 }
 
 impl Dialog {
@@ -66,7 +68,17 @@ impl Dialog {
             close_on_escape: true,
             close_on_backdrop: true,
             close_button: true,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a decoration. The title wraps for three lines and then ends in `…`; [`crate::Wrap`]
+    /// lifts that cap and [`crate::Clamp`] sets another. The panel is [`DIALOG_WIDTH`] wide;
+    /// [`crate::Autosize`] scales that width with the text size, and [`crate::FixedWidth`] sets
+    /// another, both capped at the window (ADR 0058). A later decoration of the same concern wins.
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     pub fn open(mut self, open: bool) -> Self {
@@ -200,8 +212,14 @@ impl RenderOnce for Dialog {
             .id(child_id(&self.id, "panel"))
             .debug_selector(|| part_name(&self.id, "panel"))
             .relative()
-            // Never larger than the window, less a margin on every side.
-            .w(px(DIALOG_WIDTH).min(inside_window(viewport.width, margin)))
+            // Never larger than the window, less a margin on every side. Fixed unless Autosize
+            // (ADR 0058, amending ADR 0043).
+            .w(decoration::sized_width(
+                DIALOG_WIDTH,
+                self.applied.size(SizeMode::Fixed(DIALOG_WIDTH)),
+                f.text_scale.factor(),
+                inside_window(viewport.width, margin),
+            ))
             .max_h(inside_window(viewport.height, margin))
             .treatment(&style.surface)
             .border(px(g.border_width))
@@ -220,6 +238,7 @@ impl RenderOnce for Dialog {
                         title,
                         self.close_button,
                         close.clone(),
+                        self.applied.flow(FlowKind::Clamp(3)),
                     ))
                     .children(description.map(|d| Text::new(d).muted())),
             )

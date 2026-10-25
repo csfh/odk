@@ -12,7 +12,7 @@ use odk_theme::foundation::Density;
 use crate::button::Size;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::input::field_box;
-use crate::layout::single_line;
+use crate::layout::truncate_end;
 use crate::theme::colour;
 use crate::{Button, Input, components};
 
@@ -196,7 +196,7 @@ impl RenderOnce for InputGroup {
         // A press on the text around the field puts focus in it, as a label would.
         let addon = |name: &str, text: SharedString| {
             let focus = focus.clone();
-            single_line(
+            truncate_end(
                 div()
                     .debug_selector(|| part_name(&self.id, name))
                     .min_w_0()

@@ -36,11 +36,7 @@ impl Render for TypographyPage {
             roles = roles.child(
                 v_flex()
                     .gap(Space::Xs)
-                    .child(
-                        div()
-                            .text_role(role)
-                            .child("The quick brown fox jumps over the lazy dog"),
-                    )
+                    .child(Text::new("The quick brown fox jumps over the lazy dog").role(role))
                     .child(
                         Text::new(format!(
                             "type.{} · {family} · {} px / {} px · {} · letter spacing {} px",
@@ -83,16 +79,8 @@ impl Render for TypographyPage {
                     .p(Space::Md)
                     .bg(odk::gpui::rgba(fill.to_rgba_u32()))
                     .text_color(odk::gpui::rgba(ink.to_rgba_u32()))
-                    .child(
-                        div()
-                            .text_role(TypeRole::Body)
-                            .child(format!("Body text on {name}")),
-                    )
-                    .child(
-                        div()
-                            .text_role(TypeRole::Caption)
-                            .child("A caption beneath it"),
-                    ),
+                    .child(Text::new(format!("Body text on {name}")).role(TypeRole::Body))
+                    .child(Text::new("A caption beneath it").role(TypeRole::Caption)),
             );
         }
 
@@ -116,18 +104,26 @@ impl Render for TypographyPage {
                         .child(div().max_w(px(360.0)).child(Text::new("Long lines wrap at the width they are given and keep the role's line height, so a paragraph in a narrow panel is as legible as one in a wide window. Nothing here is clipped.")))
                         .child(group("Truncates to one line"))
                         .child(
-                            div()
-                                .w(px(220.0))
-                                .overflow_hidden()
-                                .line_clamp(1)
-                                .text_ellipsis()
-                                .child(Text::new("A file name that is much too long for its column.tar.gz")),
+                            div().w(px(220.0)).child(
+                                Text::new("A file name that is much too long for its column.tar.gz")
+                                    .decorate(EndEllipsis),
+                            ),
+                        )
+                        .child(group("Shortens the middle"))
+                        .child(
+                            div().w(px(220.0)).child(
+                                Text::new(
+                                    "https://example.com/users/ada/projects/odk/docs/adr/0058-truncation.md",
+                                )
+                                .decorate(MiddleEllipsis),
+                            ),
                         )
                         .child(group("Technical values"))
                         .child(
-                            div()
-                                .text_role(TypeRole::Mono)
-                                .child("0x7fff_ffff · #1e1e2e · 12.5px/18px · ~/.config/omarchy/shell.toml"),
+                            Text::new(
+                                "0x7fff_ffff · #1e1e2e · 12.5px/18px · ~/.config/omarchy/shell.toml",
+                            )
+                            .role(TypeRole::Mono),
                         )
                         .child(kv("Monospace family", t.family(FontFamily::Mono).unwrap_or("Omarchy's monospace font").to_owned())),
                 ),

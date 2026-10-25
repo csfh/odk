@@ -14,7 +14,7 @@ use odk_theme::foundation::{Density, TypeRole};
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
-use crate::layout::{StyledExt, single_line, v_flex};
+use crate::layout::{StyledExt, tail, truncate_end, v_flex};
 use crate::theme::{colour, mono};
 
 type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
@@ -274,7 +274,7 @@ impl RenderOnce for NavList {
         for entry in self.entries {
             let item = match entry {
                 Entry::Group(heading) => {
-                    let mut header = single_line(
+                    let mut header = truncate_end(
                         div()
                             .debug_selector(|| part_name(&self.id, &format!("group-{group_n}")))
                             .px(px(list.header_padding_x))
@@ -329,7 +329,7 @@ impl RenderOnce for NavList {
                         .child(glyph),
                 );
             }
-            row = row.child(single_line(
+            row = row.child(truncate_end(
                 div()
                     .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
                     .flex_1()
@@ -338,11 +338,12 @@ impl RenderOnce for NavList {
             ));
             if let Some(counter) = item.counter {
                 row = row.child(
-                    div()
-                        .debug_selector(|| part_name(&self.id, &format!("counter-{i}")))
-                        .flex_shrink_0()
-                        .text_role(TypeRole::Small)
-                        .child(counter),
+                    tail(
+                        div()
+                            .debug_selector(|| part_name(&self.id, &format!("counter-{i}")))
+                            .text_role(TypeRole::Small),
+                    )
+                    .child(counter),
                 );
             }
             if let Some(indicator) = s.indicator {

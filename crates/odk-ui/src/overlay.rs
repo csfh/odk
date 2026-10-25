@@ -559,16 +559,29 @@ impl Dismiss {
     }
 }
 
-/// The header of a modal overlay: its title, wrapping when long, beside a close button that
-/// keeps its place when `closable`.
+/// The header of a modal overlay: its title, beside a close button that keeps its place when
+/// `closable`. `flow` is how the title truncates; a dialog's default is three lines (ADR 0058).
 pub(crate) fn modal_header(
     id: &ElementId,
     title: SharedString,
     closable: bool,
     close: Action,
+    flow: crate::decoration::FlowKind,
 ) -> Div {
     let c = components();
     let gap = c.foundation().spacing.s3;
+    let heading = match flow {
+        crate::decoration::FlowKind::Wrap => Heading::new(title).level(2).decorate(crate::Wrap),
+        crate::decoration::FlowKind::End => {
+            Heading::new(title).level(2).decorate(crate::EndEllipsis)
+        }
+        crate::decoration::FlowKind::Middle => {
+            Heading::new(title).level(2).decorate(crate::MiddleEllipsis)
+        }
+        crate::decoration::FlowKind::Clamp(n) => {
+            Heading::new(title).level(2).decorate(crate::Clamp(n))
+        }
+    };
     h_flex()
         .items_start()
         .gap(px(gap))
@@ -577,7 +590,7 @@ pub(crate) fn modal_header(
                 .debug_selector(|| part_name(id, "title"))
                 .flex_1()
                 .min_w_0()
-                .child(Heading::new(title).level(2)),
+                .child(heading),
         )
         .children(closable.then(|| {
             Button::icon(child_id(id, "close"), "×", "Close")

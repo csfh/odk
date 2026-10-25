@@ -83,6 +83,10 @@ fn does_not_take_focus(cx: &mut TestAppContext) {
 fn reports_a_status_named_by_its_title() {
     let a = Toast::new("Saved").accessible();
     assert_eq!((a.role, a.name.as_str()), (Role::Status, "Saved"));
+    let described = Toast::new("Saved")
+        .description("notes.md was saved.")
+        .accessible();
+    assert_eq!(described.name, "Saved: notes.md was saved.");
 }
 
 /// A window opened with GPUI's own `open_window` has no toast host, so raising a toast there
@@ -355,6 +359,64 @@ fn the_pointer_over_a_toast_pauses_its_clock(cx: &mut TestAppContext) {
     );
     wait(cx, life() + exit() * 2);
     assert!(!shown(cx, id));
+}
+
+/// Identical on-screen toasts collapse to one card with a count, and expand when the pointer
+/// or the keyboard is on the stack. The clocks stay paused for the whole time it is expanded.
+#[gpui::test]
+fn identical_toasts_group_until_the_stack_is_hovered_or_focused(cx: &mut TestAppContext) {
+    let cx = page(cx);
+    let mut ids = Vec::new();
+    for _ in 0..3 {
+        ids.push(raise(cx, Toast::new("Saved").persistent()));
+    }
+    assert_eq!(crate::toast::drawn_cards::current().len(), 1, "one card");
+    assert!(cx.debug_bounds("odk-badge").is_some(), "the count is shown");
+    let at = part(cx, format!("odk-toast/card-{}", number(ids[2])))
+        .unwrap()
+        .center();
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    redraw(cx);
+    assert_eq!(
+        crate::toast::drawn_cards::current().len(),
+        3,
+        "hover expands each toast"
+    );
+    wait(cx, life() * 4);
+    assert!(shown(cx, ids[0]), "the clocks paused while expanded");
+    cx.simulate_mouse_move(gpui::point(px(2.0), px(2.0)), None, Modifiers::none());
+    redraw(cx);
+    assert_eq!(crate::toast::drawn_cards::current().len(), 1);
+    press(cx, "tab tab");
+    redraw(cx);
+    assert_eq!(
+        crate::toast::drawn_cards::current().len(),
+        3,
+        "focus expands the stack too"
+    );
+}
+
+/// A stack that is still too tall once it is open scrolls inside the window.
+#[gpui::test]
+fn an_expanded_stack_scrolls_inside_the_window(cx: &mut TestAppContext) {
+    let cx = page(cx);
+    cx.simulate_resize(size(px(400.0), px(220.0)));
+    for i in 0..6 {
+        raise(
+            cx,
+            Toast::new(format!("Notice {i}"))
+                .description("A second line so each card is taller than a title alone.")
+                .persistent(),
+        );
+    }
+    press(cx, "tab tab");
+    redraw(cx);
+    let stack = cx.debug_bounds("odk-toasts").unwrap();
+    let viewport = cx.update(|window, _| window.viewport_size());
+    assert!(
+        stack.size.height <= viewport.height,
+        "the stack scrolls instead of leaving the window: {stack:?} in {viewport:?}"
+    );
 }
 
 /// A theme change colours open toasts without restarting their clocks, closing them or taking

@@ -10,6 +10,7 @@ mod checkbox;
 #[cfg(test)]
 mod checklist;
 mod command;
+mod decoration;
 mod dialog;
 #[cfg(test)]
 mod drawn;
@@ -69,6 +70,9 @@ pub use breadcrumb::Breadcrumb;
 pub use button::{Button, Size};
 pub use checkbox::Checkbox;
 pub use command::{Command, CommandItem};
+pub use decoration::{
+    Applied, Autosize, Clamp, EndEllipsis, FixedWidth, FlowKind, MiddleEllipsis, SizeMode, Wrap,
+};
 pub use dialog::Dialog;
 pub use focus::{FocusNext, FocusPrevious, focused_component};
 pub use form_field::{FieldControl, Fielded, FormField, form};
@@ -76,7 +80,9 @@ pub use hover_card::HoverCard;
 pub use input::Input;
 pub use input_group::InputGroup;
 pub use kbd::Kbd;
-pub use layout::{Space, StyledExt, h_flex, root, v_flex};
+pub use layout::{
+    Space, StyledExt, h_flex, middle_ellipsis, root, truncate_end, truncate_lines, v_flex,
+};
 pub use menu::{ContextMenu, DropdownMenu, Menu, MenuItem};
 pub use nav_list::NavList;
 pub use number_input::NumberInput;
@@ -122,11 +128,13 @@ pub mod prelude {
     pub use gpui::{App, Context, Entity, SharedString, Window, WindowOptions, div};
 
     pub use crate::{
-        Alert, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Checkbox, Command,
-        CommandItem, ContextMenu, Density, Dialog, DropdownMenu, Emphasis, FormField, Heading,
-        HoverCard, Input, InputGroup, Kbd, Menu, MenuItem, NavList, NumberInput, PasswordInput,
-        Popover, Progress, RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton,
-        Space, Spinner, Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast,
-        ToggleGroup, Tone, Tooltip, form, h_flex, root, toast, v_flex,
+        Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Checkbox,
+        Clamp, Command, CommandItem, ContextMenu, Density, Dialog, DropdownMenu, Emphasis,
+        EndEllipsis, FixedWidth, FormField, Heading, HoverCard, Input, InputGroup, Kbd, Menu,
+        MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
+        RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, Space, Spinner,
+        Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone,
+        Tooltip, Wrap, form, h_flex, middle_ellipsis, root, toast, truncate_end, truncate_lines,
+        v_flex,
     };
 }

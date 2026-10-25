@@ -2,28 +2,32 @@
 //! (`docs/spec/odk-component-tokens.md`).
 
 use gpui::{
-    App, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
-    div, px,
+    App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
+    Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{BadgeAppearance, BadgeStyle, status_mark};
 use odk_theme::semantic::{self, Emphasis};
 
+use crate::decoration::{self, Applied, FlowKind, TextDecoration};
 use crate::layout::{StyledExt, h_flex};
 use crate::theme::mono;
 use crate::{Tone, components};
 
 /// A short label, such as a count or a state, in a small box: as high as its text, as wide as its
-/// label, never wrapped, with the application's corners. Any of the six Roles at any Emphasis,
-/// with or without an edge; every look has the same border, so a change of status never changes
-/// its size. A status is said by its label, and `marked` adds the Role's status mark so it reads
-/// without its colour, as in a monochrome theme.
+/// label until the parent is narrower, then one line ending in `…` (ADR 0058), with the
+/// application's corners. Any of the six Roles at any Emphasis, with or without an edge; every
+/// look has the same border, so a change of status never changes its size. A status is said by
+/// its label, and `marked` adds the Role's status mark so it reads without its colour, as in a
+/// monochrome theme. A truncated label shows the full text in a tooltip on hover; a badge is not
+/// a tab stop. Two badges with the same label share that measurement.
 #[derive(IntoElement)]
 pub struct Badge {
     label: SharedString,
     appearance: BadgeAppearance,
     icon: Option<SharedString>,
     marked: bool,
+    applied: Applied,
 }
 
 impl Badge {
@@ -34,7 +38,15 @@ impl Badge {
             appearance: BadgeAppearance::new(semantic::Role::Neutral, Emphasis::Muted),
             icon: None,
             marked: false,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a text decoration. The default is one line ending in `…` when the parent is
+    /// narrower than the label; [`crate::Wrap`] lets it wrap.
+    pub fn decorate(mut self, decoration: impl TextDecoration) -> Self {
+        decoration.apply_text(&mut self.applied);
+        self
     }
 
     /// A status badge: the tone's Role, muted.
@@ -106,15 +118,21 @@ impl Describe for Badge {
 }
 
 impl RenderOnce for Badge {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let s: BadgeStyle = components().badge(self.appearance);
         #[cfg(test)]
         crate::drawn::record(&format!("odk-badge/{}", self.label), s);
         let g = s.geometry;
+        let flow = self.applied.flow(FlowKind::End);
+        let id = ElementId::Name(SharedString::from(format!("odk-badge-{}", self.label)));
+        let size = px(components().foundation().typography.style(g.type_role).size);
+        let lines = decoration::flow_lines(flow).unwrap_or(1);
+        let (was, probe) =
+            decoration::truncation_probe(&id, self.label.clone(), size, lines, window, cx);
         let mut badge = h_flex()
             .debug_selector(|| "odk-badge".into())
-            .flex_shrink_0()
-            .whitespace_nowrap()
+            .max_w_full()
+            .min_w_0()
             .control_geometry(&g)
             .treatment(&s.colours);
         if let Some(glyph) = self.glyph() {
@@ -133,8 +151,13 @@ impl RenderOnce for Badge {
                     .child(glyph),
             );
         }
-        // As wide as its label, not stretched across a column.
+        // As wide as its label, not stretched across a column, until the column is narrower.
         badge.style().align_self = Some(gpui::AlignSelf::Start);
-        badge.child(self.label)
+        badge = badge.child(
+            decoration::apply_flow(div().min_w_0(), flow)
+                .child(self.label.clone())
+                .child(probe),
+        );
+        decoration::overflow_tooltip(&id, self.label, was && flow != FlowKind::Wrap, true, badge)
     }
 }

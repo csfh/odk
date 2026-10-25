@@ -12,9 +12,10 @@ use odk_theme::semantic::Emphasis;
 use odk_a11y::{Accessible, Describe, Role};
 
 use crate::components;
+use crate::decoration::{self, Applied, FlowKind, TextDecoration};
 use crate::focus::{child_id, focus_handle, part_name};
 use crate::interaction::{Pointer, focus_ring, pointer_states, progress};
-use crate::layout::{StyledExt, single_line};
+use crate::layout::StyledExt;
 use crate::spinner::Spinner;
 use crate::theme::mono;
 
@@ -80,6 +81,7 @@ pub struct Button {
     /// Takes no focus from the pointer, so a press leaves it where it was: a field's own
     /// buttons, which act on the field without taking its caret or selection.
     pub(crate) keeps_focus: bool,
+    applied: Applied,
 }
 
 impl Button {
@@ -102,7 +104,15 @@ impl Button {
             in_field: false,
             skip_tab: false,
             keeps_focus: false,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a text decoration. A later one of the same concern replaces the earlier. A button
+    /// ends in `…` when its width is bounded; [`crate::Wrap`] lets the label wrap instead.
+    pub fn decorate(mut self, decoration: impl TextDecoration) -> Self {
+        decoration.apply_text(&mut self.applied);
+        self
     }
 
     /// A button that is an icon alone: a square as wide as it is high. It has no text to be
@@ -382,13 +392,21 @@ impl RenderOnce for Button {
         if let Some(leading) = self.leading {
             face = face.child(icon(leading, "icon", true));
         }
+        let flow = self.applied.flow(FlowKind::End);
+        let mut clipped = false;
         if s.layout != ButtonLayout::IconOnly {
             let name = part_name(&self.id, "label");
             let shown = if spinner_on_icon { 1.0 } else { 1.0 - busy };
+            let size = px(components().foundation().typography.style(g.type_role).size);
+            let lines = decoration::flow_lines(flow).unwrap_or(1);
+            let (was, probe) =
+                decoration::truncation_probe(&self.id, self.label.clone(), size, lines, window, cx);
+            clipped = was && flow != FlowKind::Wrap;
             face = face.child(
-                single_line(div().debug_selector(|| name).min_w_0())
+                decoration::apply_flow(div().debug_selector(|| name).min_w_0(), flow)
                     .opacity(shown)
-                    .child(self.label),
+                    .child(self.label.clone())
+                    .child(probe),
             );
         }
         if let Some(trailing) = self.trailing {
@@ -444,7 +462,9 @@ impl RenderOnce for Button {
                 button = button.on_click(handler);
             }
         }
-        button
+        // The full label, only when the last frame measured it as truncated. The tooltip adds
+        // no tab stop; Describe above still reports the full label (ADR 0058).
+        decoration::overflow_tooltip(&self.id, self.label, clipped, self.full_width, button)
     }
 }
 

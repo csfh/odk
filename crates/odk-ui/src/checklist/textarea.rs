@@ -608,16 +608,16 @@ fn it_describes_itself_as_a_multiline_text_input(_: &mut TestAppContext) {
     );
 }
 
-/// The placeholder wraps inside the box while the field is empty: it takes several rows, and
-/// the box clips what does not fit.
+/// The placeholder wraps inside the box and then ends in `…` at the field's row count, so the
+/// text itself is not taller than the box (ADR 0058).
 #[gpui::test]
 fn the_placeholder_wraps_inside_the_box(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(160.0)).child(
-            Textarea::new("t", "Notes")
-                .rows(2)
-                .placeholder("Anzeigename für externe Bildschirme und Projektoren und mehr"),
-        )
+        v_flex()
+            .w(px(160.0))
+            .child(Textarea::new("t", "Notes").rows(2).placeholder(
+                "Anzeigename für externe Bildschirme und Projektoren und mehr und noch mehr Text",
+            ))
     });
     let field = box_bounds(cx);
     let text = cx
@@ -625,15 +625,14 @@ fn the_placeholder_wraps_inside_the_box(cx: &mut TestAppContext) {
         .expect("the placeholder is drawn while empty");
     let line = crate::input::drawn::last("t").geometry.line_height;
     assert!(
-        text.size.height > px(line * 2.5),
-        "it wrapped onto more rows than the box shows: {text:?}"
+        text.size.height > px(line + 1.0),
+        "it wrapped onto a second row: {text:?}"
+    );
+    assert!(
+        text.size.height <= field.size.height + px(1.0),
+        "and stops at the field's rows instead of being clipped past them: {text:?} in {field:?}"
     );
     assert!(text.left() >= field.left() && text.right() <= field.right());
-    let hint = cx.debug_bounds("t/placeholder").unwrap();
-    assert!(
-        hint.top() >= field.top() && hint.bottom() <= field.bottom(),
-        "and the box holds it to its rows: {hint:?} in {field:?}"
-    );
 }
 
 /// Selecting over rows paints a box for each row, and a line break the selection covers shows

@@ -9,6 +9,7 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::foundation::MotionDuration;
 
 use crate::components;
+use crate::decoration::{Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, part_name};
 use crate::layout::{StyledExt, v_flex};
 use crate::overlay::{Dismiss, Transition, docked, layer_over, modal, modal_header};
@@ -49,6 +50,7 @@ pub struct Sheet {
     modal: bool,
     close_on_escape: bool,
     close_on_backdrop: bool,
+    applied: Applied,
 }
 
 impl Sheet {
@@ -64,7 +66,16 @@ impl Sheet {
             modal: true,
             close_on_escape: true,
             close_on_backdrop: true,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a decoration. The title wraps for three lines and then ends in `…`; [`crate::Wrap`]
+    /// lifts that cap. The panel keeps [`Sheet::extent`] (or 400 px); [`crate::Autosize`] scales
+    /// that extent with the text size, and [`crate::FixedWidth`] replaces it (ADR 0058).
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     /// Whether it blocks the window behind it; true by default. A modal sheet dims the window,
@@ -166,9 +177,14 @@ impl RenderOnce for Sheet {
         let amount = f.motion.easing.apply(amount);
         // Keep what the sheet opened with until its exit has run: an application often clears
         // what chose the side, the title or the content as soon as it asks the sheet to close.
+        let base = self.extent.map(f32::from).unwrap_or(DEFAULT_EXTENT);
+        let extent = match self.applied.size(SizeMode::Fixed(base)) {
+            SizeMode::Fixed(w) => px(w),
+            SizeMode::Autosize => px(base * f.text_scale.factor()),
+        };
         let wanted = Shown {
             side: self.side,
-            extent: self.extent.unwrap_or(px(DEFAULT_EXTENT)),
+            extent,
             title: self.title,
             content: self.content,
         };
@@ -205,7 +221,13 @@ impl RenderOnce for Sheet {
             .px(px(g.padding_x))
             .py(px(g.padding_y))
             .treatment(&style.surface)
-            .child(modal_header(&self.id, title, true, close.clone()))
+            .child(modal_header(
+                &self.id,
+                title,
+                true,
+                close.clone(),
+                self.applied.flow(FlowKind::Clamp(3)),
+            ))
             .child(
                 crate::reveal::scrolling_body(
                     child_id(&self.id, "body"),

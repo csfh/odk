@@ -14,7 +14,7 @@ use odk_theme::foundation::Density;
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
-use crate::layout::{StyledExt, h_flex, single_line, text_width};
+use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
 use crate::theme::{colour, mono};
 
 type ChangeHandler = Rc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
@@ -317,7 +317,7 @@ impl RenderOnce for ToggleGroup {
                 );
             }
             if !icon_only {
-                option = option.child(single_line(
+                option = option.child(truncate_end(
                     div()
                         .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
                         .min_w_0()

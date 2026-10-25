@@ -12,10 +12,11 @@ use gpui::{
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 
+use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::input::Input;
 use crate::interaction::{Pointer, pointer_states};
-use crate::layout::{h_flex, inside_window, single_line, v_flex};
+use crate::layout::{h_flex, inside_window, middle_ellipsis, text_width, truncate_end, v_flex};
 use crate::menu_list::hint_text;
 use crate::overlay::{Action, Dismiss, Transition, layer_over, modal};
 use crate::theme::colour;
@@ -40,6 +41,7 @@ pub struct CommandItem {
     keywords: SharedString,
     disabled: bool,
     on_select: Option<Action>,
+    flow: Option<FlowKind>,
 }
 
 impl CommandItem {
@@ -50,7 +52,21 @@ impl CommandItem {
             keywords: SharedString::default(),
             disabled: false,
             on_select: None,
+            flow: None,
         }
+    }
+
+    /// Attaches a text decoration. A command stays on one line and ends in `…`;
+    /// [`crate::MiddleEllipsis`] shortens the middle instead. The accessible name stays the
+    /// full label (ADR 0058).
+    pub fn decorate(mut self, decoration: impl crate::decoration::TextDecoration) -> Self {
+        let mut slot = Applied::default();
+        decoration.apply_text(&mut slot);
+        self.flow = Some(match slot.flow(FlowKind::End) {
+            FlowKind::Wrap | FlowKind::Clamp(_) => FlowKind::End,
+            other => other,
+        });
+        self
     }
 
     /// A key chord, such as `Ctrl+C`, shown at the end of the item as muted text. It only labels the
@@ -146,6 +162,7 @@ pub struct Command {
     empty: SharedString,
     items: Vec<CommandItem>,
     on_close: Option<Action>,
+    applied: Applied,
 }
 
 impl Command {
@@ -159,7 +176,15 @@ impl Command {
             empty: "No results".into(),
             items: Vec::new(),
             on_close: None,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a size decoration. The panel is 560 px wide; [`crate::Autosize`] scales that
+    /// with the text size, and [`crate::FixedWidth`] sets another, both capped at the window.
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     pub fn open(mut self, open: bool) -> Self {
@@ -329,6 +354,15 @@ impl RenderOnce for Command {
             });
         input.focus = Some(field.clone());
 
+        let viewport = window.viewport_size();
+        let margin = px(f.spacing.s4);
+        let width = decoration::sized_width(
+            COMMAND_WIDTH,
+            self.applied.size(SizeMode::Fixed(COMMAND_WIDTH)),
+            f.text_scale.factor(),
+            inside_window(viewport.width, margin),
+        );
+
         // The rows are menu items on component tokens: the highlight is the keyboard's place,
         // apart from the pointer's hover. The panel around them is still the dialog's.
         let density = c.density(None);
@@ -350,13 +384,43 @@ impl RenderOnce for Command {
                     .px(px(g.padding_x))
                     .gap(px(g.gap))
                     .text_role(g.type_role)
-                    .child(single_line(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
-                            .child(item.label.clone()),
-                    ))
+                    .child({
+                        let label = item.label.clone();
+                        let shown = if item.flow == Some(FlowKind::Middle) {
+                            let hint = item.hint.as_ref().map(|h| {
+                                text_width(
+                                    window,
+                                    h,
+                                    px(f.typography
+                                        .style(odk_theme::foundation::TypeRole::Mono)
+                                        .size),
+                                )
+                            });
+                            let budget = (width
+                                - px(g.padding_x)
+                                - px(g.padding_x)
+                                - hint.unwrap_or(px(0.0))
+                                - px(g.gap))
+                            .max(px(0.0));
+                            let size = px(f.typography.style(g.type_role).size);
+                            let text = middle_ellipsis(&label, |sample| {
+                                text_width(window, &SharedString::from(sample.to_owned()), size)
+                                    <= budget
+                            });
+                            #[cfg(test)]
+                            shown_label::record(&part_name(&self.id, &format!("label-{i}")), &text);
+                            SharedString::from(text)
+                        } else {
+                            label
+                        };
+                        truncate_end(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
+                                .child(shown),
+                        )
+                    })
                     .children(item.hint.as_ref().map(|h| {
                         hint_text(
                             child_id(&self.id, format!("hint-{i}")),
@@ -397,8 +461,6 @@ impl RenderOnce for Command {
             .collect();
 
         let (key_state, key_scroll) = (state.clone(), scroll.clone());
-        let viewport = window.viewport_size();
-        let margin = px(f.spacing.s4);
         let style = c.command();
         let g = style.overlay.geometry;
         let list = div()
@@ -501,6 +563,24 @@ impl RenderOnce for Command {
             window,
             cx,
         )
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod shown_label {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    thread_local! {
+        static SHOWN: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    }
+
+    pub(crate) fn record(part: &str, text: &str) {
+        SHOWN.with(|s| s.borrow_mut().insert(part.to_owned(), text.to_owned()));
+    }
+
+    pub(crate) fn get(part: &str) -> Option<String> {
+        SHOWN.with(|s| s.borrow().get(part).cloned())
     }
 }
 

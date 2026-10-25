@@ -89,6 +89,10 @@ _Avoid_: focus (for an item), active item, cursor
 The mark drawn around a control while it has keyboard focus, outside the control and over whatever state it is in.
 _Avoid_: focus state, outline, focus border
 
+**Decoration**:
+A typed value attached to a component to change one behaviour and leave the rest at that component's default, the way a class changes an element (ADR 0057). Truncation is the first use: end ellipsis, wrap, a line cap, middle ellipsis, and whether an overlay grows with its text (ADR 0058).
+_Avoid_: class, variant (a variant is a look), style
+
 **Density**:
 How tightly an application packs its controls: compact, default or comfortable. It sets how high a control is and how much room its content has, never a colour; a control may have its own.
 _Avoid_: size (for the application's choice), scale, zoom
