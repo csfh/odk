@@ -46,3 +46,32 @@ event-listener-strategy = { version = "0.5", features = ["default", "std"] }
 quote = { version = "1", features = ["default", "proc-macro"] }
 proc-macro2 = { version = "1", features = ["default", "proc-macro"] }
 syn = { version = "3", features = ["clone-impls", "default", "derive", "extra-traits", "fold", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }
+
+# The dependencies above exist so the workspace resolves one feature set. This crate's
+# Rust code does not name them, so cargo-machete would report each one. Add a new
+# dependency here when it is added above.
+[package.metadata.cargo-machete]
+ignored = [
+    "concurrent-queue",
+    "crossbeam-utils",
+    "event-listener",
+    "event-listener-strategy",
+    "futures-core",
+    "hashbrown",
+    "libc",
+    "linux-raw-sys",
+    "log",
+    "mio",
+    "once_cell",
+    "proc-macro2",
+    "quote",
+    "rustix",
+    "semver",
+    "serde",
+    "serde_core",
+    "smallvec",
+    "syn",
+    "toml_parser",
+    "unicode-ident",
+    "winnow",
+]
