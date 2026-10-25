@@ -34,6 +34,7 @@ mod placement;
 mod popover;
 mod progress;
 mod radio;
+mod reveal;
 #[cfg(any(test, feature = "test-support"))]
 pub mod samples;
 mod search_input;

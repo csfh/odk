@@ -52,7 +52,7 @@ Every control is reachable and operable from the keyboard alone (item 8). Tab an
 | `Dialog`, modal `Sheet` | Tab and Shift+Tab stay inside; Escape asks to close unless the dialog says otherwise; focus goes back to where it was. |
 | `Popover` | Enter or Space on the trigger opens it and moves focus in; Tab leaves it (not modal); Escape or a press outside closes it and focus returns to the trigger. |
 | `Tooltip`, `HoverCard` | Never take focus; open when the trigger has keyboard focus; Escape closes. |
-| `Toast` | Never takes focus; Tab reaches its buttons; the clock stops while the pointer or focus is on the stack; Escape closes it while focus is in it. |
+| `Toast` | Never takes focus when it appears. The stack is a tab stop, so Tab reaches it even when a toast has no button; the clock stops while the pointer or focus is on the stack; Escape dismisses the newest toast while the stack itself has focus, and the toast that has focus otherwise. |
 | `Input` family | Everything a text field does; Enter submits (`NumberInput` commits). |
 
 Not built, and so not part of the contract: submenus, nonmodal dialogs, a combobox (`Command` is the searchable list), a dialog's default action on Enter (Enter presses the focused button and nothing else).

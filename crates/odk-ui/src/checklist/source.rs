@@ -512,6 +512,21 @@ const PROCESS_STATE: &[(&str, &str, &str)] = &[
         "INSIDE",
         "the nesting depth of overlays being drawn",
     ),
+    (
+        "reveal.rs",
+        "REVEAL",
+        "how many reveal-scroll bodies the element being prepainted is inside",
+    ),
+    (
+        "reveal.rs",
+        "FOCUSED",
+        "the focused control's bounds on this frame, so a later overlay can avoid covering it",
+    ),
+    (
+        "reveal.rs",
+        "TRIED",
+        "the scroll offset last asked for, so a clamp that cannot move further does not ask again",
+    ),
 ];
 
 /// The name a `static` line declares: `static NAME: ...` or `static mut NAME: ...`.

@@ -110,6 +110,7 @@ pub struct Shell {
 
 impl Render for Shell {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        crate::reveal::begin_frame();
         let semantic = theme::theme_snapshot().semantic.clone();
         // The window's text is set in the UI face unless something below names another (ADR
         // 0043): an application's own text never names one, and text styles are inherited,

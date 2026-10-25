@@ -30,7 +30,7 @@ struct Crumb {
 }
 
 /// A path of links ending in the current page, which is not a link: ancestors in secondary
-/// text, primary and underlined under the pointer, the current page in primary text, quiet
+/// text, primary and underlined at rest, the current page in primary text, quiet
 /// separators between them, and no box or fill.
 ///
 /// Tab reaches each link, and Enter or Space follows it. A path too long for its width

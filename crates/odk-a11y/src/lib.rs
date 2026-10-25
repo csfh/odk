@@ -1,7 +1,8 @@
 //! The accessibility hook of ADR 0036. Every ODK component describes itself with an
-//! [`Accessible`]: its role, its accessible name and its state. The pinned GPUI has no
-//! accessibility tree, so nothing reads these yet; when one exists, `odk-ui` hands them to it
-//! and components do not change. No GPUI here, so this builds and tests without a window.
+//! [`Accessible`]: its role, its accessible name and its state. The checklist tests read these
+//! descriptions. The pinned GPUI has no accessibility tree, so a screen reader gets nothing;
+//! when one exists, `odk-ui` hands them to it and components do not change. No GPUI here, so
+//! this builds and tests without a window.
 
 /// What a component is, in the vocabulary screen readers use (WAI-ARIA roles).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

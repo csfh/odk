@@ -17,10 +17,11 @@ Your part: do not build a control out of a bare `div` with `on_click`. It has no
 ## Focus
 
 - The focused control has a ring 2 px wide, a gap clear of the control, in the theme's focus colour. It is drawn outside the control and moves nothing, so it never shifts layout, and it shows on any focus, pointer or keyboard. Its contrast against every surface a control may sit on is checked at 3:1 for every theme.
-- A modal `Dialog` or `Sheet` keeps Tab inside, blocks the window behind it and gives focus back when it closes. A `Popover` and a side-panel `Sheet` are not modal: Tab can leave them, the window behind stays live, and Escape closes them. A `Tooltip`, a `HoverCard` and a `Toast` never take focus.
+- A modal `Dialog` or `Sheet` keeps Tab inside, blocks the window behind it and gives focus back when it closes. A `Popover` and a side-panel `Sheet` are not modal: Tab can leave them, the window behind stays live, and Escape closes them. A `Tooltip` and a `HoverCard` never take focus. A `Toast` does not take focus when it appears; its stack is a tab stop, so the keyboard can pause it and dismiss it.
+- A dialog or sheet body scrolls the focused control into view. A side panel or a toast that would hide the focused control completely shifts enough to leave a sliver of it visible.
 - A change of theme, density, corners or reduced motion loses nothing: focus, typed text, choices, open overlays.
 
-Your part: do not move focus yourself with GPUI's `window.focus` in a way that skips the ring. Components use `move_focus`, which also redraws. Give a dialog an action the user can reach, and a way out other than the pointer.
+Your part: do not move focus yourself with GPUI's `window.focus` in a way that skips the ring. Components use `move_focus`, which also redraws. Give a dialog an action the user can reach. Leave Escape, the scrim or the close button on: a dialog with all three off is refused.
 
 `odk::ui::focused_component(window, cx)` names the control that has focus, in debug builds, for diagnostics; the gallery's Interaction page shows it.
 
@@ -56,7 +57,7 @@ Labels, helper text and validation messages belong in a `FormField`, which marks
 
 ## Notifications
 
-A `Toast` never takes focus and never interrupts typing. Its clock stops while the pointer or keyboard focus is on the stack, a persistent one stays until dismissed, and Escape dismisses the one that has focus. It is not announced: without an accessibility tree there is nothing to announce through, so a message that matters, such as an error that stops work, should also be where the user is looking (an `Alert` in the form, a message on the field), and should be persistent.
+A `Toast` never takes focus when it appears, and never interrupts typing. Its stack is a tab stop, so Tab reaches it even when a toast has no button. Its clock stops while the pointer is over the stack or the stack has focus, a persistent one stays until dismissed, and Escape dismisses the newest toast while the stack itself has focus (or the toast that has focus, when that is a button). It is not announced: without an accessibility tree there is nothing to announce through, so a message that matters, such as an error that stops work, should also be where the user is looking (an `Alert` in the form, a message on the field), and should be persistent.
 
 ## Who does what
 
@@ -69,6 +70,20 @@ A `Toast` never takes focus and never interrupts typing. Its clock stops while t
 | `Describe` on every component | Names for icon-only controls; a title on every dialog |
 | Marks and text beside colour | Words that say what happened |
 
+## Text size
+
+The user's text size is `[font] base-size` in `shell.toml`, kept to 9–20 px (ADR 0043). The default is 12 px, so the range is 75% to 167% of the default. Borders, the focus ring, radii, durations and the 24 px target minimum do not scale. WCAG 1.4.4 asks for text to resize to 200% without loss of content or function. ODK's ceiling is 167%, and that clamp is unchanged: 20 px is as large as `omarchy display text size` accepts, and a larger size is not offered. There is no separate page zoom.
+
+## WCAG 2.2
+
+This is not a conformance claim. It records, for the WCAG 2.2 success criteria that bear on ODK's components, which ones the components meet in what is tested, which do not apply to a toolkit, and which are open. Nothing here was checked with a screen reader.
+
+**Met, in the behaviour the checklist tests.** 1.4.1 Use of Color: a link (a button link, a breadcrumb, a menu's link) is underlined at rest, and the current page is not a link; a tone has a mark; a number that is not a number says "Enter a number" as well as showing `!`. 1.4.3 Contrast (Minimum) and 1.4.11 Non-text Contrast: text is checked at 4.5:1 and essential non-text at 3:1 when a theme is resolved, and a theme that cannot reach them is refused. 2.1.1 Keyboard and 2.4.3 Focus Order: every component works from the keyboard, and a composite control is one tab stop. 2.1.2 No Keyboard Trap: a dialog with Escape, the scrim and the close button all turned off is refused. A dialog that turns only the scrim off still closes from the keyboard. 2.4.7 Focus Visible: the focused part draws a ring. 2.2.1 Timing Adjustable: a toast's clock pauses while the pointer is over the stack or the stack has focus, and Escape dismisses a toast from the keyboard, including one with no action button. 2.4.11 Focus Not Obscured (Minimum): a dialog or sheet body scrolls the focused control into view, and a non-modal sheet or a toast shifts so it does not completely cover the focused control. 2.5.8 Target Size (Minimum): field actions and checkbox, radio and switch rows are at least 24 px, and that floor does not shrink with the text size. Reduced motion is honoured as the Motion section says; that is not a claim about 2.3.3, which is AAA.
+
+**Do not apply to the toolkit.** 2.5.7 Dragging Movements: no component requires a drag for its operation. 3.2.6 Consistent Help, 3.3.7 Redundant Entry and 3.3.8 Accessible Authentication: ODK does not provide an application's help, a multi-step form or a sign-in flow. A password field accepts paste and does not place the password on the clipboard. An application that adds any of those has to meet the criterion itself. 2.4.13 Focus Appearance is AAA (a 2 px perimeter and a 3:1 contrast of the indicator's own pixels) and is not implemented as that criterion states it.
+
+**Open.** 1.3.1 Info and Relationships, 4.1.2 Name, Role, Value and 4.1.3 Status Messages need a platform accessibility tree. Components implement `Describe`, and the tests read it, but GPUI 0.2.2 exposes no tree, so a screen reader gets nothing. 1.4.4 Resize Text is not met: the ceiling is 167% of the 12 px default, as Text size says, and the clamp is unchanged. 1.4.12 Text Spacing is not met: letter spacing cannot be drawn (it is always 0) and line height is the type role's, not the user's.
+
 ## Not covered
 
-No screen reader, no platform accessibility API, no toast announcements, no high-contrast mode beyond what a theme's colours give, no `prefers-reduced-motion` from the desktop beyond Hyprland's window animations setting (ADR 0048; GNOME's `enable-animations` and the freedesktop portal were probed on 2026-10-23 and are not read), no zoom beyond the user's text size (ADR 0043), and no right-to-left layout. Manual checks made so far are in `docs/checks.md`.
+No screen reader, no platform accessibility API, no toast announcements, no high-contrast mode beyond what a theme's colours give, no `prefers-reduced-motion` from the desktop beyond Hyprland's window animations setting (ADR 0048; GNOME's `enable-animations` and the freedesktop portal were probed on 2026-10-23 and are not read), no zoom past the 9–20 px text size (ADR 0043; 20 px is 167% of 12, not 1.4.4's 200%), and no right-to-left layout. Manual checks made so far are in `docs/checks.md`.

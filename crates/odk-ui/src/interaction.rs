@@ -17,8 +17,8 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    App, BorderStyle, Bounds, ContentMask, Corners, Div, ElementId, IntoElement, Pixels,
-    SharedString, StatefulInteractiveElement, StyleRefinement, Styled, TextStyleRefinement,
+    App, BorderStyle, Bounds, ContentMask, Corners, Div, ElementId, IntoElement, ParentElement,
+    Pixels, SharedString, StatefulInteractiveElement, StyleRefinement, Styled, TextStyleRefinement,
     UnderlineStyle, Window, canvas, div, px, quad, transparent_black,
 };
 use odk_theme::component::{FocusRing, Interactive, LinkStyle};
@@ -128,6 +128,9 @@ where
 /// listeners, so it takes no clicks. Add it to a `relative` control that does not clip.
 pub(crate) fn focus_ring(ring: &FocusRing, radius: f32, border: f32) -> Div {
     let outside = px(-(border + ring.offset + ring.width));
+    // The ring sits this far outside the control's padding edge. A child inset by the same
+    // amount covers that padding box, which is what scrolling and uncovering follow.
+    let reach = px(border + ring.offset + ring.width);
     div()
         .absolute()
         .top(outside)
@@ -137,6 +140,17 @@ pub(crate) fn focus_ring(ring: &FocusRing, radius: f32, border: f32) -> Div {
         .border(px(ring.width))
         .border_color(colour(ring.colour))
         .rounded(px(radius))
+        .child(
+            canvas(
+                |bounds, window, _| crate::reveal::see_focus(bounds, window),
+                |_, (), _, _| {},
+            )
+            .absolute()
+            .top(reach)
+            .left(reach)
+            .right(reach)
+            .bottom(reach),
+        )
 }
 
 /// Where the focused item of a composite control was laid out on this frame, so that its focus
@@ -157,7 +171,15 @@ impl RingTarget {
     /// painted later in the same frame is around where the item is now.
     pub(crate) fn probe(&self) -> impl IntoElement {
         let item = self.item.clone();
-        bounds_probe(px(0.0), move |b, _| item.set(Some(b)))
+        canvas(
+            move |bounds, window, _| {
+                item.set(Some(bounds));
+                crate::reveal::see_focus(bounds, window);
+            },
+            |_, (), _, _| {},
+        )
+        .absolute()
+        .inset_0()
     }
 
     /// Records the bounds of a scrolling list the item is in, so the ring of an item scrolled

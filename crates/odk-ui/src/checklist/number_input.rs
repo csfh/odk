@@ -10,7 +10,7 @@ use odk_a11y::Describe;
 use super::stability::{Step, assert_still};
 use super::{open, press, redraw};
 use crate::input::{drawn, probe};
-use crate::{Button, NumberInput, v_flex};
+use crate::{Button, FormField, NumberInput, v_flex};
 
 type Seen = Rc<RefCell<Vec<Option<f64>>>>;
 
@@ -51,6 +51,10 @@ fn half_typed_numbers_stand_while_typed(cx: &mut TestAppContext) {
         drawn::last("n").invalid_mark.is_none(),
         "not judged while typed"
     );
+    assert!(
+        drawn::description("n").is_none(),
+        "no error sentence while it is being typed"
+    );
 }
 
 /// Enter and leaving the field commit: a number is clamped and tidied; text that is no number
@@ -81,9 +85,41 @@ fn enter_and_leaving_commit(cx: &mut TestAppContext) {
     redraw(cx);
     assert_eq!(text(cx), "abc", "nothing typed is lost");
     assert!(drawn::last("n").invalid_mark.is_some(), "shown wrong");
+    assert_eq!(
+        drawn::description("n").as_deref(),
+        Some("Enter a number"),
+        "the error is text, not only the mark"
+    );
+    assert!(
+        cx.debug_bounds("n/error").is_some(),
+        "the sentence is drawn"
+    );
     // Typing over the selection is a step, and the run of typing after it another.
     press(cx, "shift-tab ctrl-z ctrl-z");
     assert_eq!(text(cx), "2.5", "what was typed undoes like any edit");
+}
+
+/// A `FormField` description is kept, and the number error is joined onto it.
+#[gpui::test]
+fn a_form_field_joins_the_number_error_onto_its_description(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        v_flex()
+            .child(
+                FormField::new("qty", "Quantity")
+                    .description("How many")
+                    .child(quantity()),
+            )
+            .child(Button::new("after").label("After"))
+    });
+    press(cx, "tab");
+    cx.simulate_input("abc");
+    press(cx, "tab");
+    redraw(cx);
+    assert_eq!(
+        drawn::description("n").as_deref(),
+        Some("How many. Enter a number")
+    );
+    assert!(cx.debug_bounds("n/error").is_some());
 }
 
 /// Up and Down step and stop at the bounds; the buttons step too, and the one that cannot move

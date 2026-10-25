@@ -99,8 +99,9 @@ pub struct NavListStyle {
 pub struct LinkStyle {
     pub colours: Interactive<Treatment>,
     pub current: Treatment,
-    /// Whether the label is underlined in each pointer state: a link is underlined under the
-    /// pointer, where its place in the path no longer sets it apart.
+    /// Whether the label is underlined in each pointer state. A link is underlined at rest,
+    /// under the pointer and while pressed, so colour is not the only way to tell it. The
+    /// current page is not a link and is not underlined.
     pub underline: Interactive<bool>,
     /// The mark between two links.
     pub separator: Color,
@@ -185,9 +186,7 @@ impl ComponentTokens {
     pub fn nav_link(&self, states: States) -> LinkStyle {
         let current_page = states.selected;
         let (colours, current) = self.interactive(states, |s| link(current_page, s));
-        let underline = Interactive::by_state(states, |s| {
-            !current_page && matches!(s, State::Hover | State::Pressed)
-        });
+        let underline = Interactive::by_state(states, |_| !current_page);
         LinkStyle {
             colours,
             current,

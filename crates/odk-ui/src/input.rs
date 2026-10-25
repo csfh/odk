@@ -27,7 +27,7 @@ use crate::button::Size;
 use crate::editor::Editor;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::interaction::{Pointer, focus_ring, pointer_states};
-use crate::layout::{StyledExt, single_line};
+use crate::layout::{StyledExt, h_flex, single_line, v_flex};
 use crate::number::Rules;
 use crate::text_layout::{Shown, TextLayout};
 use crate::theme::{colour, mono};
@@ -1281,6 +1281,8 @@ const INCREMENT: &str = "increment";
 /// The glyphs of a field's own buttons and marks. ODK has no icon set yet, so they are
 /// characters, like a button's icons.
 const CLEAR_GLYPH: &str = "×";
+/// What a number field says when its text is not a number, once the user has left it.
+pub(crate) const NUMBER_ERROR: &str = "Enter a number";
 /// A password field's show button shows an open eye while the text is hidden, a closed one
 /// while it shows.
 const SHOW_GLYPH: &str = "◉";
@@ -1716,8 +1718,56 @@ impl RenderOnce for Input {
             field = bind::<Undo>(field, st, |s, w, cx| s.undo(w, cx));
             field = bind::<Redo>(field, st, |s, w, cx| s.redo(w, cx));
         }
-        field
+        let described =
+            number_description(self.description.as_ref().map(AsRef::as_ref), wrong_number);
+        #[cfg(test)]
+        drawn::record_description(&self.id, described.clone());
+        // The sentence is what a later accessibility tree would read. Tests read the copy
+        // recorded above; nothing else consumes it until that tree exists.
+        let _described = described;
+        if !wrong_number {
+            return field.into_any_element();
+        }
+        let form = c.form_field(States::NONE);
+        let message = c.form_message(odk_theme::semantic::Role::Danger);
+        let mut row = h_flex()
+            .id(child_id(&self.id, "error"))
+            .debug_selector(|| part_name(&self.id, "error"))
+            .items_start()
+            .gap(px(c.foundation().spacing.s1))
+            .text_role(form.message_role)
+            .text_color(colour(message.colour));
+        if let Some(mark) = message.mark {
+            let line = c
+                .foundation()
+                .typography
+                .style(form.message_role)
+                .line_height;
+            row = row.child(div().h(px(line)).flex().items_center().child(field_glyph(
+                mark.into(),
+                g.icon_size,
+                colour(message.colour),
+            )));
+        }
+        v_flex()
+            .w_full()
+            .min_w_0()
+            .gap(px(form.gap))
+            .child(field)
+            .child(row.child(div().min_w_0().child(NUMBER_ERROR)))
+            .into_any_element()
     }
+}
+
+/// The description a number field reports: its own, and "Enter a number" once the text has
+/// been left and is not a number. Any other field reports its description unchanged.
+fn number_description(description: Option<&str>, wrong_number: bool) -> Option<String> {
+    if !wrong_number {
+        return description
+            .filter(|text| !text.is_empty())
+            .map(str::to_owned);
+    }
+    crate::form_field::join_sentences(description.into_iter().chain(Some(NUMBER_ERROR)))
 }
 
 /// What each field drew on its last frame, for tests: the style it looked up. Kept per thread,
@@ -1735,6 +1785,7 @@ pub(crate) mod drawn {
     thread_local! {
         static DRAWN: RefCell<HashMap<String, FieldStyle>> = RefCell::new(HashMap::new());
         static ENDS: RefCell<HashMap<String, Vec<&'static str>>> = RefCell::new(HashMap::new());
+        static DESCRIBED: RefCell<HashMap<String, Option<String>>> = RefCell::new(HashMap::new());
     }
 
     pub(crate) fn record(id: &ElementId, style: FieldStyle) {
@@ -1743,6 +1794,16 @@ pub(crate) mod drawn {
 
     pub(crate) fn record_ends(id: &ElementId, ends: Vec<&'static str>) {
         ENDS.with(|d| d.borrow_mut().insert(id_path(id), ends));
+    }
+
+    pub(crate) fn record_description(id: &ElementId, description: Option<String>) {
+        DESCRIBED.with(|d| d.borrow_mut().insert(id_path(id), description));
+    }
+
+    /// The description the field with id `id` reported on its last frame, including a number
+    /// field's "Enter a number" once that text is showing.
+    pub(crate) fn description(id: &str) -> Option<String> {
+        DESCRIBED.with(|d| d.borrow().get(id).and_then(Clone::clone))
     }
 
     /// What the one-line field with id `id` drew at its end on its last frame, by part name:

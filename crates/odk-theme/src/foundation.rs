@@ -26,6 +26,9 @@ const FOCUS_WIDTH: f32 = 2.0;
 const FOCUS_OFFSET: f32 = 2.0;
 /// The gap between a track's edge and the thumb that moves inside it.
 const THUMB_GAP: f32 = 2.0;
+/// The smallest pointer target, in CSS pixels (WCAG 2.5.8). It does not scale with the text
+/// size: a target that shrank below 24 px at small text would miss the minimum.
+const TARGET_MIN: f32 = 24.0;
 
 const COMPACT: ControlMetrics = ControlMetrics {
     height: 28.0,
@@ -101,7 +104,8 @@ impl FoundationTokens {
     }
 
     /// The tokens with the type, controls and spacing at the user's text size (ADR 0043).
-    /// Borders, the focus ring, the thumb gap, radii and durations are the same at every scale.
+    /// Borders, the focus ring, the thumb gap, the 24 px target minimum, radii and durations
+    /// are the same at every scale.
     pub fn scaled(config: &FoundationConfig, text: TextScale) -> Self {
         let corner = config.corner_radius.px();
         let spacing = SpacingTokens::SCALE.scaled(text);
@@ -118,6 +122,7 @@ impl FoundationTokens {
                 focus_width: FOCUS_WIDTH,
                 focus_offset: FOCUS_OFFSET,
                 thumb_gap: THUMB_GAP,
+                target_min: TARGET_MIN,
             },
             layout: LayoutTokens {
                 panel_padding: spacing.s4,
@@ -194,6 +199,8 @@ pub struct GeometryTokens {
     pub focus_offset: f32,
     /// The gap between a track's edge and the thumb inside it, as in a switch.
     pub thumb_gap: f32,
+    /// The smallest pointer target, in logical pixels. It does not scale with the text size.
+    pub target_min: f32,
 }
 
 /// Corner radii, in logical pixels. None is larger than [`CornerRadius::Subtle`].
@@ -747,6 +754,19 @@ mod tests {
         assert_eq!(g.focus_width, 2.0);
         assert_eq!(g.focus_offset, 2.0);
         assert_eq!(g.thumb_gap, 2.0);
+        assert_eq!(g.target_min, 24.0);
+    }
+
+    #[test]
+    fn the_target_minimum_does_not_scale() {
+        for base in [9.0, 12.0, 20.0] {
+            let g = FoundationTokens::scaled(
+                &FoundationConfig::default(),
+                crate::TextScale::from_base_size(base),
+            )
+            .geometry;
+            assert_eq!(g.target_min, 24.0, "at {base} px text");
+        }
     }
 
     #[test]

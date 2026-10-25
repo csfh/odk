@@ -724,13 +724,33 @@ fn a_focused_field_keeps_its_edge_and_a_wrong_one_has_a_mark() {
     );
 }
 
+/// A path link is underlined at rest, under the pointer and while pressed. The current page
+/// is not a link and is not underlined. Colour is not the only way to tell the link.
+#[test]
+fn nav_links_are_underlined_at_rest() {
+    let t = tokens("nord");
+    let link = t.nav_link(States::NONE);
+    assert!(link.underline.default);
+    assert!(link.underline.hover);
+    assert!(link.underline.pressed);
+    let current = t.nav_link(States::NONE.selected(true));
+    assert!(!current.underline.default);
+    assert!(!current.underline.hover);
+    assert!(!current.underline.pressed);
+    let hovered = t.nav_link(States::NONE.hovered(true));
+    assert!(hovered.underline.default);
+    assert!(hovered.underline.hover);
+}
+
 /// A button inside a field is the field's height less its borders and the thumb gap on each
-/// side: 22, 28 and 34, squares when they hold an icon alone, with the density's icon size.
+/// side, and at least 24 px: 24, 28 and 34. An icon alone is a square of that height, with
+/// the density's icon size. At compact the 24 px floor is taller than the 22 px of room, so
+/// the button is no longer exactly the room inside the field.
 #[test]
 fn a_field_action_fits_inside_its_field() {
     let t = tokens("nord");
     let f = t.foundation().clone();
-    for (d, side) in Density::ALL.into_iter().zip([22.0, 28.0, 34.0]) {
+    for d in Density::ALL {
         let field = t.field(d, States::NONE).geometry;
         let icon = t.field_action(
             ButtonVariant::Ghost,
@@ -738,12 +758,11 @@ fn a_field_action_fits_inside_its_field() {
             ButtonLayout::IconOnly,
             States::NONE,
         );
+        let room = field.height - 2.0 * (field.border_width + f.geometry.thumb_gap);
+        let side = room.max(f.geometry.target_min);
         assert_eq!(icon.geometry.height, side, "{d:?}");
+        assert!(icon.geometry.height >= 24.0, "{d:?}");
         assert_eq!(icon.width, Some(side));
-        assert_eq!(
-            icon.geometry.height + 2.0 * (field.border_width + f.geometry.thumb_gap),
-            field.height
-        );
         assert_eq!(icon.geometry.icon_size, d.metrics().icon_size);
         let text = t.field_action(ButtonVariant::Ghost, d, ButtonLayout::Text, States::NONE);
         assert_eq!((text.geometry.height, text.width), (side, None));

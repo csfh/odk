@@ -171,7 +171,8 @@ impl Button {
     /// The least width and height, in logical pixels, of the area that takes the pointer, for
     /// an application that wants larger targets than the button (WCAG 2.5.5's 44, say). The
     /// button is drawn at its own size in the middle of that area, which takes its space in the
-    /// layout. Every button is already at least 28 px high, above WCAG 2.5.8's 24.
+    /// layout. A button is at least the foundation's `target_min` (24 px). A field action uses
+    /// that floor when the room inside the field is smaller.
     pub fn target_size(mut self, size: f32) -> Self {
         self.target = Some(size);
         self

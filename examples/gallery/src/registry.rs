@@ -338,7 +338,7 @@ impl Page {
                     "shortcut",
                 ],
                 tokens: &["menu.item", "popover", "tooltip", "toast.info"],
-                accessibility: "Enter or Space opens a trigger; Escape closes the overlay and gives focus back to the trigger; a press outside dismisses it and goes no further. Menus move with the arrow keys and typeahead. A toast never takes focus and pauses while it is hovered or focused.",
+                accessibility: "Enter or Space opens a trigger; Escape closes the overlay and gives focus back to the trigger; a press outside dismisses it and goes no further. Menus move with the arrow keys and typeahead. A toast does not take focus when it appears. Its stack is a tab stop, and it pauses while hovered or focused.",
             },
             Page::Dialogs => &Meta {
                 id: "dialogs",
@@ -376,7 +376,7 @@ impl Page {
                     "border.default",
                     "roles.accent.solid",
                 ],
-                accessibility: "Contrast ratios here are measured on the resolved tokens (WCAG 2 text 4.5:1, non-text 3:1). They are not a test of a platform accessibility tree.",
+                accessibility: "Contrast ratios here are measured on the resolved tokens (WCAG 2.2 text 4.5:1, non-text 3:1). They are not a test of a platform accessibility tree.",
             },
             Page::Resolver => &Meta {
                 id: "resolver",

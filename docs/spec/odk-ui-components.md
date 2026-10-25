@@ -170,7 +170,7 @@ The fields (`Input`, `Textarea`, `InputGroup`, `SearchInput`, `PasswordInput`, `
 
 **Theming.** A theme change recolours every control on the next frame and keeps what is typed and chosen, where focus is, the density and the corners.
 
-**Accessibility.** Each reports its role (`TextInput`, `Combobox` and `Listbox`, `Checkbox`, `Switch`, `RadioGroup` and `Radio`), its name, its value (never a password's), and disabled, read-only, invalid, required, busy, mixed and selected as they apply, with its `FormField`'s description. GPUI 0.2.2 has no accessibility tree, so nothing reads them yet (ADR 0036).
+**Accessibility.** Each reports its role (`TextInput`, `Combobox` and `Listbox`, `Checkbox`, `Switch`, `RadioGroup` and `Radio`), its name, its value (never a password's), and disabled, read-only, invalid, required, busy, mixed and selected as they apply, with its `FormField`'s description. A number field that has been left holding text that is not a number adds "Enter a number" to that description and draws the sentence under the field. GPUI 0.2.2 has no accessibility tree, so a screen reader does not read them; the tests do (ADR 0036).
 
 **Migration.** Existing calls compile and keep their meaning; what changed is how they look. `size(Size::Sm)` on a field or a select is now the density one step tighter, as on a `Button`, rather than a smaller font. A check box's corners follow the application, and a switch is a pill.
 
@@ -206,7 +206,7 @@ RadioGroup::new("plan", "Plan").item("personal", "Personal").item("team", "Team"
 
 **Navigation list.** `NavList` is a sidebar's navigation: rows of a control's height with an optional icon and counter, under optional group headings in tertiary text. The current page has the selected fill and an accent indicator along its leading edge; focus is a ring, apart from it. One tab stop: Tab reaches the current page, Up and Down move, Home and End jump, Enter, Space or a click opens; moving never opens a page. Groups do not collapse.
 
-**Breadcrumbs.** Ancestors are secondary text, primary and underlined under the pointer; the current page is primary text and not a link; separators are tertiary. No box and no fill, so a path never looks like a row of buttons. Truncation and the folded middle are as before.
+**Breadcrumbs.** Ancestors are secondary text, primary and underlined at rest; the current page is primary text and not a link, and is not underlined; separators are tertiary. No box and no fill, so a path never looks like a row of buttons. Truncation and the folded middle are as before.
 
 **Pagination** is not built: v1 has no consumer for it (see Left out of v1).
 
@@ -226,7 +226,7 @@ RadioGroup::new("plan", "Plan").item("personal", "Personal").item("team", "Team"
 
 **Theming.** A theme change recolours them on the next frame and keeps the selected tab, the chosen segment, the current page, the progress, where focus is, the density and the corners. In a monochrome theme such as Vantablack every Role is a grey: selection still reads by the indicator, the fill and primary text, a status by its mark, its label or its ring.
 
-**Accessibility.** Tabs report `TabList` and `Tab` with selected and disabled, and a counter in the tab's name; a segmented control `RadioGroup` and `Radio` (or `Group` and `ToggleButton` when multiple); a `NavList` `Navigation` and a `Link` per row, the current page selected; a breadcrumb `Navigation`, `Link` and `CurrentPage`; a badge and a status indicator `Text` named by their label; an alert `Alert` with its title and description; a progress bar `Progress` with its value as text, busy while it works; a spinner and a skeleton `Progress`, busy. GPUI 0.2.2 has no accessibility tree, so nothing reads them yet and no alert is announced (ADR 0036).
+**Accessibility.** Tabs report `TabList` and `Tab` with selected and disabled, and a counter in the tab's name; a segmented control `RadioGroup` and `Radio` (or `Group` and `ToggleButton` when multiple); a `NavList` `Navigation` and a `Link` per row, the current page selected; a breadcrumb `Navigation`, `Link` and `CurrentPage`; a badge and a status indicator `Text` named by their label; an alert `Alert` with its title and description; a progress bar `Progress` with its value as text, busy while it works; a spinner and a skeleton `Progress`, busy. GPUI 0.2.2 has no accessibility tree, so a screen reader does not read them and no alert is announced; the tests read the descriptions (ADR 0036).
 
 **Migration.** Existing calls compile and keep their meaning; what changed is how they look. A badge takes the application's corners, a separator is quieter, the selected tab loses its fill, segments lose their dividers. `Spinner::size` is now a density step, as a `Button`'s is.
 

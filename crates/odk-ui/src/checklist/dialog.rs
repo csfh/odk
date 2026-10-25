@@ -488,18 +488,41 @@ fn the_dismissal_policy_decides_what_closes_it(cx: &mut TestAppContext) {
     assert_eq!(closed.get(), 1, "Escape still does");
 }
 
+/// A dialog with Escape, the scrim and the close button all off has no way out, so it is refused.
 #[gpui::test]
-fn a_dialog_with_every_way_out_off_is_closed_only_by_its_application(cx: &mut TestAppContext) {
+#[should_panic(expected = "a dialog needs a way out")]
+fn a_dialog_with_every_way_out_off_is_refused(cx: &mut TestAppContext) {
     reduce_motion();
-    let closed = Count::default();
-    let cx = policy_window(cx, closed.clone(), false, false, false);
+    let cx = policy_window(cx, Count::default(), false, false, false);
     redraw(cx);
-    cx.simulate_click(point(px(2.0), px(2.0)), Modifiers::default());
-    press(cx, "escape");
-    assert_eq!(closed.get(), 0, "neither the backdrop nor Escape asks");
+}
+
+/// The body scrolls the focused control into view when it sits below the fold.
+#[gpui::test]
+fn the_body_scrolls_the_focused_control_into_view(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        Dialog::new("d", "Notes")
+            .open(true)
+            .content(|_, _| {
+                let mut body = v_flex();
+                for n in 0..40 {
+                    body = body.child(Text::new(format!("Line {n}")));
+                }
+                body.child(Button::new("bottom").label("Bottom"))
+            })
+            .action(|_, _| Button::new("cancel").label("Cancel"))
+    });
+    reduce_motion();
+    cx.simulate_resize(size(px(480.0), px(280.0)));
+    redraw(cx);
+    // Close, then the button below the fold.
+    press(cx, "tab tab");
+    redraw(cx);
+    let body = cx.debug_bounds("d/body").unwrap();
+    let button = cx.debug_bounds("bottom/button").unwrap();
     assert!(
-        cx.debug_bounds("d/close/button").is_none(),
-        "no close button"
+        button.bottom() > body.top() && button.top() < body.bottom(),
+        "the focused button is in the body: {button:?} in {body:?}"
     );
 }
 

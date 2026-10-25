@@ -368,7 +368,9 @@ impl ComponentTokens {
     /// A button inside a field's box: a search field's clear button, a password field's show
     /// button, a number field's steppers, an input group's action. It is `appearance` at
     /// `layout`, as high as the field at `density` less its borders and the thumb gap on each
-    /// side, so it never makes the field taller; an icon alone is a square of that height.
+    /// side, and at least the foundation's `target_min` (24 px). The field's own height stays
+    /// the token height, so at the smallest text size the button can extend past the field
+    /// rather than shrink below 24 px. An icon alone is a square of that height.
     pub fn field_action(
         &self,
         appearance: impl Into<ButtonAppearance>,
@@ -615,8 +617,9 @@ const fn form_message(role: Role) -> C {
 }
 
 /// A field action's box: the field's height less its borders and the thumb gap on each side,
-/// with the button's own type centred in it, and the padding of the density one step tighter,
-/// whose controls are about its height. Its icon is the field's density's.
+/// and at least `target_min`, with the button's own type centred in it, and the padding of
+/// the density one step tighter, whose controls are about its height. Its icon is the field's
+/// density's.
 fn field_action_geometry(
     f: &FoundationTokens,
     density: Density,
@@ -624,7 +627,8 @@ fn field_action_geometry(
 ) -> (ControlGeometry, Option<f32>) {
     let field = geometry::control(f, density, TypeRole::Body);
     let mut g = geometry::control(f, density, TypeRole::Button);
-    g.height = field.height - 2.0 * (field.border_width + f.geometry.thumb_gap);
+    let room = field.height - 2.0 * (field.border_width + f.geometry.thumb_gap);
+    g.height = room.max(f.geometry.target_min);
     g.padding_x = f.controls.for_density(density.smaller()).padding_x;
     g.padding_y = geometry::centred(g.height, g.line_height, g.border_width);
     if layout != ButtonLayout::IconOnly {

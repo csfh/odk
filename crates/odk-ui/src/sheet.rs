@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use gpui::{
     AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
-    SharedString, Styled, Window, div, px,
+    ScrollHandle, SharedString, Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
 
@@ -180,6 +180,12 @@ impl RenderOnce for Sheet {
             title,
             content,
         } = kept.update(cx, |k, _| remembered(self.open, wanted, k));
+        let scroll = window
+            .use_keyed_state(child_id(&self.id, "body-scroll"), cx, |_, _| {
+                ScrollHandle::new()
+            })
+            .read(cx)
+            .clone();
         let close: Handler = self.on_close.unwrap_or_else(|| Rc::new(|_, _| {}));
         let viewport = window.viewport_size();
         // Never larger than the window: in a small window the sheet fills it.
@@ -200,7 +206,14 @@ impl RenderOnce for Sheet {
             .py(px(g.padding_y))
             .treatment(&style.surface)
             .child(modal_header(&self.id, title, true, close.clone()))
-            .children(content.map(|build| build(window, cx)));
+            .child(
+                crate::reveal::scrolling_body(
+                    child_id(&self.id, "body"),
+                    scroll,
+                    div().children(content.map(|build| build(window, cx))),
+                )
+                .debug_selector(|| part_name(&self.id, "body")),
+            );
         let width = px(g.border_width);
         let panel = match side {
             Side::Left => panel

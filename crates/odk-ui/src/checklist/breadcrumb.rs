@@ -374,6 +374,11 @@ fn links_draw_their_tokens_and_their_ring(cx: &mut TestAppContext) {
     let c = crate::components();
     let link = |i: usize| crate::drawn::last::<LinkStyle>(&format!("b/item-{i}/link"));
     assert_eq!(link(0), c.nav_link(States::NONE));
+    assert!(link(0).underline.default, "a link is underlined at rest");
+    assert!(
+        !c.nav_link(States::NONE.selected(true)).underline.default,
+        "the current page is not underlined"
+    );
     assert_eq!(link(0).current.foreground, c.semantic().text.secondary);
     assert_eq!(
         c.nav_link(States::NONE.selected(true)).current.foreground,
