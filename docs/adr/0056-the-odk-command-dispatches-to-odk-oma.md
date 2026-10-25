@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # The `odk` command dispatches to `odk-<name>`, and the Bundle program is `odk-oma`
@@ -9,6 +9,8 @@ The owner asked to make the oma CLI a facade, as `odk oma`, and then `odk-oma`. 
 Nothing here is built. The binary on disk is still `oma`, and it is still on `PATH` when installed.
 
 The number is 0056. `origin/atmos-v1.0.0-rc` (there is no tag of that name; the only tag fetched was `v0.0.1`) already has ADR 0050 and ADR 0051, which are not in this branch. ADR 0052 to ADR 0055 are the single-file Bundle records on this branch. 0056 is the next free number after 0055 that those lines do not use.
+
+This record depends on ADR 0052, ADR 0053, ADR 0054 and ADR 0055. Those four are pull request #3. This record is stacked on that pull request and lands after it. The paths below assume the single-file Bundle, the desktop and `binfmt_misc` registration, the `install.sh` bootstrap, and the three-layer trust rules those ADRs already decided.
 
 ## The command a person types
 
@@ -28,9 +30,7 @@ That split is the point of the facade. The dispatcher stays small enough to read
 
 ## Where `odk-oma` lives
 
-**Decided:** the install does not copy `odk-oma` onto `PATH`. Not `/usr/bin/odk-oma`, not `~/.local/bin/odk-oma`. The only `PATH` entry from this runtime is `odk`.
-
-**Recommendation: a private directory next to the prefix, the way Arch already places helpers.**
+**Decided.** The install does not copy `odk-oma` onto `PATH`. Not `/usr/bin/odk-oma`, not `~/.local/bin/odk-oma`. The only `PATH` entry from this runtime is `odk`. The private directories are the ones in the table. A development build finds `odk-oma` next to `odk`.
 
 | Install | Dispatcher, on `PATH` | Bundle program, not on `PATH` | Dialog helper, beside it |
 |---|---|---|---|
@@ -88,7 +88,7 @@ The candidate is used when it is a regular file. Symlinks are followed for the f
 
 ### Other names
 
-**Recommendation: the private directory wins, built-ins cannot be shadowed, and `PATH` is only for names that are not built in.**
+**Decided.** The private directory wins. The built-in name `oma` is never taken from `PATH`. Any other name looks in the private directory first, then in absolute `PATH` entries, and skips `.` and the current directory.
 
 For a name other than `oma`:
 
@@ -99,14 +99,14 @@ The first regular file wins. A later copy is not tried when the first is not exe
 
 `execvp` of a bare `odk-<name>` is not used. The executed path is the absolute path that was selected.
 
-The other two layouts, and why they are not the recommendation:
+Two other layouts were rejected:
 
-| | What it does | Why it is not the recommendation |
+| | What it does | Why it was rejected |
 |---|---|---|
-| Private directory only | No `PATH` walk at all. A third-party `odk-foo` works only when it is installed into `/usr/lib/odk` or `~/.local/lib/odk`. | Nothing untrusted on `PATH` can become a command. Extending the tool means writing the private directory, which a normal `cargo install` onto `PATH` does not do. Worth taking if the owner wants no third-party commands in the first version. |
-| `PATH` first | A `odk-foo` earlier on `PATH` hides the copy in the private directory. `oma` stays exempt. | The private copy and the `PATH` copy can disagree, which is the pairing problem the own-directory rule was for. |
+| Private directory only | No `PATH` walk at all. A third-party `odk-foo` works only when it is installed into `/usr/lib/odk` or `~/.local/lib/odk`. | Extending the tool would mean writing the private directory, which a normal `cargo install` onto `PATH` does not do. |
+| `PATH` first | A `odk-foo` earlier on `PATH` hides the copy in the private directory. `oma` stays exempt. | The private copy and the `PATH` copy can disagree. |
 
-The recommended layout still treats a third-party program as trusted the way cargo trusts `cargo-<name>`: whoever can write an earlier absolute `PATH` entry can supply `odk-foo`. They cannot supply `oma`. The closed set of built-in names is `oma`, plus the dispatcher flags above. A later built-in is an addition to that set in a later ADR, not a `PATH` race.
+A third-party program is trusted the way cargo trusts `cargo-<name>`: whoever can write an earlier absolute `PATH` entry can supply `odk-foo`. They cannot supply `oma`. The closed set of built-in names is `oma`, plus the dispatcher flags above. A later built-in is an addition to that set in a later ADR, not a `PATH` race.
 
 If `current_exe` fails, an installed layout cannot be derived. `oma` is then not found. Other names use the `PATH` walk only.
 
@@ -175,11 +175,11 @@ The init stays a re-exec of the `odk-oma` file. The launcher already holds the b
 
 ## The runtime
 
-ADR 0053 and ADR 0054 name `/usr/bin/oma` in desktop files, units and the binfmt script. The program they describe is the private `odk-oma`. Who calls it differs. The recommendation is: a file a person reads names the absolute facade; a file only the kernel or systemd runs names the absolute private program.
+ADR 0053 and ADR 0054 name `/usr/bin/oma` in desktop files, units and the binfmt script. The program they describe is the private `odk-oma`. **Decided:** desktop entries, generated entries and the mount action call the absolute facade `/usr/bin/odk oma …`. systemd, `binfmt_misc`, the `install.sh` handoff, and `self-upgrade` / `self-uninstall` call the private binary by absolute path.
 
 Naming `/usr/bin/odk` is absolute, so a `~/.local/bin/odk` earlier on `PATH` does not take the click. Naming a bare `odk` would be that `PATH` search, and it is not used. Naming the private program from a desktop file would keep working if `/usr/bin/odk` were missing, and it would bake the lib directory into every generated entry. One `exec` of the facade is cheap, and the facade then `exec`s the private program, so `odk` is not an ancestor of the application (ADR 0034).
 
-| Caller | Recommendation | Why |
+| Caller | What it calls | Why |
 |---|---|---|
 | System desktop handler, `run %f` | `Exec=/usr/bin/odk oma run %f` | The line a person reads is the user-facing command. Absolute, so `PATH` is not searched. The private directory can move without rewriting desktop files. |
 | Show contents | `Exec=/usr/bin/odk oma mount --open %f` | The same file, the same reason. |
@@ -234,15 +234,15 @@ Per-user install rewrites unit `ExecStart` and the desktop `Exec` to the absolut
 
 ADR 0055 is unchanged in its three layers. The bytes that verify a Bundle are `/usr/lib/odk/odk-oma`. That path is not writable by the user who can write `~/Applications`. A per-user copy under `~/.local/lib/odk/` is the weaker install ADR 0054 already describes, for the same reason `~/.local/bin/oma` was. The dispatcher is not a verifier. Desktop files and Flea name `/usr/bin/odk`, which `exec`s the private program beside its own prefix, so a different `odk-oma` on `PATH` cannot take the click. An attacker who can write `/usr/bin` can already replace `/usr/lib/odk/odk-oma`.
 
-External `odk-<name>` programs other than `oma` are as trusted as the `PATH` entry that supplied them, under the recommendation above. There is no signature check on them. They are not Bundles and they are not this runtime's tarball.
+External `odk-<name>` programs other than `oma` are as trusted as the `PATH` entry that supplied them. There is no signature check on them. They are not Bundles and they are not this runtime's tarball.
 
 ### `docs/spec/oma-cli.md`
 
 The spec stays the surface of the Bundle program. Acceptance rewrites every command as `odk oma <command>`, states that the binary is `odk-oma` and is not on `PATH`, and points desktop files, units and the binfmt script at the paths in the table. `self-upgrade` and `self-uninstall` cover that set. The spec does not gain `update`, `list` or `uninstall` of a Bundle (ADR 0010). The dispatcher does not gain a spec file of its own; this record is the normative text for dispatch.
 
-## If this is accepted, what else is edited
+## What this amends
 
-Not edited in this proposal.
+Not edited in this change. The code is unchanged, and so are the documents below. They are the ones this record amends, and they are updated when the code follows it.
 
 | Document | Change |
 |---|---|
@@ -254,7 +254,7 @@ Not edited in this proposal.
 | ADR 0014 | Generated `Exec` lines are the absolute facade, `odk oma run` plus the Identifier. |
 | ADR 0044 | Unit `ExecStart` is `/usr/lib/odk/odk-oma`. The sandbox copy is unchanged. |
 | ADR 0053 | Handler `Exec` and the Show-contents action use `/usr/bin/odk oma …`. The binfmt interpreter is `/usr/lib/odk/binfmt`, execing the private program. The desktop file id and the MIME type stay. |
-| ADR 0054 | The tarball, the path table, the handoff, the `--version` check, pacman ownership and uninstall use the set in this record. Nothing named `oma` is installed on `PATH`. `oma_version` stays the field name. The package name follows the recommendation below. |
+| ADR 0054 | The tarball, the path table, the handoff, the `--version` check, pacman ownership and uninstall use the set in this record. Nothing named `oma` is installed on `PATH`. `oma_version` stays the field name. The package name is `odk`. |
 | ADR 0055 | The unwritable verifier is `/usr/lib/odk/odk-oma`. Standard-error lines that say `oma:` say `odk oma:`. The trust rules are the same. |
 | ADR 0032 | The assembly command is `odk oma bundle`. The behaviour does not change. |
 | `docs/spec/oma-cli.md` | Invocation and the command tables use `odk oma`. |
@@ -267,15 +267,21 @@ ADR 0010 does not change: the Bundle program still verifies, installs, registers
 
 ADR 0050 and ADR 0051 live on `origin/atmos-v1.0.0-rc` and are not in this branch. If they land, `oma dev` is `odk oma dev`. The dispatcher does not gain a built-in `dev`. They are not edited from here.
 
-## Open questions
+## Decisions
 
-1. **The short command `oma`.** Closed. No `oma` name on `PATH`. `odk-oma` is not on `PATH`. `odk oma` is the front door.
-2. **The package name.** ADR 0054 named the package `oma` because that was the command. The command is now `odk`. **Recommendation: name the package `odk`.** Arch's helper directory is `/usr/lib/$pkgname/`, so the package name and `/usr/lib/odk/` then match. No official Arch package, no AUR package, and no Omarchy PKGBUILD is named `odk` (findings below). A package named `oma` would install a command named `odk` and a private directory that the Arch guideline would call `/usr/lib/oma/`.
-3. **The prefix on standard error.** Decided: `odk oma:`.
-4. **Whether `odk` is already a command.** Checked 2026-10-25, and it is not, in the places below. No fallback name is proposed.
-5. **The environment variable `ODK`.** No use of a variable by that exact name was found in the Android SDK, OpenDDS, or Open Data Kit docs checked below. The dispatcher keeps setting `ODK` to its own absolute path, and it overwrites a value the caller had. `odk-oma` does not need the variable.
+The owner locked these on 2026-10-25. Nothing in this list is still open.
 
-### Findings for the command name
+- No command named `oma`. `odk oma` is the front door. The Bundle program's messages are prefixed `odk oma:`.
+- `odk-oma` is not on `PATH`. A system or package install puts it at `/usr/lib/odk/odk-oma`. `--user` puts it at `~/.local/lib/odk/odk-oma`. A development build finds it next to `odk`.
+- `oma` is a built-in. The dispatcher finds it only in that private directory, never on `PATH`. Any other `odk-<name>` is taken from the private directory first, then from absolute `PATH` entries, skipping `.` and the current directory.
+- The package name is `odk`. ADR 0054 had named it `oma` because that was the command. `/usr/lib/$pkgname/` is then `/usr/lib/odk/`.
+- Desktop entries, generated entries and the mount action call `/usr/bin/odk oma …`. A per-user install uses `~/.local/bin/odk oma …` the same way. systemd, `binfmt_misc`, the `install.sh` handoff, and `self-upgrade` / `self-uninstall` call the private binary by absolute path.
+
+## Recorded findings
+
+These are not open questions. They are what was checked, and the limits of the check.
+
+### The command name `odk`
 
 Official Arch repositories, exact package name `odk`: `https://archlinux.org/packages/search/json/?name=odk` returned `count: 0`. The same search with `q=odk` also returned no results, so no official package name or description contains that string. This is not a scan of every file inside every package. A `/usr/bin/odk` owned by a package whose name and description never mention `odk` was not ruled out by a pkgfile walk; nothing in the name search suggests one.
 
