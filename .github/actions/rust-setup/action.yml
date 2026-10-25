@@ -1,0 +1,56 @@
+name: Rust CI setup
+description: The libraries GPUI's build scripts need, a Rust toolchain and the cargo cache
+
+inputs:
+  toolchain:
+    description: rustup toolchain, or msrv for the exact rust-version in Cargo.toml
+    required: true
+  components:
+    description: Extra rustup components, comma-separated
+    required: false
+    default: ""
+
+outputs:
+  toolchain:
+    description: Toolchain passed to rustup. An msrv of 1.96 becomes 1.96.0.
+    value: ${{ steps.spec.outputs.toolchain }}
+
+runs:
+  using: composite
+  steps:
+    - name: System libraries for GPUI
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+          libfontconfig1-dev libvulkan-dev libasound2-dev
+    - name: Resolve the toolchain
+      id: spec
+      shell: bash
+      run: |
+        if [ "${{ inputs.toolchain }}" = "msrv" ]; then
+          version=$(awk -F'"' '/^rust-version = "/ { print $2; exit }' Cargo.toml)
+          if [ -z "$version" ]; then
+            echo "::error::Cargo.toml does not declare rust-version"
+            exit 1
+          fi
+          # rustup's 1.96 channel is the latest 1.96 patch (1.96.1 today).
+          # The manifest means the first release of that minor.
+          case "$version" in
+            *.*.*) ;;
+            *.*) version="${version}.0" ;;
+          esac
+          echo "toolchain=$version" >> "$GITHUB_OUTPUT"
+          echo "Installing $version"
+        else
+          echo "toolchain=${{ inputs.toolchain }}" >> "$GITHUB_OUTPUT"
+          echo "Installing ${{ inputs.toolchain }}"
+        fi
+    - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      with:
+        toolchain: ${{ steps.spec.outputs.toolchain }}
+        components: ${{ inputs.components }}
+    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        cache-on-failure: true

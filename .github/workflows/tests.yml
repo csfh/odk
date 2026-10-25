@@ -7,105 +7,71 @@ on:
 
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer pull request run replaces the one in progress. A push to main finishes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - name: System libraries for GPUI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
-            libfontconfig1-dev libvulkan-dev libasound2-dev
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/rust-setup
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
       - name: Allow user namespaces for the sandbox tests
         # Ubuntu 24.04 runners confine unprivileged user namespaces with AppArmor, which makes
         # oma's "making mounts private" fail.
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
+      # cargo fmt has no --locked; it does not read the lockfile.
       - run: cargo fmt --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace --no-fail-fast
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked --no-fail-fast
         env:
           # The 4 ms draw budget is for the development machine; a shared runner is slower.
           GALLERY_FRAME_BUDGET_MS: 12
           DRAW_BUDGET_MS: 30
 
-  # Compiles and runs the same suite on the rust-version in the workspace manifest.
+  # Typechecks every target on the exact rust-version in the workspace manifest.
   msrv:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - name: System libraries for GPUI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
-            libfontconfig1-dev libvulkan-dev libasound2-dev
-      - name: Allow user namespaces for the sandbox tests
-        # Ubuntu 24.04 runners confine unprivileged user namespaces with AppArmor, which makes
-        # oma's "making mounts private" fail.
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Read rust-version
-        id: msrv
-        run: |
-          version=$(awk -F'"' '/^rust-version = "/ { print $2; exit }' Cargo.toml)
-          if [ -z "$version" ]; then
-            echo "::error::Cargo.toml does not declare rust-version"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Minimum Rust is $version"
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: setup
+        uses: ./.github/actions/rust-setup
         with:
-          toolchain: ${{ steps.msrv.outputs.version }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-      - name: Show the compiler
-        run: rustc --version
-      - run: cargo test --workspace --no-fail-fast
-        env:
-          # The 4 ms draw budget is for the development machine; a shared runner is slower.
-          GALLERY_FRAME_BUDGET_MS: 12
-          DRAW_BUDGET_MS: 30
+          toolchain: msrv
+      - name: Confirm the exact compiler
+        run: |
+          got=$(rustc --version)
+          echo "$got"
+          case "$got" in
+            *" ${{ steps.setup.outputs.toolchain }} "*) ;;
+            *)
+              echo "::error::rustc is $got, wanted ${{ steps.setup.outputs.toolchain }}"
+              exit 1
+              ;;
+          esac
+      - run: cargo check --workspace --all-targets --locked
 
   audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - name: Advisory database date
-        id: day
-        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-      - name: Cache the RustSec advisory database
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/advisory-db
-          key: rustsec-advisory-db-${{ runner.os }}-${{ steps.day.outputs.date }}
-          restore-keys: |
-            rustsec-advisory-db-${{ runner.os }}-
-      - uses: taiki-e/install-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-audit
-      # A vulnerability fails the job. Unmaintained and unsound advisories stay
-      # warnings: they come in through the pinned GPUI (ADR 0029).
+      # Ignores live in .cargo/audit.toml. cargo-audit fetches the advisory database itself.
       - run: cargo-audit audit
 
   machete:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: taiki-e/install-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-machete
       - run: cargo-machete
