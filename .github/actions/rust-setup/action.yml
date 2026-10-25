@@ -9,6 +9,13 @@ inputs:
     description: Extra rustup components, comma-separated
     required: false
     default: ""
+  user-namespaces:
+    description: >
+      Set kernel.apparmor_restrict_unprivileged_userns=0. The sandbox tests
+      fail at "making mounts private" while Ubuntu 24.04's AppArmor confines
+      unprivileged user namespaces.
+    required: false
+    default: "false"
 
 outputs:
   toolchain:
@@ -25,6 +32,10 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
           libfontconfig1-dev libvulkan-dev libasound2-dev
+    - name: Allow user namespaces for the sandbox tests
+      if: ${{ inputs.user-namespaces == 'true' }}
+      shell: bash
+      run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
     - name: Resolve the toolchain
       id: spec
       shell: bash
@@ -40,6 +51,10 @@ runs:
           case "$version" in
             *.*.*) ;;
             *.*) version="${version}.0" ;;
+            *)
+              echo "::error::rust-version must be major.minor or major.minor.patch, got $version"
+              exit 1
+              ;;
           esac
           echo "toolchain=$version" >> "$GITHUB_OUTPUT"
           echo "Installing $version"
@@ -47,7 +62,9 @@ runs:
           echo "toolchain=${{ inputs.toolchain }}" >> "$GITHUB_OUTPUT"
           echo "Installing ${{ inputs.toolchain }}"
         fi
-    - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+    # Tag v1, the commit on master that knows rustc 1.99.1. A SHA that is not
+    # on master is garbage-collected. This revision needs an explicit toolchain.
+    - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
       with:
         toolchain: ${{ steps.spec.outputs.toolchain }}
         components: ${{ inputs.components }}

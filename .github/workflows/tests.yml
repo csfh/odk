@@ -4,10 +4,16 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A new RustSec advisory should fail `audit` even when nobody has opened a
+  # pull request. The compile jobs skip this event.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
-  # A newer pull request run replaces the one in progress. A push to main finishes.
+  # A newer pull request run replaces the one in progress. A push to main,
+  # the Monday audit and a manual run are left to finish.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -15,6 +21,7 @@ permissions:
 
 jobs:
   tests:
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,10 +29,7 @@ jobs:
         with:
           toolchain: stable
           components: clippy, rustfmt
-      - name: Allow user namespaces for the sandbox tests
-        # Ubuntu 24.04 runners confine unprivileged user namespaces with AppArmor, which makes
-        # oma's "making mounts private" fail.
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          user-namespaces: true
       # cargo fmt has no --locked; it does not read the lockfile.
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -37,6 +41,7 @@ jobs:
 
   # Typechecks every target on the exact rust-version in the workspace manifest.
   msrv:
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,10 +69,13 @@ jobs:
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-audit
-      # Ignores live in .cargo/audit.toml. cargo-audit fetches the advisory database itself.
+      # A vulnerability fails the job. Informational advisories stay warnings.
+      # An accepted vulnerability is an id in .cargo/audit.toml. cargo-audit
+      # fetches the advisory database itself.
       - run: cargo-audit audit
 
   machete:
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

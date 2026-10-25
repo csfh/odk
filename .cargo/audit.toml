@@ -1,76 +1,27 @@
-# Ignores are the escape hatch for a RustSec advisory with no patched release.
-# The audit job fails on a vulnerability, a yanked crate, or an unmaintained
-# advisory that is not listed here. An advisory that names a patched release is
-# not ignored. git2 0.20.4 (RUSTSEC-2026-0183, RUSTSEC-2026-0184) is fixed in
-# git2 >= 0.21, and gpui_util 0.2.2 requires ^0.20.1, so those stay warnings.
+# cargo-audit reads this file, `.cargo/audit.toml`, from the directory it is
+# run in. It uses `~/.cargo/audit.toml` only when this file is absent.
 #
-# cargo-audit's ignore list is ids only. The comment on each id is the date it
-# was added, why there is no fix, and when to look again. Delete the id once
-# Cargo.lock no longer contains the crate.
+# The `audit` job is a required check and it reads the live RustSec database,
+# so a newly published vulnerability fails `main` with no commit in the diff.
+# The job also runs every Monday and on workflow_dispatch, so that failure
+# shows up without waiting for a pull request.
+#
+# A vulnerability fails the job, and so does a yanked crate. Unmaintained,
+# unsound and notice advisories are warnings: that is cargo-audit's default
+# when `informational_warnings` is left unset, and this file leaves it unset.
+# The `ignore` list is empty. The warnings in this tree come through the
+# pinned GPUI (ADR 0029) and stay visible.
+#
+# To accept a vulnerability until it can be fixed, add its id under `ignore`
+# with a comment on that line giving the reason and the date to look again.
+# cargo-audit stores the id only (`ignore` is a list of strings, and the
+# config rejects unknown fields), so the date does not expire by itself.
+# Remove the line when the review date arrives or a fix is in the lockfile.
+#
+#   ignore = [
+#       # 2026-10-25: RUSTSEC-2026-0000, no fixed release; review by 2027-01-25.
+#       "RUSTSEC-2026-0000",
+#   ]
 
 [advisories]
-ignore = [
-    # RUSTSEC-2025-0052, async-std 1.13.2, via zed-async-tar (gpui 0.2.2).
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains async-std.
-    "RUSTSEC-2025-0052",
-
-    # RUSTSEC-2024-0384, instant 0.1.13, via fastrand 1.9.0.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains instant.
-    "RUSTSEC-2024-0384",
-
-    # RUSTSEC-2024-0436, paste 1.0.15, via metal, pulp and rav1e.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains paste.
-    "RUSTSEC-2024-0436",
-
-    # RUSTSEC-2026-0173, proc-macro-error2 2.0.1, via stacksafe-macro.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains proc-macro-error2.
-    "RUSTSEC-2026-0173",
-
-    # RUSTSEC-2025-0134, rustls-pemfile 2.2.0, via zed-reqwest (gpui 0.2.2).
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains rustls-pemfile.
-    "RUSTSEC-2025-0134",
-
-    # RUSTSEC-2026-0206, rustybuzz 0.14.1 and 0.20.1, via cosmic-text and usvg.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains rustybuzz.
-    "RUSTSEC-2026-0206",
-
-    # RUSTSEC-2026-0192, ttf-parser 0.20.0, 0.21.1 and 0.25.1, via cosmic-text, fontdb and rustybuzz.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release.
-    # Revisit: when Cargo.lock no longer contains ttf-parser.
-    "RUSTSEC-2026-0192",
-
-    # RUSTSEC-2026-0371, zbus_names 4.3.5, via zbus 5.19.0.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release. The types moved into zbus 6.
-    # Revisit: when Cargo.lock no longer contains zbus_names.
-    "RUSTSEC-2026-0371",
-
-    # RUSTSEC-2026-0370, zvariant 5.15.1, via zbus 5.19.0.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release. The crate moved into zbus 6.
-    # Revisit: when Cargo.lock no longer contains zvariant.
-    "RUSTSEC-2026-0370",
-
-    # RUSTSEC-2026-0372, zvariant_derive 5.15.1, via zvariant.
-    # Added: 2026-10-25.
-    # Reason: unmaintained, and the advisory lists no patched release. The macros moved into zbus 6.
-    # Revisit: when Cargo.lock no longer contains zvariant_derive.
-    "RUSTSEC-2026-0372",
-]
-
-[output]
-quiet = false
-deny = ["unmaintained", "yanked"]
+ignore = []
