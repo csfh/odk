@@ -161,3 +161,25 @@ fn the_column_is_centred_in_the_content_area_of_the_frame(cx: &mut TestAppContex
         "a tall page scrolls and does not grow the frame"
     );
 }
+
+/// A field that fills its row still fills it when a long paragraph of text sits above it in a
+/// scroll region. A scroll region without a width of its own was measured at the width of its
+/// content, and a `SearchInput` under a wrapping `Text` came out as wide as its icon.
+#[gpui::test]
+fn a_field_fills_its_row_under_a_long_paragraph_in_a_scroll_region(cx: &mut TestAppContext) {
+    const LONG: &str = "Processes that stay busy, hold a lot of memory, or keep a port open for days. Linux does not record when a socket opened, so a port's age is its process's age. Ports owned by root services show without a process.";
+    let cx = open(cx, |_, _| {
+        scroll_y("page").child(
+            content_column()
+                .child(crate::Text::new(LONG))
+                .child(crate::SearchInput::new("find", "Find").placeholder("Find")),
+        )
+    });
+    resize(cx, 1400.0, 700.0);
+    let width = foundation().layout.content_width - 2.0 * foundation().layout.panel_padding;
+    assert_eq!(
+        f32::from(cx.debug_bounds("find/box").unwrap().size.width),
+        width,
+        "the field is the column's width inside its padding"
+    );
+}

@@ -166,9 +166,10 @@ pub fn h_flex() -> Div {
 /// A region that takes the room its parent leaves and scrolls when its content is taller. It is
 /// a block, not a flex column: children of a flex column shrink to fit instead of scrolling, so
 /// put one `v_flex()` or `content_column()` inside it. The `id` is GPUI's key for the scroll
-/// position, so it must be unique in the window.
+/// position, so it must be unique in the window. It is as wide as its parent: left to the width of
+/// its content, a field under a long paragraph came out as wide as its icon.
 pub fn scroll_y(id: impl Into<ElementId>) -> Stateful<Div> {
-    div().id(id).flex_1().min_h_0().overflow_y_scroll()
+    div().id(id).flex_1().min_h_0().w_full().overflow_y_scroll()
 }
 
 /// The frame of an application with a sidebar: the sidebar at the foundation's width, a line,
