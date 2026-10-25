@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0050
+status: amended by ADR 0052
 ---
 
 # omalaunch keeps the current and previous version, and never snapshots data

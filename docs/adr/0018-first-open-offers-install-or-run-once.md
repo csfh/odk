@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0050
+status: amended by ADR 0052
 ---
 
 # Opening a Bundle from outside `~/Applications` offers Install, Run once or Cancel

@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0051
+status: amended by ADR 0053
 ---
 
 # Registration is generated `.desktop` entries that exec omalaunch

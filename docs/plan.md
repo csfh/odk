@@ -22,7 +22,7 @@ One Cargo workspace, two groups of crates that never depend on each other.
 
 ## Order of work
 
-ADR 0050 to 0053 (*proposed*) replace the directory Bundle this order assumes with one `.oma` file. They are not part of the order until they are accepted, and the specs stay on the directory until then.
+ADR 0052 to 0055 (accepted) replace the directory Bundle this order assumed with one `.oma` file: the image (ADR 0052), the desktop registration (ADR 0053), the Arch package (ADR 0054) and the signature (ADR 0055). The code still installs a directory. The steps below that are already built stay as they are until that work is done; new Bundle work follows the accepted ADRs.
 
 Each step ends with something that runs and can be tested without the steps after it.
 

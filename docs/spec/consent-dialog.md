@@ -4,13 +4,14 @@ Normative. This spec defines the dialog of ADR 0016, shown by the helper of ADR 
 
 ## When it is shown
 
-oma shows the dialog whenever a Bundle requests a permission missing from its consent record (ADR 0023). That covers:
+oma shows the dialog whenever a Bundle requests a permission missing from its consent record (ADR 0023), and whenever a signed Bundle is signed by a key that is not the one pinned for its Identifier (ADR 0055). That covers:
 
 - opening a Bundle from outside `~/Applications`, where it offers Install, Run once or Cancel (ADR 0018);
 - the first launch of a Bundle already in `~/Applications` that has no consent record;
-- launching an upgraded Bundle that requests anything new (ADR 0015).
+- launching an upgraded Bundle that requests anything new (ADR 0015);
+- a file signed by any key other than the pin, including a key the publisher's domain has newly listed and a key from a domain that was unreachable and came back with a different key. That case uses the first-install buttons, not the upgrade buttons.
 
-It is not shown when everything a Bundle requests is already in its consent record. In non-interactive mode there is no dialog: a missing permission makes oma exit non-zero and launch nothing, and `oma install --accept-permissions` is the only way to grant without one (ADR 0016).
+It is not shown when everything a Bundle requests is already in its consent record and the file verifies under the pinned key. In non-interactive mode there is no dialog: a missing permission, or a key that is not the pin, makes oma exit non-zero and launch nothing. `oma install --accept-permissions` grants permissions without a dialog (ADR 0016). It does not accept a key other than the pin; pointed at one, it installs nothing.
 
 ## Layout
 
@@ -28,9 +29,10 @@ For an upgrade, only the **new** permissions are listed. The ones already in the
 | Situation | Buttons |
 |---|---|
 | First open of a Bundle outside `~/Applications` | Install, Run once, Cancel |
-| An upgrade that requests something new, with a previous version kept | Allow, Keep previous version, Cancel |
+| A file signed by a key that is not the pin, including a new publisher after the domain was unreachable (ADR 0055) | Install, Run once, Cancel |
+| An upgrade that verifies under the pinned key and requests something new, with a previous version kept | Allow, Keep previous version, Cancel |
 | Any other installed Bundle that requests something new | Allow, Cancel |
-| `oma install` of a Bundle that requests something new | Install, Cancel |
+| `oma install` of a Bundle that requests something new, under the pinned key or with no key pinned yet | Install, Cancel |
 
 Keep previous version rolls back to the previous version (ADR 0011) and launches it, so declining an upgrade never leaves an application that will not start (ADR 0015). Cancel launches nothing.
 
@@ -51,6 +53,18 @@ Each line states the consequence in plain language, not the permission's name.
 | `dbus` | Can talk to these desktop services: {names} |
 
 A named directory that is unavailable (ADR 0012) is listed as "{Desktop}: you have no such folder, so this will not be available".
+
+A trust note (ADR 0055) is a `notes` entry, not a permission line. At most one of the key notes applies, and the origin note is separate:
+
+| Situation | Note |
+|---|---|
+| No signature, and no key pinned | This bundle is unsigned. |
+| The domain could not be reached, so the key in the file is not confirmed | The publisher's domain could not be reached, so this signing key is not confirmed. |
+| The file's key is not the pin, and the domain stayed reachable | This file is signed by a different key from the one pinned for this application. Installing it asks you to accept that key, as on a first install. |
+| The domain was unreachable and now signs with a different key | This domain was unreachable and now signs with a different key. This is a new publisher, and it needs your consent as on a first install. |
+| `user.xdg.origin.url` names a host other than the publisher | The download origin ({host}) is not the publisher's domain ({domain}). |
+
+A missing origin attribute adds no note and never blocks. An origin whose host is the publisher adds no note. `oma install --accept-permissions` does not skip a different key.
 
 ## Interface
 
