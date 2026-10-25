@@ -184,7 +184,20 @@ pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Di
         .size_full()
         .child(v_flex().w(px(width)).flex_none().h_full().child(sidebar))
         .child(Separator::vertical())
-        .child(v_flex().flex_1().min_w_0().h_full().child(content))
+        .child(
+            // The content is laid out in a box that is given its size, not one that is sized by
+            // flexing: a scroll region under a flex item measured its children at the width of
+            // their content, and a field under a long paragraph came out as wide as its icon.
+            div().flex_1().min_w_0().h_full().relative().child(
+                v_flex()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left_0()
+                    .right_0()
+                    .child(content),
+            ),
+        )
 }
 
 /// A page's column of content: as wide as its parent up to the foundation's content width,

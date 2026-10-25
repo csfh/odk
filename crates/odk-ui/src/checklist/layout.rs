@@ -169,10 +169,14 @@ fn the_column_is_centred_in_the_content_area_of_the_frame(cx: &mut TestAppContex
 fn a_field_fills_its_row_under_a_long_paragraph_in_a_scroll_region(cx: &mut TestAppContext) {
     const LONG: &str = "Processes that stay busy, hold a lot of memory, or keep a port open for days. Linux does not record when a socket opened, so a port's age is its process's age. Ports owned by root services show without a process.";
     let cx = open(cx, |_, _| {
-        scroll_y("page").child(
-            content_column()
-                .child(crate::Text::new(LONG))
-                .child(crate::SearchInput::new("find", "Find").placeholder("Find")),
+        // As an application puts it: the page in a scroll region in the content of the frame.
+        sidebar_frame(
+            div().size_full(),
+            scroll_y("page").child(
+                content_column()
+                    .child(crate::Text::new(LONG))
+                    .child(crate::SearchInput::new("find", "Find").placeholder("Find")),
+            ),
         )
     });
     resize(cx, 1400.0, 700.0);
