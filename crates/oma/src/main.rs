@@ -57,6 +57,10 @@ enum Command {
         /// Directory to create the Bundle in
         #[arg(short, long, default_value = ".")]
         out: PathBuf,
+        /// A regular file to put in the Bundle too: `FILE` or `FILE=PATH/IN/BUNDLE`. Repeat it.
+        /// An executable bit is kept; a symlink is refused (ADR 0050)
+        #[arg(long = "include", value_name = "FILE[=PATH]")]
+        includes: Vec<String>,
     },
 }
 
@@ -154,7 +158,14 @@ fn main() -> ExitCode {
             executable,
             manifest,
             out,
-        } => match oma::bundle::assemble(&executable, &manifest, &out) {
+            includes,
+        } => match includes
+            .iter()
+            .map(|text| oma::bundle::Include::parse(text))
+            .collect::<Result<Vec<_>, _>>()
+            .and_then(|includes| {
+                oma::bundle::assemble_with(&executable, &manifest, &out, &includes)
+            }) {
             Ok(bundle) => {
                 println!("{}", bundle.display());
                 ExitCode::SUCCESS
