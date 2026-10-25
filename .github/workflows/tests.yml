@@ -69,9 +69,9 @@ jobs:
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-audit
-      # A vulnerability fails the job. Informational advisories stay warnings.
-      # An accepted vulnerability is an id in .cargo/audit.toml. cargo-audit
-      # fetches the advisory database itself.
+      # A vulnerability or a yanked crate fails the job. Unmaintained, unsound
+      # and notice advisories stay warnings. An accepted advisory is an id in
+      # .cargo/audit.toml. cargo-audit fetches the advisory database itself.
       - run: cargo-audit audit
 
   machete:

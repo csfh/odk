@@ -6,17 +6,18 @@
 # The job also runs every Monday and on workflow_dispatch, so that failure
 # shows up without waiting for a pull request.
 #
-# A vulnerability fails the job, and so does a yanked crate. Unmaintained,
-# unsound and notice advisories are warnings: that is cargo-audit's default
-# when `informational_warnings` is left unset, and this file leaves it unset.
-# The `ignore` list is empty. The warnings in this tree come through the
-# pinned GPUI (ADR 0029) and stay visible.
+# A vulnerability fails the job. A yanked crate fails it because `deny` below
+# is `["yanked"]`; without that, cargo-audit only warns about a yank.
+# Unmaintained, unsound and notice advisories stay warnings: `informational_warnings`
+# is left unset (cargo-audit's default reports all three) and they are not in `deny`.
+# The warnings in this tree come through the pinned GPUI (ADR 0029) and stay visible.
 #
-# To accept a vulnerability until it can be fixed, add its id under `ignore`
-# with a comment on that line giving the reason and the date to look again.
-# cargo-audit stores the id only (`ignore` is a list of strings, and the
-# config rejects unknown fields), so the date does not expire by itself.
-# Remove the line when the review date arrives or a fix is in the lockfile.
+# `ignore` is a list of advisory ids. It can accept a vulnerability, or an
+# informational advisory, until it can be fixed. It does not silence a yank:
+# a yanked crate has no advisory id, so the fix is `cargo update -p`.
+# cargo-audit stores the id only (the config rejects unknown fields), so a
+# review date in the comment does not expire by itself. Remove the line when
+# the review date arrives or a fix is in the lockfile. The list is empty.
 #
 #   ignore = [
 #       # 2026-10-25: RUSTSEC-2026-0000, no fixed release; review by 2027-01-25.
@@ -25,3 +26,7 @@
 
 [advisories]
 ignore = []
+
+[output]
+quiet = false
+deny = ["yanked"]
