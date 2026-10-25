@@ -2,7 +2,7 @@
 
 Normative. This spec defines the whole command-line surface of `oma` (ADR 0010). It is deliberately small. It must not change a decision recorded in an ADR; if it needs to, write a new ADR first. Where the two disagree, the ADR wins.
 
-There is no `update`, `list` or `uninstall`. oma does not compile applications or update them (ADR 0010), and uninstalling an application is deleting its `<Name>.oma` file (ADR 0009, ADR 0052). It can assemble a Bundle from a built executable (`bundle`, ADR 0032) but never builds the executable. The commands below are the accepted surface. The built binary still takes a Bundle directory and still verifies no signature; it changes to follow ADR 0052 and ADR 0055.
+There is no `update`, `list` or `uninstall` of a Bundle. oma does not compile applications or update them (ADR 0010), and uninstalling an application is deleting its `<Name>.oma` file (ADR 0009, ADR 0052). It can assemble a Bundle from a built executable (`bundle`, ADR 0032) but never builds the executable. `oma self-upgrade` and `oma self-uninstall` replace or remove the `oma` program itself (ADR 0054). They do not fetch or remove Bundles. The commands below are the accepted surface. The built binary still takes a Bundle directory and still verifies no signature; it changes to follow ADR 0052 and ADR 0055.
 
 ## Commands
 
@@ -22,6 +22,8 @@ There is no `update`, `list` or `uninstall`. oma does not compile applications o
 | `oma mount --unmount <file>` | Unmounts that view. A view otherwise lasts until logout. |
 | `oma omarchy sync` | Copies the user's text size, request for reduced motion (what Hyprland says about animating windows, ADR 0048, or the key in `shell.toml` when it says nothing) and font into `~/.local/share/oma/omarchy/` for sandboxes to show (ADR 0044). `run` does it before every launch; the user units the package ships (`packaging/`) run it when either file changes and at login. |
 | `oma --register` | Reconciles `~/Applications` and the inboxes: generates and removes `.desktop` entries, activates upgrades and enables or disables inbox watches. Idempotent. Used by the path units and the login run (ADR 0009, ADR 0015). |
+| `oma self-upgrade` | Replaces this `oma` with a newer release from its domain, verified under the pinned key (ADR 0054). A different key stops it unless `--accept-new-key` is confirmed on a terminal. Refuses when pacman owns the binary. |
+| `oma self-uninstall` | Removes the `oma` install and leaves application data (ADR 0054). Refuses when pacman owns the binary. |
 | `oma --init` | Internal. Runs the init inside an application's PID namespace (ADR 0024). Not for users and not a stable interface. |
 
 ## Targets

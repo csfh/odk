@@ -3,9 +3,10 @@
 What the `oma` package installs besides the programs (ADR 0044). Nothing here is run from the
 repository.
 
-ADR 0054 (accepted) is the rest of that package: the MIME type, the desktop file, the
-registration units and the `binfmt_misc` entry (ADR 0052, ADR 0053). Those files are not added
-here yet. ADR 0054 also fixes the install path these units assume, `/usr/bin/oma`.
+ADR 0054 (accepted) is how `oma` itself is installed: a script from its domain, and later
+Omarchy's own repository. Both place the MIME type, the desktop file, the registration units
+and the `binfmt_misc` entry (ADR 0052, ADR 0053). Those files are not added here yet. ADR 0054
+also fixes the install path these units assume, `/usr/bin/oma`.
 
 | File | Installed as |
 |---|---|

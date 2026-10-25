@@ -72,7 +72,7 @@ The document is `https://<publisher>/.well-known/oma-keys` and nothing else. HTT
 
 ## Layer 2: the signature, the pin, and a new key
 
-Verification runs when a Bundle is installed, when an inbox file is considered, and on every launch. `~/Applications` is writable by the user, so a hash cached beside the file is writable by the same person who could replace the file. A cache there does not help against the tampering the check is for. The installed `oma` is not writable by that user; the check it performs is (ADR 0054).
+Verification runs when a Bundle is installed, when an inbox file is considered, and on every launch. `~/Applications` is writable by the user, so a hash cached beside the file is writable by the same person who could replace the file. A cache there does not help against the tampering the check is for. The system install of `oma` is at `/usr/bin/oma` and is not writable by that user; the check it performs is (ADR 0054). A per-user install under `~/.local/bin` is writable by the same user and is not this boundary.
 
 The private key stays with the author. An application with `updates` can write a file into its inbox. It cannot sign one unless the author signed it first. That is the hole a pin closes. A pin does not make the first install safe. The first install is the user reading the prompt, which is ADR 0007's gate, plus a key that will be required next time.
 

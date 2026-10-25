@@ -43,8 +43,9 @@ depends on ODK, so this can run in parallel with the ODK work. `.desktop` regist
 users would notice, because installed applications would show up in launchers.
 
 ADR 0052 to 0055 (accepted) replace the directory Bundle this list assumed with one `.oma`
-file, and describe the MIME type, the path units, the Arch package and the signature. The code
-still installs a directory (ADR 0022). The work below follows the accepted ADRs.
+file, and describe the MIME type, the path units, the install of `oma` (a domain script, later
+Omarchy's repository) and the signature. The code still installs a directory (ADR 0022). The
+work below follows the accepted ADRs.
 
 - [ ] `.desktop` registration
 - [ ] Upgrades
