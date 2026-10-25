@@ -1,5 +1,4 @@
-//! `oma`: runs, installs and sandboxes `.oma` Bundles. Only `inspect` and `bundle` exist so
-//! far; the rest of `docs/spec/oma-cli.md` follows.
+//! `oma`: runs, installs and sandboxes `.oma` Bundles (`docs/spec/oma-cli.md`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -41,6 +40,15 @@ enum Command {
         /// Record consent for exactly the permissions the Bundle asks for now, without a dialog
         #[arg(long)]
         accept_permissions: bool,
+    },
+    /// Build a project, install its Bundle over the installed copy and run it (needs a dev.toml)
+    Dev {
+        /// The project's directory, which holds manifest.toml and dev.toml
+        #[arg(default_value = ".")]
+        project: PathBuf,
+        /// Stay, relay terminal signals and exit with the application's status
+        #[arg(long)]
+        wait: bool,
     },
     /// Omarchy's text size and font, as sandboxed applications are shown them
     Omarchy {
@@ -133,6 +141,56 @@ fn main() -> ExitCode {
                     println!("{}", path.display());
                     ExitCode::SUCCESS
                 }
+                Err(e) => {
+                    eprintln!("oma: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Command::Dev { project, wait } => {
+            let Some(layout) = oma::layout::Layout::from_env() else {
+                eprintln!("oma: $HOME is not set");
+                return ExitCode::FAILURE;
+            };
+            let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+            let prepared = match oma::flow::dev(
+                &layout,
+                &project,
+                runtime.as_deref().filter(|p| p.is_absolute()),
+                &oma::consent::ask,
+                &oma::daemon::SystemctlStop,
+            ) {
+                Ok(prepared) => prepared,
+                Err(e) => {
+                    eprintln!("oma: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let what = if prepared.replaced {
+                "replaced the installed copy at"
+            } else {
+                "installed at"
+            };
+            eprintln!(
+                "oma: {} {what} {}",
+                prepared.identifier,
+                prepared.installed.display()
+            );
+            if let Some(socket) = &prepared.foreign_daemon {
+                eprintln!(
+                    "oma: something else is serving {}, so the application will use that daemon, not the one just built",
+                    socket.display()
+                );
+            }
+            let host = oma::sandbox::launch::HostEnv::from_process();
+            match oma::flow::run(
+                &layout,
+                &host,
+                prepared.identifier.as_str(),
+                wait,
+                &oma::consent::ask,
+            ) {
+                Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
                 Err(e) => {
                     eprintln!("oma: {e}");
                     ExitCode::FAILURE

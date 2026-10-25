@@ -65,6 +65,12 @@ fn escape(text: &str) -> String {
     out
 }
 
+/// The name of the transient unit that carries the application `id`'s daemon, which starting
+/// and stopping both use.
+pub fn unit_name(id: &Identifier) -> String {
+    format!("oma-{}", escape(id.as_str()))
+}
+
 impl Unit {
     /// The unit that carries `daemon` of the application `id`.
     pub fn new(
@@ -75,7 +81,7 @@ impl Unit {
         env: &dyn Fn(&str) -> Option<String>,
     ) -> Self {
         Self {
-            name: format!("oma-{}", escape(id.as_str())),
+            name: unit_name(id),
             description: format!("{id} daemon, started by oma"),
             socket: runtime_dir.join(&daemon.socket),
             executable: executable.to_owned(),
@@ -146,6 +152,36 @@ impl Starter for SystemdRun {
             Err(format!("{why}{hint}"))
         }
     }
+}
+
+/// Stops a unit `oma` started. The real one is [`SystemctlStop`]; tests put their own.
+pub trait Stopper {
+    fn stop(&self, id: &Identifier) -> Result<(), String>;
+}
+
+/// `systemctl --user stop` of the application's socket and service.
+pub struct SystemctlStop;
+
+impl Stopper for SystemctlStop {
+    fn stop(&self, id: &Identifier) -> Result<(), String> {
+        let name = unit_name(id);
+        let status = Command::new("systemctl")
+            .args(["--user", "--quiet", "stop"])
+            .arg(format!("{name}.socket"))
+            .arg(format!("{name}.service"))
+            .status()
+            .map_err(|e| format!("systemctl: {e}"))?;
+        // 5 is "not loaded": nothing of ours was running, which is what was wanted.
+        match status.code() {
+            Some(0 | 5) => Ok(()),
+            _ => Err(format!("systemctl --user stop {name} {status}")),
+        }
+    }
+}
+
+/// Whether something accepts connections on the daemon's socket under `runtime_dir`.
+pub fn serving(runtime_dir: &Path, daemon: &Daemon) -> bool {
+    reachable(&runtime_dir.join(&daemon.socket))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
