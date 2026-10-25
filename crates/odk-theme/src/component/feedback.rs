@@ -300,6 +300,15 @@ impl ComponentTokens {
         }
     }
 
+    /// [`ComponentTokens::text`] in the `mono` type role, for what is read as characters: a
+    /// command line, a path, an identifier. The colours are the same.
+    pub fn text_mono(&self, secondary: bool) -> ProseStyle {
+        ProseStyle {
+            role: TypeRole::Mono,
+            ..self.text(secondary)
+        }
+    }
+
     /// A heading at `level` ([`heading_role`]), in the primary text colour.
     pub fn heading(&self, level: u8) -> ProseStyle {
         ProseStyle {

@@ -15,6 +15,8 @@ use crate::theme::colour;
 pub struct Text {
     content: SharedString,
     muted: bool,
+    mono: bool,
+    single_line: bool,
 }
 
 impl Text {
@@ -22,12 +24,29 @@ impl Text {
         Self {
             content: content.into(),
             muted: false,
+            mono: false,
+            single_line: false,
         }
     }
 
     /// Secondary text, for what says less than the text around it.
     pub fn muted(mut self) -> Self {
         self.muted = true;
+        self
+    }
+
+    /// In the monospace type role, for what is read as characters: a command line, a path, an
+    /// identifier. The colours are the text's own.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
+    }
+
+    /// Stays on one line and ends in `…` when it does not fit, in the room its parent gives it.
+    /// A parent that lays children out in a row must let this one shrink (`flex_1` and
+    /// `min_w_0` on the element around it), or the text takes the width it wants.
+    pub fn single_line(mut self) -> Self {
+        self.single_line = true;
         self
     }
 }
@@ -40,7 +59,18 @@ impl Describe for Text {
 
 impl RenderOnce for Text {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
-        prose(components().text(self.muted), self.content)
+        let tokens = components();
+        let style = if self.mono {
+            tokens.text_mono(self.muted)
+        } else {
+            tokens.text(self.muted)
+        };
+        let line = prose(style, self.content);
+        if self.single_line {
+            crate::layout::single_line(line).min_w_0()
+        } else {
+            line
+        }
     }
 }
 

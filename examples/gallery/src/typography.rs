@@ -118,16 +118,14 @@ impl Render for TypographyPage {
                         .child(
                             div()
                                 .w(px(220.0))
-                                .overflow_hidden()
-                                .line_clamp(1)
-                                .text_ellipsis()
-                                .child(Text::new("A file name that is much too long for its column.tar.gz")),
+                                .child(Text::new("A file name that is much too long for its column.tar.gz").single_line()),
                         )
                         .child(group("Technical values"))
+                        .child(Text::new("0x7fff_ffff · #1e1e2e · 12.5px/18px · ~/.config/omarchy/shell.toml").mono())
                         .child(
                             div()
-                                .text_role(TypeRole::Mono)
-                                .child("0x7fff_ffff · #1e1e2e · 12.5px/18px · ~/.config/omarchy/shell.toml"),
+                                .w(px(220.0))
+                                .child(Text::new("/usr/lib/systemd/systemd --user --deserialize=42").mono().muted().single_line()),
                         )
                         .child(kv("Monospace family", t.family(FontFamily::Mono).unwrap_or("Omarchy's monospace font").to_owned())),
                 ),
