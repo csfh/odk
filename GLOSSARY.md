@@ -146,8 +146,12 @@ An application's own SQLite file, in its own data directory, which ODK opens, br
 _Avoid_: store, DB layer
 
 **Reduced motion**:
-A request that nothing move for its own sake: every transition shows its end state at once and a spinner stands still, while every state change still happens. The application can ask for it, and so can the user, by turning off the compositor's window animations (Hyprland's `animations:enabled`); either one is enough.
-_Avoid_: no animation, prefers-reduced-motion (a browser's name for it)
+A request that nothing move for its own sake: every transition shows its end state at once, a fade included, and a spinner stands still, while every state change still happens. How long a tooltip waits to open, or a toast stays, is not shortened. The application can ask for it, and so can the user, by turning off the compositor's window animations (Hyprland's `animations:enabled`); either one is enough. The categories are ADR 0059 (proposed).
+_Avoid_: no animation, prefers-reduced-motion (a browser's name for it), crossfade
+
+**Motion**:
+How a control goes from one state it already has to the next: a duration and a curve from the foundation, or a spring that settles without passing the target, by the component's default or by a decoration attached to it (ADR 0059, proposed). Reduced motion shows the end state at once.
+_Avoid_: animation library, Framer Motion (the spirit of the API, not a dependency)
 
 **Activation**:
 What a control reports when a press and its release both land on it, or a key that clicks it is released: one callback, once. A press that ends elsewhere, a key held down, and anything done to a disabled or busy control are not activations.
