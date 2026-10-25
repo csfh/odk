@@ -1,5 +1,5 @@
 ---
-status: superseded by ADR 0022
+status: superseded by ADR 0022 and ADR 0050
 ---
 
 # A Bundle is a plain tar+zstd archive of a canonical directory

@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0032
+status: amended by ADR 0032 and superseded by ADR 0050
 ---
 
 # A Bundle is always a directory, `<App>.oma/`, never a file

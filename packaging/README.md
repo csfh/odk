@@ -3,6 +3,11 @@
 What the `oma` package installs besides the programs (ADR 0044). Nothing here is run from the
 repository.
 
+ADR 0052 (*proposed*) is the rest of that package: the MIME type, the desktop file, the
+registration units and the `binfmt_misc` entry (ADR 0050, ADR 0051). Those files are not added
+here until that ADR is accepted. ADR 0052 also fixes the install path these units assume,
+`/usr/bin/oma`.
+
 | File | Installed as |
 |---|---|
 | `systemd/user/oma-omarchy.path` | `/usr/lib/systemd/user/oma-omarchy.path` |

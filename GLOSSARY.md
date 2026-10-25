@@ -15,8 +15,8 @@ _Avoid_: SDK, framework
 Omarchy Managed Application: the application bundle format and the ecosystem around it.
 
 **Bundle**:
-An application packaged as a directory named `<App>.oma/`, holding its Manifest, executable and resources. Always a directory, never a single file.
-_Avoid_: package, archive, app image, .oma file
+An application packaged as one `<App>.oma` file (ADR 0050, *proposed*): a read-only EROFS image of its Manifest, executable and resources, mounted rather than extracted. The code and the specs still install a directory `<App>.oma/` (ADR 0022) until ADR 0050 is accepted.
+_Avoid_: package, archive, app image
 
 **Manifest**:
 The declarative TOML file inside a Bundle that names the application and declares the permissions it requests.
@@ -43,7 +43,7 @@ The small helper program that shows the consent dialog for oma and reports the u
 The per-application directory where an application stages a new version of itself for oma to pick up. An application can write only to its own.
 
 **Flea**:
-The file explorer that presents a Bundle directory as a single application instead of a folder.
+The file explorer that presents a Bundle as a single application. ADR 0051 (*proposed*) has it run the file on open and mount it for "Show contents". Until that is accepted, Flea is described as presenting the Bundle directory (ADR 0022).
 
 **Theme**:
 An Omarchy theme: a named set of colours and settings that Omarchy applies to the whole desktop. Stock themes ship with Omarchy; users install or write their own.

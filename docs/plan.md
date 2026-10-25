@@ -22,6 +22,8 @@ One Cargo workspace, two groups of crates that never depend on each other.
 
 ## Order of work
 
+ADR 0050 to 0053 (*proposed*) replace the directory Bundle this order assumes with one `.oma` file. They are not part of the order until they are accepted, and the specs stay on the directory until then.
+
 Each step ends with something that runs and can be tested without the steps after it.
 
 0. **Cheap spikes**, as separate throwaway programs outside the workspace, from `docs/checks.md`: Landlock ABI 6 scoping against the D-Bus abstract socket, the `clone3` and `max_user_namespaces` options for nested user namespaces, `fexecve` re-exec of oma as the init, the Omarchy launcher cache, `mlua` limits on Luau, the theme location. Each result moves its item to Done and updates the ADR or spec it names.

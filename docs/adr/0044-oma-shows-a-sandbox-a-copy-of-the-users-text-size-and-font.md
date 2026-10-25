@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0046
+status: amended by ADR 0046 and ADR 0052
 ---
 
 # oma shows a sandbox a copy of the user's text size and font

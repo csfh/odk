@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0051
+---
+
 # Registration is generated `.desktop` entries that exec omalaunch
 
 For each Bundle omalaunch generates a `.desktop` entry under `~/.local/share/applications/` from the Manifest (name, icon, categories). Its Exec line calls omalaunch with the Identifier rather than the application's ELF, so the sandbox always applies. Entries are removed when their Bundle disappears from `~/Applications`. No MIME type is registered for `.oma`, since a Bundle is a directory and a file-name association cannot match one (ADR 0022); Flea opens Bundles by calling omalaunch itself. Omarchy's hooks (`theme-set`, `font-set`, `post-update`) are not a removal signal: none fires when an application or `.desktop` file is added or removed. Whether Omarchy's launcher caches its application list and needs a refresh after an entry changes is unverified and must be checked before implementation.

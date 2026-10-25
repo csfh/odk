@@ -42,6 +42,11 @@ Not built: `.desktop` registration, upgrades, `rollback`, `purge` and the path u
 depends on ODK, so this can run in parallel with the ODK work. `.desktop` registration is the one
 users would notice, because installed applications would show up in launchers.
 
+ADR 0050 to 0053 (*proposed*) replace the directory Bundle this list assumes with one `.oma`
+file, and describe the MIME type, the path units, the Arch package and a signature. Do not
+implement them until they are accepted. Until then the work below is still the directory form
+(ADR 0022).
+
 - [ ] `.desktop` registration
 - [ ] Upgrades
 - [ ] `rollback`
