@@ -5,7 +5,7 @@ source of truth.
 
 ## 1. Components that build on `Input`
 
-The next step in `docs/spec/odk-text-input.md`.
+Built, following `docs/spec/odk-text-input.md`.
 
 - [x] `Textarea`: reuses the editing model from ADR 0038 and adds multiple lines, wrapping and
   vertical scrolling. The smallest next step; needs no new design decisions.
@@ -13,8 +13,8 @@ The next step in `docs/spec/odk-text-input.md`.
 - [x] `Command`: a palette made of an `Input` and a filtered list, with `Select`'s keyboard and
   typeahead logic. Shows whether the `Select` and `Input` foundations work together.
 
-Order: `Textarea`, `InputGroup`, `Command`. Each needs a checklist test module and an entry in
-`COMPONENTS` in `crates/odk-ui/src/checklist/source.rs`.
+Order they were built: `Textarea`, `InputGroup`, `Command`. Each has a checklist test module and an
+entry in `COMPONENTS` in `crates/odk-ui/src/checklist/source.rs`.
 
 ## 2. Foundations that block other components
 
@@ -50,6 +50,7 @@ users would notice, because installed applications would show up in launchers.
 
 ## 5. Housekeeping
 
-- [ ] Push `main` (the last two commits, `53797ff` and `b6a4561`, are not pushed).
+- [x] `main` is pushed. The commits an earlier draft of this list named (`53797ff`, `b6a4561`)
+  are not in the history.
 - [ ] Update `docs/checks.md` with whatever the `Select` and overlay work settled, if anything
   is still marked unverified.
