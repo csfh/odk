@@ -151,6 +151,16 @@ fn an_idle_window_of_every_component_is_not_redrawn(cx: &mut TestAppContext) {
 /// are optimised in both (`Cargo.toml`), and the slowest sample takes under half of it.
 const BUDGET: Duration = Duration::from_millis(4);
 
+/// `DRAW_BUDGET_MS` replaces the budget on a machine slower than the development one (a shared
+/// CI runner); a budget that is too tight there says nothing about the code.
+fn budget() -> Duration {
+    std::env::var("DRAW_BUDGET_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map(Duration::from_millis)
+        .unwrap_or(BUDGET)
+}
+
 /// What a thousand controls in one window may take: six frames. No page has that many; this keeps
 /// the cost of a big window from running away.
 const STRESS_BUDGET: Duration = Duration::from_millis(100);
@@ -188,13 +198,14 @@ fn a_window_busy_with_each_component_draws_within_the_budget(cx: &mut TestAppCon
     let mut over = Vec::new();
     for sample in SAMPLES {
         let least = least_draw(cx, vec![(*sample, sample.instances)]);
-        if least > BUDGET {
+        if least > budget() {
             over.push(format!("{} ({least:?})", sample.name));
         }
     }
     assert!(
         over.is_empty(),
-        "over the budget of {BUDGET:?} to draw: {}",
+        "over the budget of {:?} to draw: {}",
+        budget(),
         over.join(", ")
     );
 }
@@ -206,8 +217,9 @@ fn a_page_with_one_of_every_component_draws_within_the_budget(cx: &mut TestAppCo
     let page = SAMPLES.iter().map(|s| (*s, s.instances.min(1))).collect();
     let least = least_draw(cx, page);
     assert!(
-        least <= BUDGET,
-        "{least:?} to draw, over the budget of {BUDGET:?}"
+        least <= budget(),
+        "{least:?} to draw, over the budget of {:?}",
+        budget()
     );
 }
 

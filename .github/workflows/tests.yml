@@ -23,6 +23,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
             libfontconfig1-dev libvulkan-dev libasound2-dev
+      - name: Allow user namespaces for the sandbox tests
+        # Ubuntu 24.04 runners confine unprivileged user namespaces with AppArmor, which makes
+        # oma's "making mounts private" fail.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -35,3 +39,4 @@ jobs:
         env:
           # The 4 ms draw budget is for the development machine; a shared runner is slower.
           GALLERY_FRAME_BUDGET_MS: 12
+          DRAW_BUDGET_MS: 30
