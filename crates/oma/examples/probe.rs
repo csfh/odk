@@ -199,6 +199,41 @@ fn main() {
                 .unwrap_or_else(|e| e.raw_os_error().unwrap_or(0).to_string()),
         );
     }
+    // A daemon's socket under the runtime directory (ADR 0050): say `ping`, report the answer or
+    // the errno. The test's listener answers `pong`.
+    if let Some(relative) = control("daemon-socket") {
+        use std::io::{BufRead, BufReader};
+        let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_default();
+        let answer = UnixStream::connect(Path::new(&runtime).join(relative.trim())).and_then(
+            |mut stream| {
+                stream.write_all(b"ping\n")?;
+                let mut reply = String::new();
+                BufReader::new(stream).read_line(&mut reply)?;
+                Ok(reply.trim().to_owned())
+            },
+        );
+        line(
+            "daemon_socket",
+            answer.unwrap_or_else(|e| format!("errno {}", e.raw_os_error().unwrap_or(0))),
+        );
+        // What else is in the socket's directory: only the socket, if only it was bound.
+        let parent = Path::new(&runtime).join(relative.trim());
+        line(
+            "daemon_dir",
+            parent
+                .parent()
+                .and_then(|dir| fs::read_dir(dir).ok())
+                .map(|d| {
+                    let mut names: Vec<_> = d
+                        .flatten()
+                        .map(|e| e.file_name().to_string_lossy().into_owned())
+                        .collect();
+                    names.sort();
+                    names.join(",")
+                })
+                .unwrap_or_default(),
+        );
+    }
     line(
         "exe",
         std::env::current_exe()

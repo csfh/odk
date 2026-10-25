@@ -80,13 +80,14 @@ pub fn run(
     let bundle = if grants::is_empty(&missing) {
         bundle
     } else if opened_from_outside(layout, &bundle) {
-        match dialog(
-            layout,
-            &bundle,
-            &missing,
-            &[Button::Install, Button::RunOnce, Button::Cancel],
-            ask,
-        )? {
+        // A daemon keeps running after the application closes, which a run once must not leave
+        // behind (ADR 0050), so such a Bundle can only be installed.
+        let buttons: &[Button] = if bundle.manifest().permissions.daemon.is_some() {
+            &[Button::Install, Button::Cancel]
+        } else {
+            &[Button::Install, Button::RunOnce, Button::Cancel]
+        };
+        match dialog(layout, &bundle, &missing, buttons, ask)? {
             Button::Install => {
                 // Install copies it and records the consent; the installed copy is what runs.
                 let installed = install::install(layout, bundle.root(), true)?;

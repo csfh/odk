@@ -18,6 +18,7 @@ Any key not listed here is an error. No text in the Manifest that oma later writ
 | `version` | string | yes | Semver 2.0.0. See [Version](#version). |
 | `executable` | string | yes | See [Executable](#executable). |
 | `permissions` | table | yes | See [Permissions](#permissions). May be empty, meaning everything beyond the baseline is denied. |
+| `daemon` | table | no | A program of the Bundle's that runs outside the sandbox (ADR 0050). See [Daemon](#daemon). |
 | `description` | string | no | One-line summary, with no control characters. |
 | `icon` | string | no | Path inside the Bundle to a PNG or SVG file, under the same containment rules as `executable`. |
 | `categories` | array of strings | no | freedesktop registered category names, used for the `.desktop` entry (ADR 0014). Each is non-empty and contains only letters, digits and `-`. |
@@ -60,6 +61,18 @@ Each `[[permissions.filesystem]]` block adds one entry:
 
 Each `dir` may appear at most once. There are no arbitrary paths in v1. oma resolves each named directory from the user's XDG user-directory settings (`user-dirs.dirs`) every time it launches the application. There is no fallback to a conventional location: a name with no entry is unavailable, and the application launches without it, with the consent dialog noting that the user has no such directory. After following symlinks, a directory must lie strictly inside the home directory, and its first component under home must be neither `Applications` nor a hidden name (one starting with `.`); otherwise that directory is unavailable, exactly like a missing entry (ADR 0012). That rejects the home directory itself and any ancestor of it, such as `/` or `/home`. On a default Omarchy install `XDG_DESKTOP_DIR` is the home directory itself, so `desktop` is unavailable there.
 
+## Daemon
+
+An optional `[daemon]` table declares one program of the Bundle's that runs **outside the sandbox**, with the user's full access, and keeps running after the application closes (ADR 0050). It is a permission, the largest one: the consent dialog says so, and the consent record keeps all three keys together, so a change to any of them asks again. Any other key is an error.
+
+| Key | Type | Required | Rule |
+|---|---|---|---|
+| `executable` | string | yes | A path relative to the Bundle root, with no `..`. At validation, and again at every launch, it must be a regular file with the executable bit set and an x86_64 ELF, and **no symlink may be on its path**, not even one inside the Bundle: the application cannot choose what `oma` runs outside the sandbox. |
+| `args` | array of strings | no | Its arguments. No control characters. |
+| `socket` | string | yes | Where it listens, relative to the user's runtime directory (`$XDG_RUNTIME_DIR`), made of plain names with no `..`. The first component may not begin with `hypr`, `wayland`, `pipewire`, `pulse`, `bus`, `dbus`, `systemd`, `gnupg`, `sway`, `niri` or `ssh`, which are other things'. |
+
+`oma run` makes sure the daemon is there before it starts the application: if something accepts connections on `socket` nothing is started, and otherwise one transient systemd user unit named `oma-<escaped Identifier>` is, with `socket` as a socket unit of its own and the allowlisted part of the session environment (`PATH`, `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATURE`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP`, `XDG_SESSION_TYPE`, `LANG`). The application is given that one socket file in its private runtime directory, at the same relative path, and nothing else of the host's. A Bundle with a daemon cannot be run once (ADR 0018), since the daemon outlives the launch; it must be installed. And only the installed copy runs a daemon: `oma run` refuses any other copy of the Bundle, since the consent covers the program the user installed and a copy could hold another one.
+
 ## Example
 
 ```toml
@@ -88,6 +101,11 @@ access = "read"
 
 [permissions.dbus]
 talk = ["org.freedesktop.Notifications"]
+
+[daemon]
+executable = "bin/notesd"
+args = ["serve"]
+socket = "notes/notesd.sock"
 ```
 
 ## Not covered here

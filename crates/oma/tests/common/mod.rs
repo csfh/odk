@@ -116,6 +116,90 @@ impl World {
         );
     }
 
+    /// [`World::install`] for a Bundle that declares a daemon: `daemon` is the text of its
+    /// `[daemon]` table, and the probe is also put in the Bundle as `bin/d`, the program it names.
+    pub fn install_with_daemon(&self, permissions: &str, daemon: &str) -> PathBuf {
+        let manifest = self.home.join("manifest.toml");
+        fs::write(
+            &manifest,
+            format!("manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\n\n[permissions]\n{permissions}\n\n[daemon]\n{daemon}\n"),
+        )
+        .unwrap();
+        let out = self.home.join("out");
+        let probe = probe_binary();
+        let helper = format!("{}=bin/d", probe.display());
+        let made = self.oma(&[
+            "bundle",
+            probe.to_str().unwrap(),
+            "--manifest",
+            manifest.to_str().unwrap(),
+            "--include",
+            &helper,
+            "-o",
+            out.to_str().unwrap(),
+        ]);
+        assert!(
+            made.status.success(),
+            "{}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+        let installed = self.oma(&[
+            "install",
+            "--accept-permissions",
+            out.join("Probe.oma").to_str().unwrap(),
+        ]);
+        assert!(
+            installed.status.success(),
+            "{}",
+            String::from_utf8_lossy(&installed.stderr)
+        );
+        out.join("Probe.oma")
+    }
+
+    /// `oma run --wait` with `PATH` set to `path`, so a fake `systemd-run` can stand in for the
+    /// user manager, which no test may start a unit in.
+    pub fn run_wait_with_path(&self, path: &str) -> (Output, HashMap<String, String>) {
+        self.run_target_with_path(ID, path)
+    }
+
+    /// [`World::run_wait_with_path`] for any target: an Identifier, or the path of a Bundle.
+    pub fn run_target_with_path(
+        &self,
+        target: &str,
+        path: &str,
+    ) -> (Output, HashMap<String, String>) {
+        let mut command = Command::new(&self.oma_bin);
+        command
+            .args(["run", "--wait", target])
+            .env_clear()
+            .env("HOME", &self.home)
+            .env("XDG_RUNTIME_DIR", &self.runtime)
+            .env("WAYLAND_DISPLAY", "wayland-test")
+            .env("LANG", "en_US.UTF-8")
+            .env("SECRET_HOST_VARIABLE", "leaked")
+            .env("PATH", path);
+        let out = output_retrying(&mut command);
+        let report = String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter_map(|l| l.split_once('=').map(|(k, v)| (k.to_owned(), v.to_owned())))
+            .collect();
+        (out, report)
+    }
+
+    /// A directory with a `systemd-run` in it that records its arguments, one a line, in `argv`.
+    pub fn fake_systemd_run(&self) -> PathBuf {
+        let dir = self.home.join("fakes");
+        fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("systemd-run");
+        fs::write(
+            &script,
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$(dirname \"$0\")/argv.tmp\" && mv \"$(dirname \"$0\")/argv.tmp\" \"$(dirname \"$0\")/argv\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        dir
+    }
+
     /// A copy of `oma` with a fake `oma-consent` next to it, which saves the request it is sent
     /// and answers with `answer`. Returns the directory holding both.
     pub fn oma_with_helper(&self, answer: &str) -> PathBuf {

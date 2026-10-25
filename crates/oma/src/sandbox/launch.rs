@@ -37,6 +37,16 @@ pub enum Error {
     #[error(transparent)]
     Plan(#[from] plan::Error),
     #[error(transparent)]
+    Daemon(#[from] crate::daemon::Error),
+    #[error(
+        "this application declares a daemon, which keeps running after it closes, so it cannot be run once: install it first"
+    )]
+    DaemonNeedsInstall,
+    #[error(
+        "this application declares a daemon, which runs outside the sandbox, so only the installed copy of it can be run: use `oma run <identifier>`, or install this one"
+    )]
+    DaemonOnlyFromTheInstalledCopy,
+    #[error(transparent)]
     Landlock(#[from] landlock::Error),
     #[error("cannot create the sandbox: {0}")]
     Namespaces(io::Error),
@@ -128,6 +138,29 @@ pub fn run(
     }
     preflight(bundle)?;
 
+    // The daemon, if the Bundle declares one, is there before the sandbox is planned, since the
+    // plan binds its socket (ADR 0050). It outlives this launch, which a run once must not.
+    let env = |name: &str| std::env::var(name).ok();
+    if manifest.permissions.daemon.is_some() {
+        if options.run_once {
+            return Err(Error::DaemonNeedsInstall);
+        }
+        // The consent covers the installed program. A copy of the Bundle elsewhere, one the
+        // application wrote into its own data directory or one that was downloaded, would have
+        // its `bin/` started outside the sandbox with that consent and no question, so only
+        // the installed one runs a daemon.
+        let installed = install::find(layout, id);
+        if installed.as_ref().map(|b| b.root()) != Some(bundle.root()) {
+            return Err(Error::DaemonOnlyFromTheInstalledCopy);
+        }
+        if let Some(runtime) = host.runtime_dir.as_deref() {
+            let started = crate::daemon::ensure_for_run(bundle, runtime, &env)?;
+            if started == Some(crate::daemon::Outcome::Started) {
+                eprintln!("oma: note: started the application's daemon");
+            }
+        }
+    }
+
     let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
     let data_dir = layout.data_dir(id);
     let inbox_dir = layout.inbox_dir(id);
@@ -144,7 +177,6 @@ pub fn run(
         eprintln!("oma: note: the application cannot be shown Omarchy's text size and font: {e}");
     }
     let settings_dir = layout.omarchy_mirror();
-    let env = |name: &str| std::env::var(name).ok();
     let plan = Plan::new(&Inputs {
         bundle_root: bundle.root(),
         executable: &manifest.executable,
@@ -162,6 +194,11 @@ pub fn run(
         host_root: Path::new("/"),
         host_env: &env,
     })?;
+    if plan.daemon_socket_missing {
+        eprintln!(
+            "oma: note: the application's daemon has no socket yet, so the application starts without it"
+        );
+    }
     for (dir, why) in &plan.unavailable {
         eprintln!(
             "oma: note: the {} folder is not available ({why:?}), so the application starts without it",
