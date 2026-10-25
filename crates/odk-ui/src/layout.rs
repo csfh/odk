@@ -1,5 +1,6 @@
 use gpui::{
-    App, Bounds, DefiniteLength, Div, IntoElement, Length, Pixels, SharedString, Styled, Window,
+    App, Bounds, DefiniteLength, Div, ElementId, InteractiveElement, IntoElement, Length,
+    ParentElement, Pixels, SharedString, Stateful, StatefulInteractiveElement, Styled, Window,
     canvas, div, px,
 };
 
@@ -7,6 +8,7 @@ use odk_theme::component::ControlGeometry;
 use odk_theme::foundation::TypeRole;
 use odk_theme::semantic::Treatment;
 
+use crate::separator::Separator;
 use crate::theme::{colour, family, foundation, theme_snapshot, weight};
 
 /// A step on the spacing ladder. The pixel size comes from the foundation's spacing
@@ -159,6 +161,41 @@ pub fn v_flex() -> Div {
 /// A row of children.
 pub fn h_flex() -> Div {
     div().flex().flex_row().items_center()
+}
+
+/// A region that takes the room its parent leaves and scrolls when its content is taller. It is
+/// a block, not a flex column: children of a flex column shrink to fit instead of scrolling, so
+/// put one `v_flex()` or `content_column()` inside it. The `id` is GPUI's key for the scroll
+/// position, so it must be unique in the window.
+pub fn scroll_y(id: impl Into<ElementId>) -> Stateful<Div> {
+    div().id(id).flex_1().min_h_0().overflow_y_scroll()
+}
+
+/// The frame of an application with a sidebar: the sidebar at the foundation's width, a line,
+/// and the content taking the rest. It fills its parent, so put it where the page goes, inside
+/// [`root`].
+pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Div {
+    let width = foundation().layout.sidebar_width;
+    // A row, not `h_flex`: that centres its children, and these two stretch to the full height.
+    div()
+        .flex()
+        .flex_row()
+        .size_full()
+        .child(v_flex().w(px(width)).flex_none().h_full().child(sidebar))
+        .child(Separator::vertical())
+        .child(v_flex().flex_1().min_w_0().h_full().child(content))
+}
+
+/// A page's column of content: as wide as its parent up to the foundation's content width,
+/// centred when the parent is wider, with the panel padding and the gap between sections.
+pub fn content_column() -> Div {
+    let layout = &foundation().layout;
+    v_flex()
+        .w_full()
+        .max_w(px(layout.content_width))
+        .mx_auto()
+        .p(px(layout.panel_padding))
+        .gap(px(layout.section_gap))
 }
 
 #[cfg(test)]
