@@ -142,7 +142,7 @@ What closes an overlay without choosing anything in it: Escape, a press outside 
 _Avoid_: cancel, close policy
 
 **Database**:
-An application's own SQLite file, in its own data directory, which ODK opens, brings up to date with the application's migrations and gives the application as a cheap handle that never blocks the window (`odk::db`, ADR 0049). Not shared between applications.
+An application's own SQLite file, in its own data directory, which ODK opens, brings up to date with the application's migrations and gives the application as a cheap handle that never blocks the window (`odk::db`, the `db` feature of `odk`, off by default, ADR 0049). Not shared between applications.
 _Avoid_: store, DB layer
 
 **Reduced motion**:

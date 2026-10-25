@@ -9,5 +9,5 @@ Each example holds an application crate and the `manifest.toml` of its Bundle. T
 | Example | Shows |
 |---|---|
 | `hello` | A window with a heading, a counter and a button; the only permission is `gpu`. |
-| `todo` | A to-do list kept in a SQLite database (`odk::db`): a text field, check boxes, a segmented filter, a notice when the list cannot be kept. The only permission is `gpu`; the database is in the application's own data directory. `TODO_FILE` names another file, for a test or a tool. |
+| `todo` | A to-do list kept in a SQLite database (`odk::db`, the `db` feature): a text field, check boxes, a segmented filter, a notice when the list cannot be kept. The only permission is `gpu`; the database is in the application's own data directory. `TODO_FILE` names another file, for a test or a tool. |
 | `gallery` | Every built ODK component in each of its states, for looking at and for trying with the keyboard. Two switches at the top turn reduced motion on and swap the demo content for the worst realistic case. |

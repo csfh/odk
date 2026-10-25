@@ -347,6 +347,9 @@ impl Plan {
             ("XDG_RUNTIME_DIR".to_owned(), run_user.display().to_string()),
             ("WAYLAND_DISPLAY".to_owned(), wayland_name),
             ("XDG_SESSION_TYPE".to_owned(), "wayland".to_owned()),
+            // The mounted `shell.toml` is oma's copy. odk-theme reads `[motion] reduced`
+            // only when this is set (ADR 0048).
+            ("OMA_SANDBOX".to_owned(), "1".to_owned()),
         ];
         for name in PASSED_ENV {
             if let Some(value) = (i.host_env)(name) {
@@ -866,6 +869,7 @@ mod tests {
         assert_eq!(get("LANG"), Some("en_US.UTF-8"));
         assert_eq!(get("DISPLAY"), None);
         assert_eq!(get("SSH_AUTH_SOCK"), None);
+        assert_eq!(get("OMA_SANDBOX"), Some("1"));
     }
 
     #[test]

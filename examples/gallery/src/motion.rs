@@ -125,7 +125,7 @@ impl Render for MotionPage {
                     }),
             );
         let status = Text::new(if user {
-            "Reduced by the system's request (Hyprland's animations are off, or [motion] reduced in shell.toml when it does not answer); an application cannot turn that off."
+            "Reduced by the system's request (Hyprland's animations are off; a sandboxed application reads oma's copy of that answer). An application cannot turn that off."
         } else if m.reduced {
             "Reduced by this gallery's switch. The user has not asked for it."
         } else {

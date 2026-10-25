@@ -91,16 +91,18 @@ No overshoot, bounce, scale or flashing. A transition reversed partway carries o
 
 ### Reduced motion
 
-On when either asks (ADR 0046, ADR 0048): the application (`odk::ui::set_reduced_motion`, `configure`), or the user, which is the compositor's word: Hyprland's `animations:enabled` is false. ODK asks Hyprland over its IPC socket and follows its `configreloaded`; a compositor that does not answer says nothing, and then the user's own `~/.config/omarchy/shell.toml` with
+On when either asks (ADR 0048): the application (`odk::ui::set_reduced_motion`, `configure`), or the user, which is the compositor's word: Hyprland's `animations:enabled` is false. ODK asks Hyprland over its IPC socket and follows its `configreloaded`. A compositor that does not answer says nothing, and motion is not reduced. The user's own `~/.config/omarchy/shell.toml` is not a source of this preference.
+
+A sandboxed application cannot reach Hyprland's socket and must not. `oma omarchy sync` writes Hyprland's answer into oma's copy of `shell.toml` as
 
 ```toml
 [motion]
 reduced = true
 ```
 
-counts, which is also how `oma` tells a sandboxed application what it saw, since a sandbox must not reach Hyprland's socket.
+when animations are off, and leaves the key out otherwise. The sandbox mounts that copy at the usual path and sets `OMA_SANDBOX`, and the application reads the key only then.
 
-Either one reduces motion and neither turns the other off, so there is no precedence to get wrong. The file is watched like the text size; a change reaches open windows and overlays on the next frame, and a sandboxed application is shown a copy of it (`oma omarchy sync`). With it on, every transition is zero, every state change still happens, a spinner stands still but stays visible, a progress bar shows its value, and no key waits for an animation.
+Either one reduces motion and neither turns the other off, so there is no precedence to get wrong. The copy is watched like the text size; a change reaches open windows and overlays on the next frame. With reduced motion on, every transition is zero, every state change still happens, a spinner stands still but stays visible, a progress bar shows its value, and no key waits for an animation.
 
 ## Accessibility
 
@@ -127,4 +129,4 @@ A component documents, in its doc comment (item 25), the following; "none" and "
 
 ## What the audit found (2026-10-23)
 
-Already held, and now tested together: one callback per completed activation, nothing for a disabled control, a press released elsewhere, or a held key, focus and values kept across a density, corner or motion change, overlays restoring focus, no frame asked for by a removed component, contrast of every pairing. Corrected: switch, tab indicator and menu durations (table above); the system's reduced-motion setting, which was a constant `false` (ADR 0046). Added: the cross-control tests, `focused_component`, the Interaction page of the gallery with its event log, and the contract itself. Not changed because GPUI cannot: animated hover and press, a platform accessibility tree, a toast announcement to a screen reader.
+Already held, and now tested together: one callback per completed activation, nothing for a disabled control, a press released elsewhere, or a held key, focus and values kept across a density, corner or motion change, overlays restoring focus, no frame asked for by a removed component, contrast of every pairing. Corrected: switch, tab indicator and menu durations (table above); the system's reduced-motion setting, which was a constant `false` and is now Hyprland's `animations:enabled` (ADR 0048; ADR 0046 is superseded). Added: the cross-control tests, `focused_component`, the Interaction page of the gallery with its event log, and the contract itself. Not changed because GPUI cannot: animated hover and press, a platform accessibility tree, a toast announcement to a screen reader.

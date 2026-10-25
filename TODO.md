@@ -52,5 +52,9 @@ users would notice, because installed applications would show up in launchers.
 
 - [x] `main` is pushed. The commits an earlier draft of this list named (`53797ff`, `b6a4561`)
   are not in the history.
+- [x] ADR 0046 is superseded by ADR 0048: the user's own `shell.toml` is not a reduced-motion
+  source, even when Hyprland does not answer. A sandboxed application reads oma's copy.
+  ADR 0047 and ADR 0048 are accepted. ADR 0049 is accepted with `odk::db` behind the `db`
+  feature of `odk`, off by default, and the bundled SQLite kept.
 - [ ] Update `docs/checks.md` with whatever the `Select` and overlay work settled, if anything
   is still marked unverified.

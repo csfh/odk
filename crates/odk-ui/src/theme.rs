@@ -38,8 +38,8 @@ impl Built {
     }
 }
 
-/// What the user's own `shell.toml` says that the foundation is built from: the text size
-/// (ADR 0043) and a request for reduced motion (ADR 0046).
+/// What the theme snapshot carries into the foundation: the text size (ADR 0043) and a
+/// request for reduced motion (ADR 0048).
 #[derive(Clone, Copy, Default, PartialEq)]
 struct User {
     text: TextScale,
@@ -447,7 +447,7 @@ pub fn configure(cx: &mut App, change: impl FnOnce(&mut FoundationConfig)) {
 
 /// Turns reduced motion on or off for the whole application, for an application that offers
 /// its users the choice: overlays then show and hide without transitions and spinners stand
-/// still. It adds to the user's own request, the compositor's (ADR 0046, ADR 0048), and never overrides it:
+/// still. It adds to the user's own request, the compositor's (ADR 0048), and never overrides it:
 /// when the user asks for reduced motion, turning it off here keeps it on. Takes effect on the next frame.
 pub fn set_reduced_motion(cx: &mut App, reduced: bool) {
     configure(cx, |c| c.reduced_motion = reduced);
@@ -464,7 +464,7 @@ pub(crate) fn apply(config: &FoundationConfig) {
 }
 
 /// The foundation tokens for `config` at the user's text size, with the user's request for
-/// reduced motion added to the application's (ADR 0046).
+/// reduced motion added to the application's (ADR 0048).
 fn build(config: &FoundationConfig, user: User) -> FoundationTokens {
     let mut effective = config.clone();
     effective.reduced_motion |= user.reduced_motion;
@@ -1108,7 +1108,7 @@ mod tests {
         assert!(diagnostics.failure.is_none());
     }
 
-    /// The user's request for reduced motion (ADR 0046) reaches the tokens when its snapshot is
+    /// The user's request for reduced motion (ADR 0048) reaches the tokens when its snapshot is
     /// published, adds to the application's choice and never replaces it, and is gone when the
     /// user takes it back, at once and without a new theme.
     /// ADR 0048: the user's request for reduced motion is the system's, not a theme's, so a

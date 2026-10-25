@@ -1,8 +1,8 @@
 //! The text size Omarchy's user has chosen, as a scale (ADR 0043,
-//! `docs/spec/odk-source-palette.md`, "Text size"). Of everything in `shell.toml` only
-//! `[font] base-size` is read (and, in the user's own file only, `[motion] reduced`, ADR 0046),
-//! and it is the user's own setting rather than a theme's: the
-//! machine-level `~/.config/omarchy/shell.toml` layers over the theme's.
+//! `docs/spec/odk-source-palette.md`, "Text size"). Of the user's own `shell.toml` only
+//! `[font] base-size` is read. `[motion] reduced` is read only from oma's sandbox copy of that
+//! file (ADR 0048), never from the user's own. The text size is the user's setting rather than
+//! a theme's: the machine-level `~/.config/omarchy/shell.toml` layers over the theme's.
 
 use toml::Table;
 
@@ -74,12 +74,12 @@ impl TextScale {
     }
 }
 
-/// Whether the user's own `shell.toml` asks for reduced motion: `[motion] reduced = true`
-/// (ADR 0046). It counts only while the compositor says nothing (ADR 0048); this reads the file. Only the user's file counts, never a theme's, since a theme is not the user's
-/// accessibility setting; a file that is missing, does not parse, or holds anything but a
-/// boolean there says nothing.
-pub fn user_reduces_motion(user: Option<&str>) -> bool {
-    user.and_then(|text| toml::from_str::<Table>(text).ok())
+/// Whether oma's sandbox copy of `shell.toml` asks for reduced motion: `[motion] reduced = true`
+/// (ADR 0048). The user's own file is never passed here. A missing file, text that does not
+/// parse, or anything but a boolean says nothing. A theme's `shell.toml` is not this file.
+pub(crate) fn sandbox_reduces_motion(shell: Option<&str>) -> bool {
+    shell
+        .and_then(|text| toml::from_str::<Table>(text).ok())
         .and_then(|table| table.get("motion")?.as_table()?.get("reduced")?.as_bool())
         .unwrap_or(false)
 }
@@ -109,10 +109,11 @@ mod tests {
         assert_eq!(TextScale::default().factor(), 1.0);
     }
 
-    /// Only `[motion] reduced = true` in the user's own file asks for reduced motion (ADR 0046).
+    /// Only `[motion] reduced = true` in oma's sandbox copy asks for reduced motion (ADR 0048).
+    /// The same bytes in the user's own file are ignored by the manager; this only parses a copy.
     #[test]
-    fn only_the_users_own_boolean_asks_for_reduced_motion() {
-        assert!(user_reduces_motion(Some("[motion]\nreduced = true\n")));
+    fn only_a_boolean_in_the_sandbox_copy_asks_for_reduced_motion() {
+        assert!(sandbox_reduces_motion(Some("[motion]\nreduced = true\n")));
         for says_nothing in [
             None,
             Some(""),
@@ -123,7 +124,7 @@ mod tests {
             Some("[font]\nreduced = true\n"),
             Some("[motion"),
         ] {
-            assert!(!user_reduces_motion(says_nothing), "{says_nothing:?}");
+            assert!(!sandbox_reduces_motion(says_nothing), "{says_nothing:?}");
         }
     }
 

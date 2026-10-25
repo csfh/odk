@@ -616,9 +616,9 @@ impl Compositor {
     }
 }
 
-/// ADR 0048: the compositor's animation setting is the user's request for reduced motion, it
-/// outranks the key in the user's `shell.toml` while it answers, and the key counts when it does
-/// not.
+/// ADR 0048: the compositor's animation setting is the user's request for reduced motion. The
+/// user's own `shell.toml` is ignored, including when the compositor says nothing. oma's
+/// sandbox copy of the same key counts only then, and the compositor outranks it.
 #[test]
 fn the_compositors_animations_are_the_users_request_for_reduced_motion() {
     let c = Current::new();
@@ -643,32 +643,63 @@ fn the_compositors_animations_are_the_users_request_for_reduced_motion() {
         "same answer, no change"
     );
 
-    // The user's key does not turn it off while the compositor says animations are on, and
-    // does not turn it on when it says they are off.
+    // The user's own key does not turn the request off or on. The compositor's word stands.
     fs::write(&user, "[motion]\nreduced = true\n").unwrap();
     compositor.animate(true);
     assert!(
         !changed(m.reload()).reduced_motion,
-        "the compositor outranks the key"
+        "the user's file cannot ask while the compositor animates"
     );
     fs::write(&user, "[motion]\nreduced = false\n").unwrap();
     compositor.animate(false);
-    assert!(changed(m.reload()).reduced_motion);
+    assert!(
+        changed(m.reload()).reduced_motion,
+        "the user's file cannot take the request back"
+    );
 
-    // A manager with no compositor, or one that does not answer, keeps what the key says.
+    // No compositor, or one that does not answer: the user's file is still ignored.
     let mut alone = ThemeManager::new(c.source()).with_user_shell(user.clone());
-    assert!(!changed(alone.reload()).reduced_motion);
     fs::write(&user, "[motion]\nreduced = true\n").unwrap();
-    assert!(changed(alone.reload()).reduced_motion);
+    assert!(
+        !changed(alone.reload()).reduced_motion,
+        "the user's own file is ignored when nothing answers"
+    );
     let nowhere = tempfile::tempdir().unwrap();
     let mut silent = ThemeManager::new(c.source())
-        .with_user_shell(user)
+        .with_user_shell(user.clone())
         .with_compositor(Hyprland::at(nowhere.path(), None));
     assert!(
-        changed(silent.reload()).reduced_motion,
-        "unknown falls back to the key"
+        !changed(silent.reload()).reduced_motion,
+        "unknown does not fall back to the user's file"
     );
     assert_eq!(silent.diagnostics().compositor_animations, None);
+
+    // The same bytes in oma's sandbox copy do count, and only while the compositor is silent.
+    let mut copy = ThemeManager::new(c.source())
+        .with_user_shell(user.clone())
+        .with_sandbox_copy();
+    assert!(
+        changed(copy.reload()).reduced_motion,
+        "a sandboxed application reads oma's copy"
+    );
+    assert!(
+        copy.diagnostics()
+            .to_string()
+            .contains("oma's copy of the compositor's setting"),
+        "{}",
+        copy.diagnostics()
+    );
+    let mut copy_heard = ThemeManager::new(c.source())
+        .with_user_shell(user)
+        .with_sandbox_copy()
+        .with_compositor(compositor.hyprland.clone());
+    compositor.animate(true);
+    assert!(
+        !changed(copy_heard.reload()).reduced_motion,
+        "the compositor outranks the copy"
+    );
+    compositor.animate(false);
+    assert!(changed(copy_heard.reload()).reduced_motion);
 }
 
 /// ADR 0048: a compositor that is restarted is silent for a moment and then answers from a new

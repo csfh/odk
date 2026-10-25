@@ -32,8 +32,10 @@ jobs:
           user-namespaces: true
       # cargo fmt has no --locked; it does not read the lockfile.
       - run: cargo fmt --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked --no-fail-fast
+      # `--all-features` keeps `odk-db` in the lint and the tests: `odk::db` is behind
+      # the `db` feature, which is off by default (ADR 0049).
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --workspace --all-features --locked --no-fail-fast
         env:
           # The 4 ms draw budget is for the development machine; a shared runner is slower.
           GALLERY_FRAME_BUDGET_MS: 12
@@ -60,7 +62,7 @@ jobs:
               exit 1
               ;;
           esac
-      - run: cargo check --workspace --all-targets --locked
+      - run: cargo check --workspace --all-targets --all-features --locked
 
   audit:
     runs-on: ubuntu-24.04

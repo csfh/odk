@@ -47,5 +47,6 @@ pub use error::Error;
 pub use manager::{Failure, Fallback, Reload, ThemeDiagnostics, ThemeManager, ThemeSnapshot};
 pub use oklch::{JND, Oklab, Oklch, hue_distance};
 pub use palette::{Mode, Palette, PaletteKey};
-pub use scale::{TextScale, user_reduces_motion};
+pub use scale::TextScale;
+pub(crate) use scale::sandbox_reduces_motion;
 pub use watch::ThemeWatcher;

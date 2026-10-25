@@ -14,7 +14,7 @@ Everything an application did not set itself. A theme that the user switches to 
 | `Variant::Primary`, `Secondary`, `Ghost` on a button | `ButtonVariant::Primary`, `Secondary`, `Ghost` (and `Outline`, `Destructive`, `Success`, `Warning`, `Link`) |
 | `Badge::variant(Variant::X)` | `Badge::role(Role::Accent).emphasis(Emphasis::Solid)`, `Badge::tone(Tone::Danger)`, or `Badge::appearance(BadgeAppearance::new(..))` |
 | Reading `tokens().accent`, `.surface`, `.radius`, `.space` | A component reads its own style from `components()`; an application's own drawing reads `theme_snapshot().semantic` (`surface`, `text`, `border`, `roles`) and `foundation()` |
-| A `[controls]` colour in a theme's `shell.toml` | Nothing: ODK reads only `[font] base-size` of a theme's `shell.toml` and no colour from it (ADR 0047, *proposed* until the user confirms it) |
+| A `[controls]` colour in a theme's `shell.toml` | Nothing: ODK reads only `[font] base-size` of a theme's `shell.toml` and no colour from it (ADR 0047, accepted) |
 | Control `Size` as a font and padding step | `Size::Sm`, `Md`, `Lg` is one density step tighter, the density, one roomier (*provisional*, `docs/spec/odk-component-tokens.md`); or name a density with `.density(..)` |
 
 `docs/spec/odk-theme-tokens.md` has the full table of removed names.
