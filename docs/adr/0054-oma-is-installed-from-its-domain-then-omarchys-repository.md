@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0063
 ---
 
 # `oma` is installed from its domain, then from Omarchy's repository
