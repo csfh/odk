@@ -42,11 +42,6 @@ enum Command {
         #[arg(long)]
         accept_permissions: bool,
     },
-    /// Omarchy's text size and font, as sandboxed applications are shown them
-    Omarchy {
-        #[command(subcommand)]
-        command: OmarchyCommand,
-    },
     /// Assemble `<Name>.oma/` from a built executable and a manifest.toml (compiles nothing)
     Bundle {
         /// The built x86_64 ELF executable
@@ -58,12 +53,6 @@ enum Command {
         #[arg(short, long, default_value = ".")]
         out: PathBuf,
     },
-}
-
-#[derive(Subcommand)]
-enum OmarchyCommand {
-    /// Copy the user's text size and font for sandboxes now (`oma run` does it before every launch)
-    Sync,
 }
 
 fn main() -> ExitCode {
@@ -133,21 +122,6 @@ fn main() -> ExitCode {
                     eprintln!("oma: {e}");
                     ExitCode::FAILURE
                 }
-            }
-        }
-        Command::Omarchy { command } => {
-            let Some(layout) = oma::layout::Layout::from_env() else {
-                eprintln!("oma: $HOME is not set");
-                return ExitCode::FAILURE;
-            };
-            match command {
-                OmarchyCommand::Sync => match oma::omarchy::refresh(&layout) {
-                    Ok(()) => ExitCode::SUCCESS,
-                    Err(e) => {
-                        eprintln!("oma: cannot copy: {e}");
-                        ExitCode::FAILURE
-                    }
-                },
             }
         }
         Command::Bundle {

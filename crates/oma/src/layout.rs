@@ -58,32 +58,6 @@ impl Layout {
         self.state.join("inbox").join(id.as_str())
     }
 
-    /// `$XDG_STATE_HOME/omarchy/current`, which holds Omarchy's current theme.
-    pub fn theme_dir(&self) -> PathBuf {
-        let state = match std::env::var_os("XDG_STATE_HOME").map(PathBuf::from) {
-            Some(p) if p.is_absolute() => p,
-            _ => self.home.join(".local/state"),
-        };
-        state.join("omarchy/current")
-    }
-
-    /// The user's text size, which `omarchy display text size` writes (ADR 0043). Omarchy keeps
-    /// it under `$HOME/.config`, not `$XDG_CONFIG_HOME`.
-    pub fn user_omarchy_shell(&self) -> PathBuf {
-        self.home.join(".config/omarchy/shell.toml")
-    }
-
-    /// The user's fontconfig file, where `omarchy font set` names the monospace font.
-    pub fn user_fonts_conf(&self) -> PathBuf {
-        self.home.join(".config/fontconfig/fonts.conf")
-    }
-
-    /// The copy of those two settings that sandboxes are given (ADR 0044, [`crate::omarchy`]):
-    /// `omarchy/` and `fontconfig/` beneath it.
-    pub fn omarchy_mirror(&self) -> PathBuf {
-        self.state.join("omarchy")
-    }
-
     /// Where `user-dirs.dirs` is read from: `$XDG_CONFIG_HOME` or `~/.config`.
     pub fn user_dirs_file(&self) -> PathBuf {
         let config = match std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {

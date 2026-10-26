@@ -8,7 +8,6 @@ pub mod fmt;
 pub mod grants;
 pub mod install;
 pub mod layout;
-pub mod omarchy;
 pub mod sandbox;
 pub mod userdirs;
 
