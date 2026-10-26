@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0062
 ---
 
 # The compositor's animation setting is the user's request for reduced motion

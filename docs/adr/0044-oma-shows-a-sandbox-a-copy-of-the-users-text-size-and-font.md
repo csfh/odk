@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0062
 ---
 
 # oma shows a sandbox a copy of the user's text size and font
