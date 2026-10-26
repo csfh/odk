@@ -51,7 +51,7 @@ odk::ui::set_reduced_motion(cx, true);      // adds to the user's own request, n
 By default the application follows Omarchy's current theme. To show another theme without choosing it (a theme picker, a design tool), preview it; Omarchy's own files are not touched, and a change the system makes meanwhile is kept for when the preview ends.
 
 ```rust,ignore
-let mut manager = ThemeManager::with_users_files(ThemeSource::named("nord")?);
+let mut manager = ThemeManager::following_host(ThemeSource::named("nord")?);
 manager.reload();
 odk::ui::preview_theme(cx, manager.snapshot());
 // ...

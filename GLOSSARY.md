@@ -146,7 +146,7 @@ An application's own SQLite file, in its own data directory, which ODK opens, br
 _Avoid_: store, DB layer
 
 **Reduced motion**:
-A request that nothing move for its own sake: every transition shows its end state at once and a spinner stands still, while every state change still happens. The application can ask for it, and so can the user, by turning off the compositor's window animations (Hyprland's `animations:enabled`); either one is enough.
+A request that nothing move for its own sake: every transition shows its end state at once and a spinner stands still, while every state change still happens. The application can ask for it, and so can the user, by turning off the compositor's window animations (Hyprland's `animations:enabled`, which `odkd` reads and tells every application); either one is enough.
 _Avoid_: no animation, prefers-reduced-motion (a browser's name for it)
 
 **Activation**:

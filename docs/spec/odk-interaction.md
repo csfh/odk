@@ -91,9 +91,9 @@ No overshoot, bounce, scale or flashing. A transition reversed partway carries o
 
 ### Reduced motion
 
-On when either asks (ADR 0048): the application (`odk::ui::set_reduced_motion`, `configure`), or the user, which is the compositor's word: Hyprland's `animations:enabled` is false. ODK asks Hyprland over its IPC socket and follows its `configreloaded`. A compositor that does not answer says nothing, and motion is not reduced. The user's own `~/.config/omarchy/shell.toml` is not a source of this preference.
+On when either asks (ADR 0048): the application (`odk::ui::set_reduced_motion`, `configure`), or the user, which is the compositor's word: Hyprland's `animations:enabled` is false. `odkd` asks Hyprland over its IPC socket and follows its `configreloaded`, and tells every application (ADR 0062). A compositor that does not answer says nothing, and motion is not reduced; so it is where there is no `odkd`. The user's own `~/.config/omarchy/shell.toml` is not a source of this preference.
 
-A sandboxed application cannot reach Hyprland's socket and must not, so it is told nothing and motion is not reduced in it on the user's behalf (ADR 0048). Its own `set_reduced_motion` works as in any application.
+A sandboxed application cannot reach Hyprland's socket and must not. It hears `odkd` through a directory oma binds into the sandbox, like any other application (ADR 0062), so the user's request reaches it as it does an application outside. Its own `set_reduced_motion` works as in any application.
 
 Either one reduces motion and neither turns the other off, so there is no precedence to get wrong. A change of the compositor's setting reaches open windows and overlays on the next frame. With reduced motion on, every transition is zero, every state change still happens, a spinner stands still but stays visible, a progress bar shows its value, and no key waits for an animation.
 
