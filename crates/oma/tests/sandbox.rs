@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::os::unix::net::UnixListener;
 use std::path::Path;
 use std::process::Command;
@@ -469,16 +470,22 @@ fn setup_errors_reach_the_terminal_even_when_detached() {
     assert!(err.contains("cannot start /app/probe"), "{err}");
 }
 
-/// The application is shown the user's text size and font through oma's copy of them (ADR
-/// 0044): the size and nothing else of `shell.toml`, `fonts.conf` as it is, none of what else is
-/// in `~/.config/omarchy`, and read-only. A change made between two launches shows in the second.
+/// What the host says (ADR 0062) reaches the application through the directory of `odkd`'s
+/// socket, which oma binds read-only: the application hears `odkd` and cannot change anything
+/// there, and it sees none of Omarchy's own files. Without `odkd` there is no such directory.
 #[test]
-fn the_application_is_shown_the_text_size_and_font_and_nothing_else() {
+fn the_application_hears_odkd_through_a_read_only_directory_and_sees_none_of_omarchys_files() {
     if !supported() {
         return;
     }
     let w = World::new();
     w.install("");
+    fs::create_dir_all(w.home.join(".config/omarchy")).unwrap();
+    fs::write(
+        w.home.join(".config/omarchy/shell.toml"),
+        "[font]\nbase-size = 14\n",
+    )
+    .unwrap();
 
     let (out, r) = w.run_wait();
     assert!(
@@ -486,119 +493,52 @@ fn the_application_is_shown_the_text_size_and_font_and_nothing_else() {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
+    assert_eq!(r["odkd_ls"], "none", "no odkd, no directory: {r:?}");
     assert_eq!(
-        r.get("omarchy_shell").map(String::as_str),
-        Some("none"),
-        "{r:?}\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert_eq!(r["omarchy_fonts"], "none");
-    assert_eq!(
-        r["omarchy_write"], "30",
-        "with nothing set the directory is still there, and the application cannot put a file in it"
+        r["config_omarchy"], "false",
+        "none of Omarchy's files is shown"
     );
 
-    let (omarchy, fontconfig) = (
-        w.home.join(".config/omarchy"),
-        w.home.join(".config/fontconfig"),
+    // An odkd of the test's own, as systemd would keep its socket.
+    let dir = w.runtime.join("odk");
+    fs::create_dir_all(&dir).unwrap();
+    let serve = |path: &Path, line: &'static str| {
+        let listener = std::os::unix::net::UnixListener::bind(path).unwrap();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut stream = stream;
+                let _ = writeln!(stream, "{line}");
+            }
+        })
+    };
+    serve(
+        &dir.join("odkd.sock"),
+        "{\"v\":1,\"text\":{\"base_size\":14}}",
     );
-    fs::create_dir_all(&omarchy).unwrap();
-    fs::create_dir_all(&fontconfig).unwrap();
-    fs::write(
-        omarchy.join("shell.toml"),
-        "[bar]\ntext = \"#ffffff\"\n\n[font]\nbase-size = 14\n",
-    )
-    .unwrap();
-    fs::write(omarchy.join("shell.json"), "{}").unwrap();
-    fs::write(fontconfig.join("fonts.conf"), "<fontconfig/>").unwrap();
-
     let (out, r) = w.run_wait();
     assert!(
         out.status.success(),
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    assert_eq!(r["omarchy_shell"], "[font]|base-size = 14|");
-    assert_eq!(r["omarchy_fonts"], "<fontconfig/>");
+    assert_eq!(r["odkd_ls"], "odkd.sock", "{r:?}");
     assert_eq!(
-        r["omarchy_siblings"], "false",
-        "the rest of the directory is not shown"
+        r["odkd_line"], "{\"v\":1,\"text\":{\"base_size\":14}}",
+        "{r:?}"
     );
-    assert_eq!(r["omarchy_write"], "30", "the copy is read-only");
+    assert_ne!(r["odkd_write"], "ok", "the directory is read-only");
+    assert_eq!(r["config_omarchy"], "false");
 
-    // Omarchy replaces the file by renaming a new one over it, as `omarchy display text size`
-    // does; the next launch shows the new size.
-    fs::write(omarchy.join("shell.toml.new"), "[font]\nbase-size = 18\n").unwrap();
-    fs::rename(omarchy.join("shell.toml.new"), omarchy.join("shell.toml")).unwrap();
+    // A socket made again at the same path is the one the next application hears: the
+    // directory is bound, not the socket.
+    fs::remove_file(dir.join("odkd.sock")).unwrap();
+    serve(
+        &dir.join("odkd.sock"),
+        "{\"v\":1,\"text\":{\"base_size\":16}}",
+    );
     let (_, r) = w.run_wait();
-    assert_eq!(r["omarchy_shell"], "[font]|base-size = 18|");
-
-    // Taking the size away takes it from the copy.
-    fs::remove_file(omarchy.join("shell.toml")).unwrap();
-    let (_, r) = w.run_wait();
-    assert_eq!(r["omarchy_shell"], "none");
-}
-
-/// The font the user chose reaches the application, not just the file that names it: with a
-/// `fonts.conf` like the one `omarchy font set` writes in oma's copy, fontconfig inside the
-/// sandbox puts the same family first for `monospace` as it does outside, and not the one it
-/// gives with no such file. Needs `fc-match` and a second monospace font on the machine running
-/// the tests; skipped without.
-#[test]
-fn fontconfig_inside_the_sandbox_resolves_monospace_as_it_does_outside() {
-    if !supported() {
-        return;
-    }
-    let match_monospace = |home: &Path| {
-        Command::new("fc-match")
-            .args(["monospace", "-f", "%{family[0]}"])
-            .env_clear()
-            .env("HOME", home)
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-    };
-    let w = World::new();
-    let Ok(default) = match_monospace(&w.home) else {
-        eprintln!("skipped: no fc-match");
-        return;
-    };
-    // Another monospace font than the one that wins without a configuration of the user's.
-    let fonts = Command::new("fc-list")
-        .args([":spacing=100", "-f", "%{family[0]}\\n"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
-    let Some(chosen) = fonts
-        .lines()
-        .find(|f| !f.is_empty() && *f != default && !f.contains(&*default))
-    else {
-        eprintln!("skipped: no second monospace font");
-        return;
-    };
-
-    w.install("");
-    let (out, without) = w.run_wait();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+    assert_eq!(
+        r["odkd_line"], "{\"v\":1,\"text\":{\"base_size\":16}}",
+        "{r:?}"
     );
-    assert_eq!(without["fc_monospace"], default, "{without:?}");
-
-    fs::create_dir_all(w.home.join(".config/fontconfig")).unwrap();
-    fs::write(
-        w.home.join(".config/fontconfig/fonts.conf"),
-        format!(
-            "<?xml version=\"1.0\"?>\n<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n<fontconfig>\n  <match target=\"pattern\">\n    <test name=\"family\" qual=\"any\">\n      <string>monospace</string>\n    </test>\n    <edit name=\"family\" mode=\"prepend_first\" binding=\"strong\">\n      <string>{chosen}</string>\n    </edit>\n  </match>\n</fontconfig>\n"
-        ),
-    )
-    .unwrap();
-    assert_eq!(match_monospace(&w.home).unwrap(), chosen, "outside");
-    let (out, within) = w.run_wait();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert_eq!(within["fc_monospace"], chosen, "{within:?}");
 }

@@ -3953,6 +3953,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "odk-cli"
+version = "0.0.0"
+dependencies = [
+ "deps",
+ "tempfile",
+]
+
+[[package]]
 name = "odk-db"
 version = "0.0.0"
 dependencies = [
@@ -3970,6 +3978,7 @@ dependencies = [
  "deps",
  "log",
  "notify-debouncer-mini",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "toml 0.9.12+spec-1.1.0",
@@ -3990,6 +3999,17 @@ dependencies = [
  "tempfile",
  "unicode-segmentation",
  "zed-font-kit",
+]
+
+[[package]]
+name = "odkd"
+version = "0.0.0"
+dependencies = [
+ "deps",
+ "libc",
+ "odk-theme",
+ "tempfile",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]

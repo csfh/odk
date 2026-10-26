@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0052
+---
+
 # `oma bundle` assembles a Bundle from a built executable and a Manifest
 
 `oma` has a command that creates `<Name>.oma/` from a built executable and a `manifest.toml`: `oma bundle <executable> --manifest <manifest.toml> [-o <dir>]`. It copies the Manifest, puts the executable at the path the Manifest names and sets its executable bit, copies the icon the Manifest names from beside it, validates the result like any Bundle, and moves it into place only if valid. It never replaces an existing Bundle. It compiles nothing, knows nothing about Cargo or how the executable was made, and does no archiving or signing, so ADR 0010's rule that `oma` does not build applications still holds.

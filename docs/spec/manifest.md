@@ -4,7 +4,7 @@ Normative. This spec defines the Manifest described in ADR 0006. It must not cha
 
 ## Location and format
 
-A Bundle (ADR 0022) contains one Manifest at `<App>.oma/manifest.toml`: UTF-8 TOML at the root of the Bundle directory. The Manifest is declarative; oma reads it without executing anything from the Bundle. The directory name `<App>.oma` is cosmetic, and identity comes only from `identifier`.
+A Bundle (ADR 0052) contains one Manifest at `manifest.toml` on the root of the image a mount shows. The file on disk is one `<App>.oma`; the tree inside it is the tree this spec describes. The code still validates a Bundle directory until it follows ADR 0052. The Manifest is declarative; oma reads it without executing anything from the Bundle. The file name is cosmetic, and identity comes only from `identifier`.
 
 Any key not listed here is an error. No text in the Manifest that oma later writes into a `.desktop` entry (`name`, `description`, `categories`, `icon`) may contain a control character, so a newline cannot add a line such as `Exec=` to it (ADR 0014); the same holds for `executable` and for D-Bus service names. Any invalid Manifest makes oma reject the Bundle: it is not run, installed or upgraded.
 
@@ -21,6 +21,7 @@ Any key not listed here is an error. No text in the Manifest that oma later writ
 | `description` | string | no | One-line summary, with no control characters. |
 | `icon` | string | no | Path inside the Bundle to a PNG or SVG file, under the same containment rules as `executable`. |
 | `categories` | array of strings | no | freedesktop registered category names, used for the `.desktop` entry (ADR 0014). Each is non-empty and contains only letters, digits and `-`. |
+| `publisher` | string | no | The publisher's domain (ADR 0055). A hostname: lowercase letters, digits, hyphens and dots, no scheme, no userinfo, no port, no path, and not an IP address. At most 253 characters. oma fetches `https://<publisher>/.well-known/oma-keys` and nowhere else. Absent means there is no domain to confirm a signature against. |
 
 ## Identifier
 
@@ -30,7 +31,7 @@ Two Bundles with the same Identifier are the same application at different versi
 
 ## Version
 
-Semver 2.0.0 precedence applies: a pre-release such as `1.2.0-beta.1` sorts below `1.2.0`, and build metadata is ignored when comparing. Only a strictly higher version is an upgrade (ADR 0015). An equal or lower version staged in an inbox is rejected; the only way down is `oma rollback` (ADR 0011).
+Semver 2.0.0 precedence applies: a pre-release such as `1.2.0-beta.1` sorts below `1.2.0`, and build metadata is ignored when comparing. Only a strictly higher version is an upgrade (ADR 0015). An equal or lower version staged in an inbox is rejected; the only way down is `odk oma rollback` (ADR 0011).
 
 ## Executable
 
@@ -71,6 +72,7 @@ description = "A small notes app"
 executable = "bin/notes"
 icon = "share/notes.svg"
 categories = ["Utility", "TextEditor"]
+publisher = "example.com"
 
 [permissions]
 network = false

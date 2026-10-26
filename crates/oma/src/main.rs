@@ -1,5 +1,5 @@
-//! `oma`: runs, installs and sandboxes `.oma` Bundles. Only `inspect` and `bundle` exist so
-//! far; the rest of `docs/spec/oma-cli.md` follows.
+//! `odk-oma`, the command a person types as `odk oma`: runs, installs and sandboxes `.oma`
+//! Bundles (ADR 0056). It is private and not on `PATH`; the `odk` command finds it.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use oma::fmt::Bundle;
 
 #[derive(Parser)]
-#[command(version, about)]
+#[command(name = "odk oma", bin_name = "odk oma", version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -42,11 +42,6 @@ enum Command {
         #[arg(long)]
         accept_permissions: bool,
     },
-    /// Omarchy's text size and font, as sandboxed applications are shown them
-    Omarchy {
-        #[command(subcommand)]
-        command: OmarchyCommand,
-    },
     /// Assemble `<Name>.oma/` from a built executable and a manifest.toml (compiles nothing)
     Bundle {
         /// The built x86_64 ELF executable
@@ -60,10 +55,16 @@ enum Command {
     },
 }
 
-#[derive(Subcommand)]
-enum OmarchyCommand {
-    /// Copy the user's text size and font for sandboxes now (`oma run` does it before every launch)
-    Sync,
+/// The words that are subcommands, which are never a path to a Bundle.
+fn subcommands() -> Vec<String> {
+    use clap::CommandFactory;
+    let cli = Cli::command();
+    let mut names: Vec<String> = cli
+        .get_subcommands()
+        .map(|c| c.get_name().to_owned())
+        .collect();
+    names.push("help".to_owned());
+    names
 }
 
 fn main() -> ExitCode {
@@ -74,6 +75,11 @@ fn main() -> ExitCode {
         oma::sandbox::init::run(&config);
     }
 
+    if let Some(path) = oma::entry::single_file(std::env::args_os().skip(1), &subcommands()) {
+        eprintln!("odk oma: {}", oma::entry::refusal(&path));
+        return ExitCode::FAILURE;
+    }
+
     match Cli::parse().command {
         Command::Inspect { bundle_dir } => match Bundle::open(&bundle_dir) {
             Ok(bundle) => {
@@ -81,27 +87,27 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(e) => {
-                eprintln!("oma: {e}");
+                eprintln!("odk oma: {e}");
                 ExitCode::FAILURE
             }
         },
         Command::Run { target, wait } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
-                eprintln!("oma: $HOME is not set");
+                eprintln!("odk oma: $HOME is not set");
                 return ExitCode::FAILURE;
             };
             let host = oma::sandbox::launch::HostEnv::from_process();
             match oma::flow::run(&layout, &host, &target, wait, &oma::consent::ask) {
                 Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
                 Err(e) => {
-                    eprintln!("oma: {e}");
+                    eprintln!("odk oma: {e}");
                     ExitCode::FAILURE
                 }
             }
         }
         Command::Consent { target } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
-                eprintln!("oma: $HOME is not set");
+                eprintln!("odk oma: $HOME is not set");
                 return ExitCode::FAILURE;
             };
             match oma::flow::consent(&layout, &target, &oma::consent::ask) {
@@ -111,7 +117,7 @@ fn main() -> ExitCode {
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("oma: {e}");
+                    eprintln!("odk oma: {e}");
                     ExitCode::FAILURE
                 }
             }
@@ -121,7 +127,7 @@ fn main() -> ExitCode {
             accept_permissions,
         } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
-                eprintln!("oma: $HOME is not set");
+                eprintln!("odk oma: $HOME is not set");
                 return ExitCode::FAILURE;
             };
             match oma::flow::install(&layout, &bundle_dir, accept_permissions, &oma::consent::ask) {
@@ -130,24 +136,9 @@ fn main() -> ExitCode {
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("oma: {e}");
+                    eprintln!("odk oma: {e}");
                     ExitCode::FAILURE
                 }
-            }
-        }
-        Command::Omarchy { command } => {
-            let Some(layout) = oma::layout::Layout::from_env() else {
-                eprintln!("oma: $HOME is not set");
-                return ExitCode::FAILURE;
-            };
-            match command {
-                OmarchyCommand::Sync => match oma::omarchy::refresh(&layout) {
-                    Ok(()) => ExitCode::SUCCESS,
-                    Err(e) => {
-                        eprintln!("oma: cannot copy: {e}");
-                        ExitCode::FAILURE
-                    }
-                },
             }
         }
         Command::Bundle {
@@ -160,7 +151,7 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(e) => {
-                eprintln!("oma: {e}");
+                eprintln!("odk oma: {e}");
                 ExitCode::FAILURE
             }
         },

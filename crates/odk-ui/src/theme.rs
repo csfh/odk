@@ -1,4 +1,3 @@
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gpui::{App, Rgba, SharedString, rgba};
@@ -38,8 +37,8 @@ impl Built {
     }
 }
 
-/// What the user's own `shell.toml` says that the foundation is built from: the text size
-/// (ADR 0043) and a request for reduced motion (ADR 0046).
+/// What the theme snapshot carries into the foundation: the text size (ADR 0043) and a
+/// request for reduced motion (ADR 0048).
 #[derive(Clone, Copy, Default, PartialEq)]
 struct User {
     text: TextScale,
@@ -151,37 +150,41 @@ impl gpui::Global for Themes {}
 pub(crate) fn follow(cx: &mut App, manager: ThemeManager, watch: bool) {
     publish(manager.snapshot());
     let (sender, requests) = async_channel::unbounded::<Request>();
-    // If the watcher cannot start, the theme is followed only on request.
+    // If the watcher cannot start, the theme is followed only on request. A manager that has a
+    // source of its own (a preview, a test) watches it; the user's own files are `odkd`'s.
     let watcher = match (watch, manager.source()) {
         (true, Some(source)) => {
             let sender = sender.clone();
-            ThemeWatcher::follow_with(source, &manager.user_files(), move || {
+            ThemeWatcher::follow(source, move || {
                 let _ = sender.try_send(Request::Reload);
             })
             .ok()
         }
         _ => None,
     };
-    // The compositor's own word on reloading its configuration says when its animation setting
-    // may have changed (ADR 0048); without it the setting is read again at the next reload of
-    // anything else.
-    let compositor_reloads = match (watch, manager.compositor()) {
-        (true, Some(compositor)) => {
-            let sender = sender.clone();
-            compositor.watch_reloads(move || {
-                let _ = sender.try_send(Request::Reload);
-            })
-        }
-        _ => None,
-    };
+    // `odkd` says when anything it reports changed: the palette, the text size, the request for
+    // reduced motion, the font (ADR 0062).
+    if let (true, Some(host)) = (watch, manager.host()) {
+        let sender = sender.clone();
+        host.on_change(move || {
+            let _ = sender.try_send(Request::Reload);
+        });
+    }
     cx.set_global(Themes {
         requests: sender,
         diagnostics: manager.diagnostics(),
         options: manager.options().clone(),
     });
-    let mut fonts = FontFollower::new(manager.user_fonts().map(Path::to_owned));
+    // The font `odkd` names, as of the first load. A family GPUI does not have is not used.
+    let mut last_font = manager.font_family().map(str::to_owned);
+    if let Some(family) = &last_font {
+        let family = SharedString::from(family.clone());
+        if text_system_knows(cx, &family) {
+            set_system_mono(family);
+        }
+    }
     cx.spawn(async move |cx| {
-        let _watchers = (watcher, compositor_reloads);
+        let _watcher = watcher;
         let mut manager = manager;
         while let Ok(first) = requests.recv().await {
             // Requests that queued up meanwhile are answered together: one reload, with the
@@ -197,7 +200,7 @@ pub(crate) fn follow(cx: &mut App, manager: ThemeManager, watch: bool) {
             }
             // The manager goes to a background thread to read the files or resolve, and comes
             // back.
-            let (back, back_fonts, changed, diagnostics, font) = cx
+            let (back, back_font, changed, diagnostics, font) = cx
                 .background_executor()
                 .spawn(async move {
                     let before = manager.snapshot();
@@ -212,21 +215,27 @@ pub(crate) fn follow(cx: &mut App, manager: ThemeManager, watch: bool) {
                     let after = manager.snapshot();
                     let changed = (!Arc::ptr_eq(&before, &after)).then_some(after);
                     let diagnostics = manager.diagnostics();
-                    // The font is looked up again only when `fonts.conf` itself changed: it
-                    // scans every font, which a theme switch does not need.
+                    // The family `odkd` names now, when it is not the one named before.
                     let font = if reload {
-                        fonts.changed(resolve_monospace)
+                        let now = manager.font_family().map(str::to_owned);
+                        (now != last_font)
+                            .then(|| {
+                                last_font = now.clone();
+                                now
+                            })
+                            .flatten()
                     } else {
                         None
                     };
-                    (manager, fonts, changed, diagnostics, font)
+                    (manager, last_font, changed, diagnostics, font)
                 })
                 .await;
             manager = back;
-            fonts = back_fonts;
+            last_font = back_font;
             let updated = cx.update(|cx| {
                 cx.global_mut::<Themes>().diagnostics = diagnostics;
                 let font_changed = font.is_some_and(|family| {
+                    let family = SharedString::from(family);
                     if !text_system_knows(cx, &family) {
                         log::info!(
                             "the font {family:?} was installed after this application started, so it keeps the old one until it is restarted"
@@ -290,7 +299,7 @@ fn previewing(cx: &App) -> bool {
 /// [`end_theme_preview`]. For a tool that shows a theme without choosing it, such as a design
 /// system's gallery: Omarchy's files and its current theme are not touched, and a theme change
 /// the watcher sees meanwhile is kept, not drawn. The snapshot should come from a
-/// [`ThemeManager`] built with [`ThemeManager::with_users_files`], so that it carries the user's
+/// [`ThemeManager`] built with [`ThemeManager::following_host`], so that it carries the user's
 /// text size; its request for reduced motion is the followed theme's, whatever it says; the
 /// foundation (density, corners) is the
 /// application's and stays. The colour options of the followed theme
@@ -447,7 +456,7 @@ pub fn configure(cx: &mut App, change: impl FnOnce(&mut FoundationConfig)) {
 
 /// Turns reduced motion on or off for the whole application, for an application that offers
 /// its users the choice: overlays then show and hide without transitions and spinners stand
-/// still. It adds to the user's own request, the compositor's (ADR 0046, ADR 0048), and never overrides it:
+/// still. It adds to the user's own request, the compositor's (ADR 0048), and never overrides it:
 /// when the user asks for reduced motion, turning it off here keeps it on. Takes effect on the next frame.
 pub fn set_reduced_motion(cx: &mut App, reduced: bool) {
     configure(cx, |c| c.reduced_motion = reduced);
@@ -464,7 +473,7 @@ pub(crate) fn apply(config: &FoundationConfig) {
 }
 
 /// The foundation tokens for `config` at the user's text size, with the user's request for
-/// reduced motion added to the application's (ADR 0046).
+/// reduced motion added to the application's (ADR 0048).
 fn build(config: &FoundationConfig, user: User) -> FoundationTokens {
     let mut effective = config.clone();
     effective.reduced_motion |= user.reduced_motion;
@@ -509,14 +518,16 @@ pub(crate) fn mono() -> SharedString {
 
 /// The font Omarchy has set as the system's monospace font (`omarchy font set`), which
 /// fontconfig's `monospace` alias names. GPUI looks fonts up by family name without
-/// fontconfig's aliases, so the alias is resolved here: at first use, and again whenever the
-/// user's `fonts.conf` changes (ADR 0043), by [`follow`]. When fontconfig has no answer, the
-/// alias itself is passed on and GPUI falls back to its default face.
+/// fontconfig's aliases, so `odkd` names the family and [`follow`] stores it, again whenever it
+/// changes (ADR 0043, ADR 0062). Until it has, and when no `odkd` answers, the alias is
+/// resolved in this process, which knows the system's fontconfig but not the user's `fonts.conf`
+/// of a sandbox; when that has no answer either, the alias itself is passed on and GPUI falls
+/// back to its default face.
 fn system_mono() -> SharedString {
     if let Some(family) = SYSTEM_MONO.read().unwrap().clone() {
         return family;
     }
-    let family = resolve_monospace().unwrap_or_else(|| "monospace".into());
+    let family = resolve_in_process().unwrap_or_else(|| "monospace".into());
     SYSTEM_MONO.write().unwrap().get_or_insert(family).clone()
 }
 
@@ -541,73 +552,6 @@ fn text_system_knows(cx: &App, family: &SharedString) -> bool {
     let id = text.resolve_font(&gpui::font(family.clone()));
     text.get_font_for_id(id)
         .is_some_and(|found| found.family == *family)
-}
-
-/// What of a file says it may have changed: when it was written, how long it is and which file
-/// it is, which a rename over it changes. `None` when there is no such file.
-#[derive(Debug, Clone, PartialEq)]
-struct Stamp(Option<(std::time::SystemTime, u64, u64)>);
-
-impl Stamp {
-    fn of(path: &Path) -> Self {
-        use std::os::unix::fs::MetadataExt;
-        Self(std::fs::metadata(path).ok().map(|m| {
-            (
-                m.modified().unwrap_or(std::time::UNIX_EPOCH),
-                m.len(),
-                m.ino(),
-            )
-        }))
-    }
-}
-
-/// Notices that the user's `fonts.conf` changed, so the font is looked up again for that and
-/// not for every theme change.
-struct FontFollower {
-    file: Option<PathBuf>,
-    seen: Stamp,
-}
-
-impl FontFollower {
-    fn new(file: Option<PathBuf>) -> Self {
-        let seen = file.as_deref().map_or(Stamp(None), Stamp::of);
-        Self { file, seen }
-    }
-
-    /// `resolve`'s answer when the file is not the one last seen, else `None`.
-    fn changed(&mut self, resolve: impl FnOnce() -> Option<SharedString>) -> Option<SharedString> {
-        let now = Stamp::of(self.file.as_deref()?);
-        if now == self.seen {
-            return None;
-        }
-        self.seen = now;
-        resolve()
-    }
-}
-
-/// The family fontconfig gives for `monospace`, with the user's own configuration applied, as
-/// it is now: `fc-match` is run afresh, because a fontconfig loaded into this process keeps
-/// the configuration it started with (tested), and the user's `fonts.conf` can change while
-/// the application runs (ADR 0043). The font file it names is opened for its family name, the
-/// name GPUI's font lookup knows it by. Without `fc-match`, the answer of the fontconfig loaded
-/// into the process, which is as current as the application's start.
-fn resolve_monospace() -> Option<SharedString> {
-    resolve_with_fc_match(None).or_else(resolve_in_process)
-}
-
-/// `fc-match monospace`, in a process of its own, for the user whose home is `home`, or this
-/// process's.
-fn resolve_with_fc_match(home: Option<&Path>) -> Option<SharedString> {
-    let mut command = std::process::Command::new("fc-match");
-    command.args(["monospace", "-f", "%{file}\n%{index}"]);
-    if let Some(home) = home {
-        command.env("HOME", home).env_remove("XDG_CONFIG_HOME");
-    }
-    let output = command.output().ok().filter(|o| o.status.success())?;
-    let text = String::from_utf8(output.stdout).ok()?;
-    let (file, index) = text.split_once('\n')?;
-    let font = font_kit::font::Font::from_path(file, index.trim().parse().ok()?).ok()?;
-    Some(font.family_name().into())
 }
 
 /// The fontconfig loaded into this process, through font-kit.
@@ -647,13 +591,38 @@ mod tests {
     #[test]
     fn the_monospace_alias_resolves_to_a_real_family() {
         let _turn = SYSTEM_FONT.lock().unwrap_or_else(|e| e.into_inner());
-        let Some(family) = super::resolve_monospace() else {
+        let Some(family) = super::resolve_in_process() else {
             return;
         };
         super::set_system_mono(family.clone());
         assert_ne!(family.as_ref(), "monospace");
         assert_eq!(super::mono(), family);
         eprintln!("monospace is {family}");
+    }
+
+    /// The family `odkd` sends is `fc-match`'s first family name for `monospace`, and that is a
+    /// name GPUI's text system knows, so an application sets text in it. (The name read from the
+    /// font file, which this crate used before ADR 0062, was not: "JetBrainsMono NF" for the
+    /// font fontconfig calls "JetBrainsMono Nerd Font".) Skipped without `fc-match`.
+    #[gpui::test]
+    fn the_family_odkd_sends_is_one_gpui_knows(cx: &mut TestAppContext) {
+        let Some(sent) = std::process::Command::new("fc-match")
+            .args(["-f", "%{family[0]}", "monospace"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+            .filter(|family| !family.is_empty())
+        else {
+            return;
+        };
+        let cx = open(cx, |_, _| div());
+        cx.update(|_, cx| {
+            assert!(
+                super::text_system_knows(cx, &sent.clone().into()),
+                "GPUI does not know {sent:?}"
+            );
+        });
     }
 
     /// A font change of the user's (ADR 0043) reaches views on the next frame, in the monospace
@@ -686,103 +655,6 @@ mod tests {
         assert_eq!((mono.as_ref(), ui.as_ref()), ("Lilex", "Lilex"));
 
         super::set_system_mono(before);
-    }
-
-    /// The font is looked up again when `fonts.conf` is written, replaced or removed, and not
-    /// when it is not.
-    /// `fonts.conf` as `omarchy font set` writes it, naming `family`.
-    fn fonts_conf(family: &str) -> String {
-        format!(
-            "<?xml version=\"1.0\"?>\n<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n<fontconfig>\n  <match target=\"pattern\">\n    <test name=\"family\" qual=\"any\">\n      <string>monospace</string>\n    </test>\n    <edit name=\"family\" mode=\"prepend_first\" binding=\"strong\">\n      <string>{family}</string>\n    </edit>\n  </match>\n</fontconfig>\n"
-        )
-    }
-
-    /// The font is the one `fonts.conf` names *now*, however often it changes: a fontconfig
-    /// loaded into the process would keep the first answer, which is what looking it up
-    /// afresh is for (ADR 0043). Needs `fc-match` and two monospace fonts; skipped without.
-    #[test]
-    fn the_font_follows_fonts_conf_as_it_is_rewritten() {
-        let home = tempfile::tempdir().unwrap();
-        let conf = home.path().join(".config/fontconfig/fonts.conf");
-        std::fs::create_dir_all(conf.parent().unwrap()).unwrap();
-        let Some(default) = super::resolve_with_fc_match(Some(home.path())) else {
-            return;
-        };
-        let listed = std::process::Command::new("fc-list")
-            .args([":spacing=100", "-f", "%{family[0]}\\n"])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-            .unwrap_or_default();
-        let mut families: Vec<&str> = listed.lines().filter(|f| !f.is_empty()).collect();
-        families.sort();
-        families.dedup();
-        let listed_count = families.len();
-        let named = |family: &str| {
-            std::fs::write(&conf, fonts_conf(family)).unwrap();
-            super::resolve_with_fc_match(Some(home.path())).unwrap()
-        };
-        // Fonts the default is not, by what they resolve to.
-        let mut others = Vec::new();
-        for family in families {
-            let found = named(family);
-            if found != default && !others.iter().any(|(_, f)| *f == found) {
-                others.push((family, found));
-            }
-        }
-        // Skipped only for what the machine lacks, not for what the code failed to do.
-        if listed_count < 3 {
-            return;
-        }
-        assert!(
-            others.len() >= 2,
-            "no font made a difference to the answer: {others:?} of {listed_count}"
-        );
-        let ((a, found_a), (b, found_b)) = (&others[0], &others[1]);
-        assert_eq!(named(a), *found_a);
-        assert_eq!(named(b), *found_b);
-        assert_eq!(named(a), *found_a, "and back");
-        std::fs::remove_file(&conf).unwrap();
-        assert_eq!(
-            super::resolve_with_fc_match(Some(home.path())).unwrap(),
-            default
-        );
-    }
-
-    #[test]
-    fn the_font_is_looked_up_again_only_when_fonts_conf_changes() {
-        let dir = tempfile::tempdir().unwrap();
-        let conf = dir.path().join("fonts.conf");
-        std::fs::write(&conf, "<fontconfig/>").unwrap();
-        let mut fonts = super::FontFollower::new(Some(conf.clone()));
-        let found = |name: &str| Some(gpui::SharedString::from(name.to_owned()));
-
-        assert_eq!(fonts.changed(|| panic!("nothing changed")), None);
-
-        std::fs::write(&conf, "<fontconfig><match/></fontconfig>").unwrap();
-        assert_eq!(fonts.changed(|| found("A")), found("A"));
-        assert_eq!(fonts.changed(|| panic!("seen already")), None);
-
-        // As `omarchy font set` does not, and as other tools do: a rename over it, here of a file
-        // of the same length and the same time, so that only which file it is says it changed.
-        let new = dir.path().join("new");
-        std::fs::write(&new, "<fontconfig><match/></fontconfig>").unwrap();
-        let written = std::fs::metadata(&conf).unwrap().modified().unwrap();
-        std::fs::File::options()
-            .write(true)
-            .open(&new)
-            .unwrap()
-            .set_modified(written)
-            .unwrap();
-        std::fs::rename(&new, &conf).unwrap();
-        assert_eq!(fonts.changed(|| found("B")), found("B"));
-
-        std::fs::remove_file(&conf).unwrap();
-        assert_eq!(fonts.changed(|| found("C")), found("C"));
-        assert_eq!(fonts.changed(|| panic!("seen already")), None);
-
-        // No file to follow, as without a home: nothing is ever looked up.
-        let mut none = super::FontFollower::new(None);
-        assert_eq!(none.changed(|| panic!("no file")), None);
     }
 
     #[test]
@@ -1108,7 +980,7 @@ mod tests {
         assert!(diagnostics.failure.is_none());
     }
 
-    /// The user's request for reduced motion (ADR 0046) reaches the tokens when its snapshot is
+    /// The user's request for reduced motion (ADR 0048) reaches the tokens when its snapshot is
     /// published, adds to the application's choice and never replaces it, and is gone when the
     /// user takes it back, at once and without a new theme.
     /// ADR 0048: the user's request for reduced motion is the system's, not a theme's, so a

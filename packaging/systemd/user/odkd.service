@@ -1,0 +1,10 @@
+[Unit]
+Description=ODK host settings: reduced motion, text size, font and colours (ADR 0062)
+Requires=odkd.socket
+After=odkd.socket
+
+[Service]
+Type=simple
+ExecStart=%h/.local/lib/odk/odkd
+Restart=on-failure
+RestartSec=1

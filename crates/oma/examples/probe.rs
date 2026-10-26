@@ -97,32 +97,42 @@ fn main() {
             .map(|()| "ok".to_owned())
             .unwrap_or_else(|e| e.raw_os_error().unwrap_or(0).to_string()),
     );
-    // Omarchy's text size and font, as oma's copy shows them (ADR 0044).
-    let flat = |path: &str| {
-        fs::read_to_string(Path::new(&home).join(path))
-            .map(|t| t.replace('\n', "|"))
-            .unwrap_or_else(|_| "none".into())
-    };
-    line("omarchy_shell", flat(".config/omarchy/shell.toml"));
-    line("omarchy_fonts", flat(".config/fontconfig/fonts.conf"));
-    // What fontconfig, as GPUI's font lookup uses it, makes of `monospace` in here.
+    // What the host says (ADR 0062): one line from `odkd`'s socket, through the directory
+    // oma binds, and whether the directory can be written to.
+    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_default();
+    let socket = Path::new(&runtime).join("odk/odkd.sock");
     line(
-        "fc_monospace",
-        std::process::Command::new("/usr/bin/fc-match")
-            .args(["monospace", "-f", "%{family[0]}"])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-            .unwrap_or_else(|e| format!("error: {e}")),
+        "odkd_line",
+        UnixStream::connect(&socket)
+            .and_then(|stream| {
+                use std::io::BufRead;
+                stream.set_read_timeout(Some(std::time::Duration::from_secs(5)))?;
+                let mut line = String::new();
+                std::io::BufReader::new(stream).read_line(&mut line)?;
+                Ok(line.trim().to_owned())
+            })
+            .unwrap_or_else(|e| format!("error {}", e.raw_os_error().unwrap_or(0))),
     );
     line(
-        "omarchy_siblings",
-        Path::new(&home).join(".config/omarchy/shell.json").exists(),
-    );
-    line(
-        "omarchy_write",
-        fs::write(Path::new(&home).join(".config/omarchy/shell.toml"), "x")
+        "odkd_write",
+        fs::write(Path::new(&runtime).join("odk/oma-probe"), "x")
             .map(|()| "ok".to_owned())
             .unwrap_or_else(|e| e.raw_os_error().unwrap_or(0).to_string()),
+    );
+    line(
+        "odkd_ls",
+        fs::read_dir(Path::new(&runtime).join("odk"))
+            .map(|d| {
+                d.flatten()
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
+            .unwrap_or_else(|_| "none".into()),
+    );
+    line(
+        "config_omarchy",
+        Path::new(&home).join(".config/omarchy").exists(),
     );
     line(
         "write_home",

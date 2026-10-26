@@ -21,7 +21,6 @@ use crate::fmt::{self, Bundle, Identifier};
 use crate::grants;
 use crate::install;
 use crate::layout::Layout;
-use crate::omarchy;
 use crate::userdirs;
 
 #[derive(Debug, thiserror::Error)]
@@ -137,13 +136,6 @@ pub fn run(
             private_dir(&inbox_dir)?;
         }
     }
-    let theme_dir = layout.theme_dir();
-    // The user's text size and font, copied for the sandbox to show (ADR 0044). The copy is
-    // never a reason not to start: an application that cannot see them draws its defaults.
-    if let Err(e) = omarchy::refresh(layout) {
-        eprintln!("oma: note: the application cannot be shown Omarchy's text size and font: {e}");
-    }
-    let settings_dir = layout.omarchy_mirror();
     let env = |name: &str| std::env::var(name).ok();
     let plan = Plan::new(&Inputs {
         bundle_root: bundle.root(),
@@ -156,15 +148,13 @@ pub fn run(
         runtime_dir: host.runtime_dir.as_deref(),
         wayland_display: host.wayland_display.as_deref(),
         named_dirs: &named_dirs,
-        theme_dir: &theme_dir,
-        settings_dir: &settings_dir,
         host_etc: Path::new("/etc"),
         host_root: Path::new("/"),
         host_env: &env,
     })?;
     for (dir, why) in &plan.unavailable {
         eprintln!(
-            "oma: note: the {} folder is not available ({why:?}), so the application starts without it",
+            "odk oma: note: the {} folder is not available ({why:?}), so the application starts without it",
             dir.as_str()
         );
     }
@@ -484,7 +474,7 @@ fn become_init(
         fail(format!("cannot keep capabilities for the init: {e}"));
     }
 
-    let argv0 = std::ffi::CString::new("oma").unwrap();
+    let argv0 = std::ffi::CString::new("odk-oma").unwrap();
     let argv1 = std::ffi::CString::new("--init").unwrap();
     let argv2 = std::ffi::CString::new(config).unwrap();
     let argv = [

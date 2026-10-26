@@ -385,7 +385,7 @@ impl Render for InteractionPage {
                 f.geometry.radius.default
             )))
             .child(Text::new(format!(
-                "Reduced motion: {} (the application's switch: {}; the user's shell.toml: {})",
+                "Reduced motion: {} (the application's switch: {}; the system: {})",
                 if f.motion.reduced { "on" } else { "off" },
                 if config.reduced_motion { "on" } else { "off" },
                 if snapshot.reduced_motion { "asks" } else { "silent" },

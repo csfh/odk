@@ -67,7 +67,7 @@ fn describe(d: &ThemeDiagnostics) -> Div {
         .child(kv(
             "User's request for reduced motion",
             if d.reduced_motion {
-                "yes (shell.toml)"
+                "yes (the compositor's animations are off)"
             } else {
                 "no"
             },

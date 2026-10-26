@@ -196,7 +196,7 @@ fn without_a_display_there_is_no_dialog_and_nothing_launches() {
     let bundle = w.bundle("audio = true");
     let bin = w.oma_with_helper("install\n");
     let out = output_retrying(
-        std::process::Command::new(bin.join("oma"))
+        std::process::Command::new(bin.join("odk-oma"))
             .args(["run", bundle.to_str().unwrap()])
             .env_clear()
             .env("HOME", &w.home)
