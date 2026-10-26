@@ -16,8 +16,9 @@ pub(crate) struct Loaded {
 /// missing `shell.toml` says nothing. A theme's `shell.toml` that is not TOML is an error, as
 /// it always was (ADR 0047); the other file is never one: unreadable, it says nothing.
 ///
-/// The user's file is read for `[font] base-size` and never for `[motion] reduced` (ADR 0048).
-pub(crate) fn load(files: &ThemeFiles, user_shell: Option<&Path>) -> Result<Loaded, Error> {
+/// The user's own `shell.toml` is not read here: the text size and the request for reduced
+/// motion of the user come from `odkd` (ADR 0062).
+pub(crate) fn load(files: &ThemeFiles) -> Result<Loaded, Error> {
     let colors = read(&files.colors)?.ok_or_else(|| Error::Io {
         path: files.colors.clone(),
         source: ErrorKind::NotFound.into(),
@@ -25,10 +26,9 @@ pub(crate) fn load(files: &ThemeFiles, user_shell: Option<&Path>) -> Result<Load
     let palette = Palette::parse(&colors)?;
     let shell = read(&files.shell)?;
     check_shell(shell.as_deref())?;
-    let user = user_shell.and_then(|path| read(path).ok().flatten());
     Ok(Loaded {
         palette,
-        text: TextScale::from_shell(shell.as_deref(), user.as_deref()),
+        text: TextScale::from_shell(shell.as_deref(), None),
     })
 }
 
@@ -80,19 +80,12 @@ blue = "#4A86C4"
 "##;
 
     #[test]
-    fn the_users_own_shell_toml_wins_over_the_themes_and_is_never_an_error() {
+    fn a_themes_base_size_is_its_text_size_and_the_users_own_file_is_not_read() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
         fs::write(dir.path().join("shell.toml"), "[font]\nbase-size = 13\n").unwrap();
         let files = ThemeFiles::in_dir(dir.path(), None);
-        let user = dir.path().join("user.toml");
-        let size = |user: Option<&Path>| load(&files, user).unwrap().text.base_size();
-        assert_eq!(size(None), 13.0);
-        assert_eq!(size(Some(&user)), 13.0, "no such file");
-        fs::write(&user, "[font]\nbase-size = 16\n").unwrap();
-        assert_eq!(size(Some(&user)), 16.0);
-        fs::write(&user, "[font").unwrap();
-        assert_eq!(size(Some(&user)), 13.0, "a user file that does not parse");
+        assert_eq!(load(&files).unwrap().text.base_size(), 13.0);
     }
 
     #[test]
@@ -105,7 +98,7 @@ blue = "#4A86C4"
             "[spacing]\nscale = 2.0\n[font]\nbody = 30\n[controls]\nnormal-color = \"#112233\"\n",
         )
         .unwrap();
-        let loaded = load(&ThemeFiles::in_dir(dir.path(), None), None).unwrap();
+        let loaded = load(&ThemeFiles::in_dir(dir.path(), None)).unwrap();
         assert!(loaded.text.is_default());
     }
 
@@ -113,9 +106,9 @@ blue = "#4A86C4"
     fn a_missing_shell_toml_says_nothing_and_a_malformed_one_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let files = ThemeFiles::in_dir(dir.path(), None);
-        assert!(matches!(load(&files, None), Err(Error::Io { .. })));
+        assert!(matches!(load(&files), Err(Error::Io { .. })));
         fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
-        let loaded = load(&files, None).unwrap();
+        let loaded = load(&files).unwrap();
         assert_eq!(
             loaded.palette.accent,
             Palette::parse(COLORS).unwrap().accent
@@ -123,7 +116,7 @@ blue = "#4A86C4"
         assert!(loaded.text.is_default());
         fs::write(dir.path().join("shell.toml"), "[").unwrap();
         assert!(matches!(
-            load(&files, None),
+            load(&files),
             Err(Error::Toml {
                 file: "shell.toml",
                 ..

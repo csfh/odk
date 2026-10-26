@@ -40,7 +40,7 @@ EOF
 
 # Everything that could point at the user's session is removed; nothing else changes.
 isolate=(env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS -u SWAYSOCK
-    -u HYPRLAND_INSTANCE_SIGNATURE -u XDG_SESSION_TYPE XDG_RUNTIME_DIR="$runtime")
+    -u HYPRLAND_INSTANCE_SIGNATURE -u XDG_SESSION_TYPE XDG_RUNTIME_DIR="$runtime" ODKD_SOCKET=none)
 
 cleanup() {
     [[ -n ${app:-} ]] && kill "$app" 2>/dev/null || true

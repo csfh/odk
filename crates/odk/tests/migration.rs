@@ -38,7 +38,7 @@ fn settings(cx: &mut App) {
 /// "Previewing a theme": the user's Omarchy theme is not touched.
 #[allow(dead_code)]
 fn previewing(cx: &mut App) -> Result<(), odk::theme::Error> {
-    let mut manager = ThemeManager::with_users_files(ThemeSource::named("nord")?);
+    let mut manager = ThemeManager::following_host(ThemeSource::named("nord")?);
     manager.reload();
     odk::ui::preview_theme(cx, manager.snapshot());
     // ...and back to the theme the system follows.

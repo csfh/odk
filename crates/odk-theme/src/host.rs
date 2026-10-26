@@ -174,6 +174,14 @@ pub struct Host {
     shared: Arc<Shared>,
 }
 
+impl std::fmt::Debug for Host {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Host")
+            .field("state", &self.state())
+            .finish()
+    }
+}
+
 impl Host {
     /// The host of this environment, after at most [`FIRST_LINE_WAIT`] for its first line. `None`
     /// when there is no socket to ask (see [`socket_path`]) or no such file.

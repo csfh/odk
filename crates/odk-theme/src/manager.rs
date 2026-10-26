@@ -3,11 +3,11 @@
 //! (`docs/spec/odk-semantic-tokens.md`, "Publishing").
 
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::component;
-use crate::compositor::Hyprland;
+use crate::host::{Host, HostState};
 use crate::load::{Loaded, check_shell, load};
 use crate::semantic::{
     OptionsError, Report, Resolution, ResolveOptions, SemanticColours, Strategy, resolve,
@@ -42,10 +42,10 @@ pub struct ThemeSnapshot {
     /// The user's text size as a scale (ADR 0043), read from `shell.toml` with the user's own
     /// over the theme's. The foundation tokens are scaled by it.
     pub text: TextScale,
-    /// Whether the user asks for reduced motion: the compositor's animations are off (ADR 0048).
-    /// When the compositor says nothing, as it does to a sandboxed application, the user has not
-    /// asked. The user's own file is not a source. The application's own choice is separate, and
-    /// either one reduces motion.
+    /// Whether the user asks for reduced motion: the compositor's animations are off, as `odkd`
+    /// reports it (ADR 0048, ADR 0062). When it says nothing, or no `odkd` answers, the user has
+    /// not asked. The user's own file is not a source. The application's own choice is separate,
+    /// and either one reduces motion.
     pub reduced_motion: bool,
     /// The semantic colours of ADR 0040 (`docs/spec/odk-semantic-tokens.md`), resolved from
     /// `palette` with `resolution.options`, with every component's colours checked against them
@@ -144,6 +144,14 @@ pub enum Reload {
     Failed(Arc<Error>),
 }
 
+/// What one reading of a theme gave.
+struct Read {
+    name: Option<String>,
+    colors: Option<PathBuf>,
+    palette: Palette,
+    text: TextScale,
+}
+
 /// A reload that failed, kept until a later one succeeds.
 #[derive(Debug, Clone)]
 pub struct Failure {
@@ -180,127 +188,78 @@ pub struct ThemeManager {
     failure: Option<Failure>,
     /// The options every resolution uses from now on.
     options: ResolveOptions,
-    /// The user's own `shell.toml`, or oma's sandbox copy of it mounted at the same path
-    /// (ADR 0043, ADR 0044). Only `[font] base-size` is read from it.
-    user_shell: Option<PathBuf>,
-    /// The user's `fonts.conf`, which this manager does not read but whose changes it reports
-    /// (see [`Self::user_files`]).
-    user_fonts: Option<PathBuf>,
-    /// The compositor whose animation setting is the user's request for reduced motion, when
-    /// this manager asks it (ADR 0048).
-    compositor: Option<Hyprland>,
-    /// What the compositor last said: `None` when it was not asked or has never answered. A
-    /// compositor that stops answering keeps this until it answers again.
+    /// What `odkd` says (ADR 0062): the palette, when there is no source, and always the user's
+    /// text size, request for reduced motion and font.
+    host: Option<Host>,
+    /// What the host last said about the user's request for reduced motion: `None` when it
+    /// has not said. The user's own file is not a source.
     compositor_animations: Option<bool>,
+    /// The monospace family the host last named.
+    font_family: Option<String>,
 }
 
 impl ThemeManager {
-    /// A manager for `source`, on the emergency palette until its first reload. It reads no
-    /// `shell.toml` but the theme's, so what it loads never depends on the machine's own
-    /// settings; [`Self::with_user_shell`] adds the user's.
+    /// A manager for `source`, on the emergency palette until its first reload. It follows no
+    /// host, so what it loads never depends on the machine's own settings; [`Self::with_host`]
+    /// adds the user's.
     pub fn new(source: ThemeSource) -> Self {
         Self {
             source: Some(source),
             snapshot: Arc::new(ThemeSnapshot::emergency()),
             failure: None,
             options: ResolveOptions::default(),
-            user_shell: None,
-            user_fonts: None,
-            compositor: None,
+            host: None,
             compositor_animations: None,
+            font_family: None,
         }
     }
 
-    /// Also asks `compositor` whether it animates windows at every reload, and takes the answer
-    /// as the user's request for reduced motion (ADR 0048): when animations are off the user
-    /// asks, and when they are on the user does not. When the compositor says nothing, motion
-    /// is not reduced.
-    /// Only [`Self::current`] asks one; a manager that must not depend on the machine never does.
-    pub fn with_compositor(mut self, compositor: Hyprland) -> Self {
-        self.compositor = Some(compositor);
+    /// Also follows `host` for the user's text size (ADR 0043), request for reduced motion
+    /// (ADR 0048) and font. The colours stay `source`'s.
+    pub fn with_host(mut self, host: Option<Host>) -> Self {
+        self.host = host;
         self
     }
 
-    /// The compositor this manager asks, if any, for [`Hyprland::watch_reloads`].
-    pub fn compositor(&self) -> Option<&Hyprland> {
-        self.compositor.as_ref()
+    /// The host this manager follows, if any, for [`Host::on_change`].
+    pub fn host(&self) -> Option<&Host> {
+        self.host.as_ref()
     }
 
-    /// Also reads `path`, the user's own `shell.toml`, for the text size (ADR 0043). A file that
-    /// is missing, unreadable or does not parse says nothing. `[motion] reduced` in this file
-    /// is ignored (ADR 0048).
-    pub fn with_user_shell(mut self, path: PathBuf) -> Self {
-        self.user_shell = Some(path);
-        self
+    /// The monospace family `odkd` last named, if it has (ADR 0062).
+    pub fn font_family(&self) -> Option<&str> {
+        self.font_family.as_deref()
     }
 
-    /// Also reports changes to `path`, the user's `fonts.conf`, where `omarchy font set` names the
-    /// font (ADR 0043). The manager reads nothing from it: the application resolves the font.
-    pub fn with_user_fonts(mut self, path: PathBuf) -> Self {
-        self.user_fonts = Some(path);
-        self
-    }
-
-    /// The user's own `shell.toml` this manager reads, if any.
-    pub fn user_shell(&self) -> Option<&Path> {
-        self.user_shell.as_deref()
-    }
-
-    /// The user's own `fonts.conf` whose changes are reported, if any.
-    pub fn user_fonts(&self) -> Option<&Path> {
-        self.user_fonts.as_deref()
-    }
-
-    /// The user's files a change to which is worth a reload: `shell.toml`, and `fonts.conf`
-    /// (ADR 0043), for [`crate::ThemeWatcher::follow_with`].
-    pub fn user_files(&self) -> Vec<PathBuf> {
-        [&self.user_shell, &self.user_fonts]
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect()
-    }
-
-    /// A manager for Omarchy's current theme ([`ThemeSource::current`]), with the user's own
-    /// `~/.config/omarchy/shell.toml`. When the environment gives no state directory it has
-    /// nothing to load: it stays on the emergency palette and its diagnostics say why.
+    /// A manager that follows `odkd` for everything: the palette, the user's text size, request
+    /// for reduced motion and font (ADR 0062). It waits a moment for the first line, so the
+    /// first frame has the user's theme. When no `odkd` answers it stays on the emergency
+    /// palette, and its diagnostics say why.
     pub fn current() -> Self {
-        match ThemeSource::current() {
-            Ok(source) => {
-                let manager = Self::with_users_files(source);
-                match Hyprland::from_environment() {
-                    Some(compositor) => manager.with_compositor(compositor),
-                    None => manager,
-                }
-            }
-            Err(error) => Self {
-                source: None,
-                snapshot: Arc::new(ThemeSnapshot::emergency()),
-                failure: Some(Failure {
-                    colors: None,
-                    error: Arc::new(error),
-                }),
-                options: ResolveOptions::default(),
-                user_shell: None,
-                user_fonts: None,
-                compositor: None,
-                compositor_animations: None,
-            },
+        Self::from_host(Host::from_environment())
+    }
+
+    /// [`Self::current`], with `host` in place of the environment's.
+    pub fn from_host(host: Option<Host>) -> Self {
+        Self {
+            source: None,
+            snapshot: Arc::new(ThemeSnapshot::emergency()),
+            failure: host.is_none().then(|| Failure {
+                colors: None,
+                error: Arc::new(Error::NoHost),
+            }),
+            options: ResolveOptions::default(),
+            host,
+            compositor_animations: None,
+            font_family: None,
         }
     }
 
-    /// A manager for `source` that reads the user's own files as [`Self::current`] does, so a
-    /// theme loaded to be previewed in a running application is built at the user's text size.
-    /// It does not read `[motion] reduced` (ADR 0048).
-    /// Use [`Self::new`] for a manager that must not depend on the machine.
-    pub fn with_users_files(source: ThemeSource) -> Self {
-        let manager = Self::new(source);
-        match user_config_dir() {
-            Some(dir) => manager
-                .with_user_shell(dir.join("omarchy/shell.toml"))
-                .with_user_fonts(dir.join("fontconfig/fonts.conf")),
-            None => manager,
-        }
+    /// A manager for `source` that takes the user's text size from `odkd` as [`Self::current`]
+    /// does, so a theme loaded to be previewed in a running application is built at the user's
+    /// text size. Use [`Self::new`] for a manager that must not depend on the machine.
+    pub fn following_host(source: ThemeSource) -> Self {
+        Self::new(source).with_host(Host::from_environment())
     }
 
     /// The options semantic colours are resolved with.
@@ -352,38 +311,36 @@ impl ThemeManager {
     /// becomes the snapshot, one generation on; one that loads and does not leaves everything
     /// as it is; one that fails to load is kept as the failure and changes nothing else.
     pub fn reload(&mut self) -> Reload {
-        let Some(source) = &self.source else {
-            let error = self.failure.as_ref().map(|f| f.error.clone());
-            return Reload::Failed(error.unwrap_or_else(|| Arc::new(Error::NoStateDir)));
+        let said = self.host.as_ref().and_then(Host::state);
+        let Read {
+            name,
+            colors,
+            palette,
+            mut text,
+        } = match self.read(said.as_ref()) {
+            Ok(read) => read,
+            Err(failed) => return failed,
         };
-        let files = match source.resolve() {
-            Ok(files) => files,
-            Err(error) => return self.fail(None, error),
-        };
-        let Loaded { palette, text } = match load(&files, self.user_shell.as_deref()) {
-            Ok(loaded) => loaded,
-            Err(error) => return self.fail(Some(files.colors), error),
-        };
-        // The compositor's word is the user's when it gives one (ADR 0048); when it says
-        // nothing, nothing is asked. The user's own file is ignored. A compositor that has
-        // answered and then says nothing, as one does while it restarts, keeps its last answer
-        // until it speaks again, so a restart never changes what the user sees.
-        self.compositor_animations = self
-            .compositor
-            .as_ref()
-            .and_then(Hyprland::animations_enabled)
-            .or(self.compositor_animations);
+        // The host's word is the user's when it gives one (ADR 0048, ADR 0043). What it does
+        // not say is not asked of anyone else, and the user's own file is ignored.
+        if let Some(said) = said {
+            if let Some(size) = said.base_size {
+                text = TextScale::from_base_size(size);
+            }
+            self.compositor_animations = said.reduced_motion.map(|reduced| !reduced);
+            self.font_family = said.font_family;
+        }
         let reduced_motion = self.compositor_animations == Some(false);
         // Nothing partial is published: a theme whose semantic colours cannot be resolved is
         // a failed reload like any other.
         let (semantic, resolution) = match self.snapshot.resolve(&palette, &self.options) {
             Ok(resolved) => resolved,
-            Err(error) => return self.fail(Some(files.colors), error),
+            Err(error) => return self.fail(colors, error),
         };
         self.failure = None;
         let next = ThemeSnapshot {
-            name: files.name,
-            colors: Some(files.colors),
+            name,
+            colors: colors.clone(),
             palette: Arc::new(palette),
             text,
             reduced_motion,
@@ -404,6 +361,41 @@ impl ThemeManager {
         );
         self.snapshot = Arc::new(next);
         Reload::Changed(self.snapshot.clone())
+    }
+
+    /// The theme and the text size it comes with: from the source's files when there is a
+    /// source, else from what the host said. A failure is already recorded.
+    fn read(&mut self, said: Option<&HostState>) -> Result<Read, Reload> {
+        if let Some(source) = &self.source {
+            let files = match source.resolve() {
+                Ok(files) => files,
+                Err(error) => return Err(self.fail(None, error)),
+            };
+            return match load(&files) {
+                Ok(Loaded { palette, text }) => Ok(Read {
+                    name: files.name,
+                    colors: Some(files.colors),
+                    palette,
+                    text,
+                }),
+                Err(error) => Err(self.fail(Some(files.colors), error)),
+            };
+        }
+        let Some(said) = said else {
+            return Err(self.fail(None, Error::NoHost));
+        };
+        let Some(colors) = said.colors_toml() else {
+            return Err(self.fail(None, Error::HostWithoutColors));
+        };
+        match Palette::parse(&colors) {
+            Ok(palette) => Ok(Read {
+                name: None,
+                colors: None,
+                palette,
+                text: TextScale::default(),
+            }),
+            Err(error) => Err(self.fail(None, error)),
+        }
     }
 
     fn fail(&mut self, colors: Option<PathBuf>, error: Error) -> Reload {
@@ -448,14 +440,6 @@ impl ThemeManager {
             adjusted: s.resolution.adjusted().count(),
         }
     }
-}
-
-/// `~/.config`, where Omarchy writes the user's text size (`omarchy/shell.toml`) and font
-/// (`fontconfig/fonts.conf`). Omarchy finds them from `$HOME`; inside oma's sandbox `$HOME` is
-/// the same path (ADR 0043).
-fn user_config_dir() -> Option<PathBuf> {
-    let home = PathBuf::from(std::env::var_os("HOME")?);
-    home.is_absolute().then(|| home.join(".config"))
 }
 
 fn files_path(path: &Option<PathBuf>) -> String {
