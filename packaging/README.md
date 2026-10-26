@@ -1,24 +1,34 @@
 # Packaging
 
-What is installed besides the programs. Nothing here is run from the repository.
+What an install puts down besides the programs, and how a release is made. Nothing here is run
+from the repository except `tools/package-release`.
 
-ADR 0054 (accepted) is how `oma` itself is installed: a script from its domain, and later
-Omarchy's own repository. Both place the MIME type, the desktop file, the registration units
-and the `binfmt_misc` entry (ADR 0052, ADR 0053). Those files are not added here yet. ADR 0054
-also fixes the install path these units assume, `/usr/bin/oma`.
+`install.sh` (ADR 0063) installs for one user, with no root:
 
-| File | Installed as |
+| Installed as | From |
 |---|---|
-| `systemd/user/odkd.socket` | `~/.config/systemd/user/odkd.socket` |
-| `systemd/user/odkd.service` | `~/.config/systemd/user/odkd.service` |
+| `~/.local/bin/odk` | the `odk` program (`crates/odk-cli`) |
+| `~/.local/lib/odk/odk-oma`, `oma-consent`, `odkd` | the programs behind it |
+| `~/.config/systemd/user/odkd.socket`, `odkd.service` | `systemd/user/` |
 
-`odkd` tells every ODK application what the host says (ADR 0062). It is installed for one user,
-by the install script and without root: the program as `~/.local/lib/odk/odkd`, and the two
-units in the user's own systemd directory, enabled with
+It then enables `odkd.socket` for the user's session; the first connection starts `odkd`, and an
+upgrade restarts a running one. `odkd.service` names the program with `%h`, so the units hold
+no user name. `sh install.sh --uninstall` removes exactly these files.
 
-    systemctl --user enable --now odkd.socket
+A tag `v*` runs `.github/workflows/release.yml`, which builds the four programs and runs
+`tools/package-release`, which makes `odk-x86_64-linux.tar.gz`, its `.sha256` and a copy of
+`install.sh`; those three are the release. The installer's test builds a tarball with the same
+script, so the layout cannot drift.
 
-The socket exists from login, at `$XDG_RUNTIME_DIR/odk/odkd.sock`, and the first connection
-starts the service. `odkd.service` names the program with `%h`, so the units hold no user name;
-if the program is somewhere else, change `ExecStart`. They are disabled with
-`systemctl --user disable --now odkd.socket odkd.service`.
+Text for a system install, which nothing installs yet (ADR 0053, ADR 0056, ADR 0060 on pull
+request #9):
+
+| File | Would be installed as |
+|---|---|
+| `binfmt.d/odk.conf` | `/usr/lib/binfmt.d/odk.conf`, the `binfmt_misc` line that runs `/usr/lib/odk/odk-oma` with the path of a `.oma` file; it needs root |
+| `mime/oma.xml` | `/usr/share/mime/packages/oma.xml`, the type `application/x-oma` |
+| `applications/oma.desktop` | `/usr/share/applications/oma.desktop`, the handler `Exec=/usr/bin/odk oma run %f` |
+
+A per-user install rewrites that `Exec` to the home directory's `odk`. None of these three is
+installed by `install.sh`, because nothing makes a single-file `.oma` yet and `odk oma` refuses
+one.

@@ -19,6 +19,14 @@ Pre-release: every crate is 0.0.0. Stable Rust (edition 2024), Linux x86_64.
 | Understand a decision | `docs/adr/`, with `GLOSSARY.md` for the terms |
 | Work with an agent in this repository | `CLAUDE.md` |
 
+## Install
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/csfh/odk/releases/latest/download/install.sh | sh
+```
+
+Puts `odk`, `odk oma` and the `odkd` daemon under your home directory (ADR 0063); no root. Releases are not published yet, so until the first tag that address does not exist.
+
 ## Commands
 
 ```sh

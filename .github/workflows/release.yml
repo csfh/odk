@@ -1,0 +1,42 @@
+name: release
+
+# A tag `v*` builds the programs, packs them with tools/package-release, and publishes the
+# tarball, its checksum and install.sh as one GitHub release (ADR 0063). The one-liner in
+# install.sh downloads from that release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing tag to build and publish again
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+      - uses: ./.github/actions/rust-setup
+        with:
+          toolchain: stable
+      # The four programs the install puts down: `odk`, `odk-oma`, `oma-consent` and `odkd`.
+      - run: cargo build --release --locked -p odk-cli -p oma -p oma-consent -p odkd
+      - run: tools/package-release target/release dist "$TAG"
+      # --verify-tag: the release is of a tag that exists, never one made by this command.
+      - run: >
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+          dist/odk-x86_64-linux.tar.gz dist/odk-x86_64-linux.tar.gz.sha256 dist/install.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
