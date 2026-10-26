@@ -10,7 +10,7 @@ This ADR replaces those six rules. It supersedes ADR 0055. The 1024-byte prefix 
 
 The command a person types is `odk oma`. There is no `oma` command. The private binary that verifies, mounts and starts a Bundle is `odk-oma`, at `/usr/lib/odk/odk-oma` or, for a per-user install, `~/.local/lib/odk/odk-oma` (ADR 0056). Standard-error lines from that binary are prefixed `odk oma:`.
 
-Two advisory reviews dated 2026-10-25 read ADR 0055's six rules: [GPT-6.1-Sol, through Codex CLI](../reviews/2026-10-25-signing-model-gpt-6.1-sol.md), and [Grok 4.7, through Grok CLI](../reviews/2026-10-25-signing-model-grok-4.7.md). They are advisory. This record is the decision. The reviews are not reproduced here. The order in which to build this ADR is [docs/oma-trust-plan.md](../oma-trust-plan.md). That plan decides nothing. Questions this ADR leaves open are listed there, along with the hashing measurement below.
+Two advisory reviews dated 2026-10-25 read ADR 0055's six rules: [GPT-6.1-Sol, through Codex CLI](../reviews/2026-10-25-signing-model-gpt-6.1-sol.md), and [Grok 4.7, through Grok CLI](../reviews/2026-10-25-signing-model-grok-4.7.md). They are advisory. This record is the decision. The reviews are not reproduced here. The order in which to build this ADR is [docs/oma-trust-plan.md](../oma-trust-plan.md). That plan decides nothing. The in-process Ed25519ctx crate is [ADR 0061](0061-ed25519ctx-is-verified-with-crrl.md). The questions still open are listed in the plan, along with the hashing measurement below.
 
 ## 1. The file is inert
 
@@ -138,7 +138,7 @@ The release public key's key id must equal `key_id`. The signature verifies unde
 
 `odk oma bundle --sign <secret-key>` fills the signature. The file holds the 32-byte ed25519 seed of the release key. It is a path the author passes, and it is never written into the image, the sandbox or the consent record. There is no unsigned output. A header whose signature does not verify is invalid.
 
-`odk-oma` verifies Ed25519ctx itself (RFC 8032). It does not shell out.
+`odk-oma` verifies Ed25519ctx itself (RFC 8032), with `crrl` as [ADR 0061](0061-ed25519ctx-is-verified-with-crrl.md) decides. It does not shell out.
 
 ## 5. The bytes that verify are the bytes that run
 
@@ -235,7 +235,7 @@ These are follow-ups. This ADR does not choose them.
 - ADR 0054 is amended in the bootstrap and in `self-upgrade`. The script is downloaded to a file and verified against the out-of-band release-root fingerprint before it runs. The default is per-user, and root requires `--system`. `odk oma self-upgrade` checks the compiled-in release root and a high-water mark outside the binary. The later Omarchy package, and the refusal to replace files pacman owns, stand.
 - ADR 0056's paths are the ones this ADR uses. Its `/usr/lib/odk/binfmt` shell wrapper is superseded by the registration in section 1. ADR 0056 is not in this branch; it is pull request #6.
 - `docs/spec/manifest.md`, `docs/spec/consent-dialog.md` and `docs/spec/oma-cli.md` follow this ADR where they used to state ADR 0055.
-- The code is unchanged. It still installs a directory and still verifies no signature. The build order is `docs/oma-trust-plan.md`.
+- The code is unchanged. It still installs a directory and still verifies no signature. The build order is `docs/oma-trust-plan.md`. The Ed25519ctx implementation is ADR 0061.
 
 ## Open questions
 

@@ -22,7 +22,7 @@ One Cargo workspace, two groups of crates that never depend on each other.
 
 ## Order of work
 
-ADR 0052 to 0054 and ADR 0060 (accepted) replace the directory Bundle this order assumed with one `.oma` file: the image (ADR 0052), the desktop registration (ADR 0053), the install of the private `odk-oma` binary from a verified file and later from Omarchy's repository (ADR 0054, ADR 0060), and the signature (ADR 0060, which supersedes ADR 0055). The code still installs a directory. The phases for ADR 0060, what the code already does, and the questions that ADR leaves open are in `docs/oma-trust-plan.md`. That file decides nothing; ADR 0060 wins. The steps below that are already built stay as they are until that work is done; new Bundle work follows the accepted ADRs.
+ADR 0052 to 0054 and ADR 0060 (accepted) replace the directory Bundle this order assumed with one `.oma` file: the image (ADR 0052), the desktop registration (ADR 0053), the install of the private `odk-oma` binary from a verified file and later from Omarchy's repository (ADR 0054, ADR 0060), and the signature (ADR 0060, which supersedes ADR 0055; Ed25519ctx is ADR 0061). The code still installs a directory. The phases for ADR 0060, what the code already does, and the questions that ADR leaves open are in `docs/oma-trust-plan.md`. That file decides nothing; ADR 0060 wins, and ADR 0061 wins on the crate. The steps below that are already built stay as they are until that work is done; new Bundle work follows the accepted ADRs.
 
 Each step ends with something that runs and can be tested without the steps after it.
 
