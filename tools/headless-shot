@@ -40,12 +40,13 @@ EOF
 
 # Everything that could point at the user's session is removed; nothing else changes.
 isolate=(env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS -u SWAYSOCK
-    -u HYPRLAND_INSTANCE_SIGNATURE -u XDG_SESSION_TYPE XDG_RUNTIME_DIR="$runtime" ODKD_SOCKET=none)
+    -u HYPRLAND_INSTANCE_SIGNATURE -u XDG_SESSION_TYPE XDG_RUNTIME_DIR="$runtime")
 
 cleanup() {
     [[ -n ${app:-} ]] && kill "$app" 2>/dev/null || true
     [[ -n ${keyboard:-} ]] && kill "$keyboard" 2>/dev/null || true
     [[ -n ${compositor:-} ]] && kill "$compositor" 2>/dev/null || true
+    [[ -n ${odkd_pid:-} ]] && kill "$odkd_pid" 2>/dev/null || true
     wait 2>/dev/null || true
     rm -rf "$runtime"
 }
@@ -64,7 +65,25 @@ for _ in $(seq 50); do
 done
 [[ -n $socket ]] || { echo "headless sway did not start" >&2; cat "$runtime/sway.log" >&2; exit 1; }
 
-display=("${isolate[@]}" WAYLAND_DISPLAY="$socket")
+# The user's own theme, text size and font reach the program as they do in a session: through
+# an odkd of this run (ADR 0062), on a socket in the private runtime directory, which reads
+# them from the real home. The machine's own odkd is never asked. Without a built odkd
+# (`cargo build -p odkd`, or ODKD=path) the program hears none and draws the emergency palette.
+odkd=${ODKD:-}
+if [[ -z $odkd ]]; then
+    for candidate in "$(dirname "$0")"/../target/debug/odkd "$(dirname "$0")"/../target/release/odkd; do
+        [[ -x $candidate ]] && { odkd=$candidate; break; }
+    done
+fi
+host_socket=none
+if [[ -n $odkd ]]; then
+    "${isolate[@]}" ODKD_SOCKET="$runtime/odk/odkd.sock" "$odkd" >"$runtime/odkd.log" 2>&1 &
+    odkd_pid=$!
+    for _ in $(seq 50); do [[ -S $runtime/odk/odkd.sock ]] && break; sleep 0.1; done
+    [[ -S $runtime/odk/odkd.sock ]] && host_socket=$runtime/odk/odkd.sock
+fi
+
+display=("${isolate[@]}" WAYLAND_DISPLAY="$socket" ODKD_SOCKET="$host_socket")
 # A headless sway has no input devices, so its seat offers no keyboard and the program would
 # never bind one. A virtual keyboard that stays connected for the whole run (wtype sleeping
 # before a key it never gets to press) gives the seat one before the program starts; the

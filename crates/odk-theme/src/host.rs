@@ -158,7 +158,7 @@ fn socket_path_from(
     dir.is_absolute().then(|| dir.join("odk/odkd.sock"))
 }
 
-type Callback = Box<dyn Fn() + Send + Sync>;
+type Callback = Arc<dyn Fn() + Send + Sync>;
 
 #[derive(Default)]
 struct Shared {
@@ -216,24 +216,27 @@ impl Host {
         self.shared.state.lock().unwrap().clone()
     }
 
-    /// Runs `f` on the host's thread each time a line changes the state. One callback: a later
-    /// call replaces it.
+    /// Runs `f` on the host's thread each time a line changes the state, and once now when the
+    /// host has said something already, since that line came before anyone was listening. One
+    /// callback: a later call replaces it.
     pub fn on_change(&self, f: impl Fn() + Send + Sync + 'static) {
-        *self.shared.on_change.lock().unwrap() = Some(Box::new(f));
+        let f: Callback = Arc::new(f);
+        *self.shared.on_change.lock().unwrap() = Some(f.clone());
+        if self.state().is_some() {
+            f();
+        }
     }
 }
 
 fn run(path: &Path, shared: &Weak<Shared>) {
     let mut wait = RECONNECT_FROM;
     loop {
-        match UnixStream::connect(path) {
-            Ok(stream) => {
-                if listen(stream, shared) {
-                    wait = RECONNECT_FROM;
-                }
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
-            Err(_) => {}
+        // A socket that is not there, as while systemd makes it again, is waited for like one
+        // that does not answer. The thread ends when the `Host` is dropped.
+        if let Ok(stream) = UnixStream::connect(path)
+            && listen(stream, shared)
+        {
+            wait = RECONNECT_FROM;
         }
         if shared.strong_count() == 0 {
             return;
@@ -267,7 +270,8 @@ fn listen(stream: UnixStream, shared: &Weak<Shared>) -> bool {
                     changed
                 };
                 shared.arrived.notify_all();
-                if changed && let Some(f) = shared.on_change.lock().unwrap().as_ref() {
+                let callback = shared.on_change.lock().unwrap().clone();
+                if let (true, Some(f)) = (changed, callback) {
                     f();
                 }
             }
@@ -279,6 +283,7 @@ fn listen(stream: UnixStream, shared: &Weak<Shared>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::io::Write;
     use std::os::unix::net::UnixListener;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -404,7 +409,58 @@ mod tests {
         until("the second line", || {
             host.state().and_then(|s| s.reduced_motion) == Some(false)
         });
-        assert_eq!(changes.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            changes.load(Ordering::SeqCst),
+            2,
+            "once for the line that was there, once for the one that followed"
+        );
+        drop(server.join().unwrap());
+    }
+
+    #[test]
+    fn a_line_that_came_before_anyone_listened_is_still_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("odkd.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = thread::spawn(move || {
+            // The first line comes after the wait for it has run out.
+            thread::sleep(Duration::from_millis(150));
+            serve_one(&listener, &[full().to_line()])
+        });
+        let host = Host::connect(&path, Duration::from_millis(10)).unwrap();
+        assert_eq!(host.state(), None, "not there yet");
+        until("the line", || host.state().is_some());
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = calls.clone();
+        host.on_change(move || {
+            seen.fetch_add(1, Ordering::SeqCst);
+        });
+        assert!(calls.load(Ordering::SeqCst) >= 1, "told of what it missed");
+        drop(server.join().unwrap());
+    }
+
+    #[test]
+    fn a_socket_that_is_gone_for_a_while_is_found_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("odkd.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let first = thread::spawn(move || {
+            drop(serve_one(&listener, &[full().to_line()]));
+        });
+        let host = Host::connect(&path, Duration::from_secs(5)).unwrap();
+        first.join().unwrap();
+        // Systemd stops and makes the socket again: for a moment there is no file at all.
+        fs::remove_file(&path).unwrap();
+        thread::sleep(Duration::from_millis(500));
+        let listener = UnixListener::bind(&path).unwrap();
+        let next = HostState {
+            base_size: Some(18.0),
+            ..full()
+        };
+        let server = thread::spawn(move || serve_one(&listener, &[next.to_line()]));
+        until("the line from the new socket", || {
+            host.state().and_then(|s| s.base_size) == Some(18.0)
+        });
         drop(server.join().unwrap());
     }
 

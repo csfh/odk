@@ -600,6 +600,31 @@ mod tests {
         eprintln!("monospace is {family}");
     }
 
+    /// The family `odkd` sends is `fc-match`'s first family name for `monospace`, and that is a
+    /// name GPUI's text system knows, so an application sets text in it. (The name read from the
+    /// font file, which this crate used before ADR 0062, was not: "JetBrainsMono NF" for the
+    /// font fontconfig calls "JetBrainsMono Nerd Font".) Skipped without `fc-match`.
+    #[gpui::test]
+    fn the_family_odkd_sends_is_one_gpui_knows(cx: &mut TestAppContext) {
+        let Some(sent) = std::process::Command::new("fc-match")
+            .args(["-f", "%{family[0]}", "monospace"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+            .filter(|family| !family.is_empty())
+        else {
+            return;
+        };
+        let cx = open(cx, |_, _| div());
+        cx.update(|_, cx| {
+            assert!(
+                super::text_system_knows(cx, &sent.clone().into()),
+                "GPUI does not know {sent:?}"
+            );
+        });
+    }
+
     /// A font change of the user's (ADR 0043) reaches views on the next frame, in the monospace
     /// face and in the UI text that follows it, and an application's own choice still wins.
     #[gpui::test]
