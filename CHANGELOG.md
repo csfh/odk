@@ -33,3 +33,5 @@ Removed: `odk::theme::Tokens` and the types under it, `ThemeSnapshot::tokens`, `
 ### OMA
 
 `oma` verifies, installs, sandboxes and runs Bundles, with the consent dialog. Not built: `.desktop` registration, upgrades, `rollback`, `purge`, and the registration and inbox path units (`TODO.md`).
+
+- Accepted, not implemented: a Bundle is one EROFS `.oma` file (ADR 0052), the desktop opens it with `oma` (ADR 0053), and a Bundle's trust is the publisher's domain, then its pinned ed25519 key, then the download origin (ADR 0055). Any new key is the first-install consent flow. `oma` itself is installed by a script from its domain, which verifies the release against that domain's well-known key, and later by Omarchy's repository (ADR 0054). The code still installs a directory and still verifies no signature.

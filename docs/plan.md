@@ -22,6 +22,8 @@ One Cargo workspace, two groups of crates that never depend on each other.
 
 ## Order of work
 
+ADR 0052 to 0055 (accepted) replace the directory Bundle this order assumed with one `.oma` file: the image (ADR 0052), the desktop registration (ADR 0053), the install of `oma` itself from its domain and later from Omarchy's repository (ADR 0054), and the signature (ADR 0055). The code still installs a directory. The steps below that are already built stay as they are until that work is done; new Bundle work follows the accepted ADRs.
+
 Each step ends with something that runs and can be tested without the steps after it.
 
 0. **Cheap spikes**, as separate throwaway programs outside the workspace, from `docs/checks.md`: Landlock ABI 6 scoping against the D-Bus abstract socket, the `clone3` and `max_user_namespaces` options for nested user namespaces, `fexecve` re-exec of oma as the init, the Omarchy launcher cache, `mlua` limits on Luau, the theme location. Each result moves its item to Done and updates the ADR or spec it names.

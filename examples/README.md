@@ -4,7 +4,7 @@ Small applications that show what building on ODK looks like. They are the targe
 
 Each example is a member of the workspace, so `cargo build --workspace` compiles it and CI would catch an API change that breaks it. Run one with `cargo run -p hello`.
 
-Each example holds an application crate and the `manifest.toml` of its Bundle. To make a Bundle, build the crate in release mode and assemble it: `cargo build --release -p hello`, then `oma bundle target/release/hello --manifest examples/hello/manifest.toml`, which creates `Hello.oma/` (ADR 0032). `oma inspect Hello.oma` checks it.
+Each example holds an application crate and the `manifest.toml` of its Bundle. To make a Bundle, build the crate in release mode and assemble it: `cargo build --release -p hello`, then `oma bundle target/release/hello --manifest examples/hello/manifest.toml`, which creates `Hello.oma/` (ADR 0032). `oma inspect Hello.oma` checks it. ADR 0052 accepts a single `.oma` file instead of that directory; the command still writes the directory until that ADR is implemented.
 
 | Example | Shows |
 |---|---|
