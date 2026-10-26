@@ -47,7 +47,7 @@ Graphics drivers read `/sys` to identify a GPU, and without it Vulkan fails to i
 
 ## Session D-Bus
 
-The baseline of ADR 0012 gives the session bus socket to an application with a non-empty `dbus` list. A raw socket reaches every service on the bus, which makes the list of named services meaningless, and no filtering proxy is designed. Until one is, `oma run` refuses a Bundle that requests `dbus` and says so; the permission stays in the Manifest and the consent record, and nothing else in the sandbox depends on it.
+The baseline of ADR 0012 gives the session bus socket to an application with a non-empty `dbus` list. A raw socket reaches every service on the bus, which makes the list of named services meaningless, and no filtering proxy is designed. Until one is, `odk oma run` refuses a Bundle that requests `dbus` and says so; the permission stays in the Manifest and the consent record, and nothing else in the sandbox depends on it.
 
 ## `/etc` entries tied to permissions
 

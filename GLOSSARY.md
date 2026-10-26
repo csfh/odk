@@ -40,7 +40,7 @@ _Avoid_: the launcher (ambiguous with Omarchy's own application launcher), OMA r
 A Luau extension loaded by an ODK application to add or change behaviour, without changing the application's Rust code.
 
 **oma-consent**:
-The small helper program that shows the consent dialog for oma and reports the user's answer. It decides nothing and holds no state. Called `omagate` in ADR 0026 and `omalaunch-consent` in the first draft of ADR 0025. `oma consent <target>` runs it.
+The small helper program that shows the consent dialog for oma and reports the user's answer. It decides nothing and holds no state. Called `omagate` in ADR 0026 and `omalaunch-consent` in the first draft of ADR 0025. `odk oma consent <target>` runs it.
 
 **Inbox**:
 The per-application directory where an application stages a new version of itself for oma to pick up. An application can write only to its own.

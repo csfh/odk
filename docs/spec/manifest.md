@@ -31,7 +31,7 @@ Two Bundles with the same Identifier are the same application at different versi
 
 ## Version
 
-Semver 2.0.0 precedence applies: a pre-release such as `1.2.0-beta.1` sorts below `1.2.0`, and build metadata is ignored when comparing. Only a strictly higher version is an upgrade (ADR 0015). An equal or lower version staged in an inbox is rejected; the only way down is `oma rollback` (ADR 0011).
+Semver 2.0.0 precedence applies: a pre-release such as `1.2.0-beta.1` sorts below `1.2.0`, and build metadata is ignored when comparing. Only a strictly higher version is an upgrade (ADR 0015). An equal or lower version staged in an inbox is rejected; the only way down is `odk oma rollback` (ADR 0011).
 
 ## Executable
 
