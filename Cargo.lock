@@ -3953,6 +3953,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "odk-cli"
+version = "0.0.0"
+dependencies = [
+ "deps",
+ "tempfile",
+]
+
+[[package]]
 name = "odk-db"
 version = "0.0.0"
 dependencies = [

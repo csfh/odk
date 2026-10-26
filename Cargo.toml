@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/oma-consent", "crates/deps", "examples/hello", "examples/gallery", "examples/todo"]
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "examples/hello", "examples/gallery", "examples/todo"]
 exclude = ["spikes"]
 
 [workspace.package]
