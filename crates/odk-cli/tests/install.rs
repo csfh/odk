@@ -289,6 +289,32 @@ fn a_download_that_does_not_match_its_checksum_installs_nothing() {
 }
 
 #[test]
+fn a_checksum_line_for_another_file_is_not_a_checksum_of_the_download() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    let sums = w.root.join("release/odk-x86_64-linux.tar.gz.sha256");
+    // The sum of an empty file, for a file that is not the tarball: it verifies as itself.
+    for line in [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /dev/null\n",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  other.tar.gz\n",
+        "",
+    ] {
+        fs::write(&sums, line).unwrap();
+        let o = w.install(&[]);
+        assert!(!o.status.success(), "{line:?}");
+        let text = out(&o);
+        assert!(
+            text.contains("is for '") || text.contains("is empty"),
+            "{text}"
+        );
+        assert!(w.tree().is_empty());
+    }
+}
+
+#[test]
 fn a_missing_checksum_or_tarball_installs_nothing() {
     if skip_as_root() {
         return;

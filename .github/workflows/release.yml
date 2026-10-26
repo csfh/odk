@@ -34,9 +34,17 @@ jobs:
       # The four programs the install puts down: `odk`, `odk-oma`, `oma-consent` and `odkd`.
       - run: cargo build --release --locked -p odk-cli -p oma -p oma-consent -p odkd
       - run: tools/package-release target/release dist "$TAG"
-      # --verify-tag: the release is of a tag that exists, never one made by this command.
-      - run: >
-          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
-          dist/odk-x86_64-linux.tar.gz dist/odk-x86_64-linux.tar.gz.sha256 dist/install.sh
+      # --verify-tag: the release is of a tag that exists, never one made by this command. A tag
+      # with a `-` in it (v0.1.0-rc.1) is a pre-release and is never `latest`. A release that
+      # exists already gets its three files replaced.
+      - run: |
+          assets="dist/odk-x86_64-linux.tar.gz dist/odk-x86_64-linux.tar.gz.sha256 dist/install.sh"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber $assets
+          else
+            flag=""
+            case $TAG in *-*) flag="--prerelease" ;; esac
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes $flag $assets
+          fi
         env:
           GH_TOKEN: ${{ github.token }}

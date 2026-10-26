@@ -115,7 +115,13 @@ $fetch -o "$work/$name.tar.gz.sha256" "$base/$name.tar.gz.sha256" \
 
 # The checksum says the download is the file the release published. It does not say who
 # published it: that is the trust in GitHub over HTTPS (ADR 0063).
-(cd "$work" && sha256sum -c "$name.tar.gz.sha256" >/dev/null 2>&1) \
+# The line names the file it is the sum of; it must name this tarball, or a sum of some other
+# file would pass without the tarball being looked at.
+read -r want named <"$work/$name.tar.gz.sha256" || die "the checksum file is empty; nothing was installed"
+[ "${named#\*}" = "$name.tar.gz" ] \
+    || die "the checksum is for '$named', not $name.tar.gz; nothing was installed"
+have=$(sha256sum "$work/$name.tar.gz" | cut -d' ' -f1)
+[ -n "$want" ] && [ "$have" = "$want" ] \
     || die "the download does not match its checksum; nothing was installed"
 say "checksum ok"
 

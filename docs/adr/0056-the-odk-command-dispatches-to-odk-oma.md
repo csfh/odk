@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0063
 ---
 
 # The `odk` command dispatches to `odk-<name>`, and the Bundle program is `odk-oma`
