@@ -4,7 +4,7 @@ Normative. This spec says what `odk::db` (the `odk-db` crate) gives an applicati
 
 ## What it is
 
-A `Database` is a cloneable handle to one SQLite connection that lives on a thread of its own. Everything an application asks of it runs there, one thing at a time, in the order it was asked for, and never on the thread that draws the window. SQLite is the bundled build of `rusqlite` (`odk::db::rusqlite` is the raw binding, for what the helpers do not cover).
+A `Database` is a cloneable handle to one SQLite connection that lives on a thread of its own. Everything an application asks of it runs there, one thing at a time, in the order it was asked for, and never on the thread that draws the window. SQLite is the bundled build of `rusqlite` (`odk::db::rusqlite` is the raw binding, for what the helpers do not cover). Applications reach it as `odk::db` by enabling the `db` feature of the `odk` crate, which is off by default (ADR 0049).
 
 | | |
 |---|---|

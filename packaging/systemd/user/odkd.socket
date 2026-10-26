@@ -1,0 +1,10 @@
+[Unit]
+Description=ODK host settings socket (ADR 0062)
+
+[Socket]
+ListenStream=%t/odk/odkd.sock
+SocketMode=0600
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

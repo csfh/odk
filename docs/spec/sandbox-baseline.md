@@ -17,20 +17,17 @@ Access is read-only unless a row says otherwise, and private tmpfs mounts are wr
 | `/proc` | a fresh procfs of the application's own PID namespace, showing only its own processes (ADR 0024) |
 | `/dev` | a minimal private set: `null`, `zero`, `full`, `random`, `urandom`, `tty`, and a private `/dev/shm` tmpfs not shared with other applications, and the usual `fd`, `stdin`, `stdout` and `stderr` links; `/dev/dri` only with `gpu` |
 | `/tmp` | a private tmpfs, per application and per launch |
-| `/run` and `$XDG_RUNTIME_DIR` | a private tmpfs holding only what the application's permissions bring: the Wayland socket always, the PipeWire socket with `audio`, `/run/systemd/resolve/stub-resolv.conf` with `network`, and the one socket a declared `[daemon]` listens on (ADR 0050), bound at its own relative path and nothing beside it. The session bus socket is not provided: see [Session D-Bus](#session-d-bus) |
+| `/run` and `$XDG_RUNTIME_DIR` | a private tmpfs holding only what the application's permissions bring: the Wayland socket always, the PipeWire socket with `audio`, `/run/systemd/resolve/stub-resolv.conf` with `network`, the one socket a declared `[daemon]` listens on (ADR 0050), bound at its own relative path and nothing beside it, and `odkd`'s directory when it is installed (below). The session bus socket is not provided: see [Session D-Bus](#session-d-bus) |
 | `/var` | not visible |
 | `/sys` | not visible, except with `gpu` the slice described below |
-| Omarchy's current theme (ADR 0019) | read-only |
-| `~/.config/omarchy/` and `~/.config/fontconfig/`: oma's copy of the user's text size, reduced-motion request and font (ADR 0044, ADR 0046) | read-only |
+| `$XDG_RUNTIME_DIR/odk/`, `odkd`'s socket directory, when there is one (ADR 0062) | read-only |
 | The `/etc` entries below | read-only |
 
 Under Run once (ADR 0018) the data directory is a private tmpfs that disappears when the application exits, not the path above.
 
 `/bin`, `/lib`, `/lib64` and `/sbin` are symlinks into `/usr` on a merged-`/usr` system such as Omarchy. Every x86_64 ELF names `/lib64/ld-linux-x86-64.so.2` as its interpreter, so without `/lib64` no application starts. oma exposes these as the same symlinks, which resolve inside `/usr`.
 
-The theme is the directory `~/.local/state/omarchy/current/theme/` (`colors.toml`, `shell.toml` and files for other programs), which Omarchy's shell reads, with its name in `~/.local/state/omarchy/current/theme.name`. Omarchy replaces that directory on every theme change (it deletes `theme/` and moves a new one into place), so a mount or Landlock rule on `theme/` itself would go stale. oma exposes its parent, `~/.local/state/omarchy/current/`, read-only instead; that also shows the application the theme name and the current background link, which are harmless. How a running application learns of the change is for the ODK UI layer (ADR 0019).
-
-The user's text size and font (ADR 0043, ADR 0044) are not the real files, which the application never sees: `omarchy display text size` replaces `~/.config/omarchy/shell.toml` by renaming over it, so a mount of that file would go stale, and `~/.config/omarchy/` holds more than an application should read. `oma run` copies what is needed into `~/.local/share/oma/omarchy/` (`oma::omarchy::refresh`), and the sandbox mounts its `omarchy/` at `~/.config/omarchy` and its `fontconfig/` at `~/.config/fontconfig`, each read-only and only if it exists. `omarchy/shell.toml` holds `[font] base-size` and `[motion] reduced = true` (ADR 0046) and nothing else, when the user has set either, or Hyprland's animations are off, which `oma` asks of Hyprland itself (ADR 0048); `fontconfig/fonts.conf` is the user's own, when it is a regular file of at most 64 KiB. Copies are replaced by renaming inside those directories, which stay, so a mount and a watch on them follow. The copy is made at every launch and never stops one. Nothing of `$XDG_RUNTIME_DIR/hypr` is ever mounted or granted: its socket accepts commands, so an application that could open it would not be sandboxed (a test in `sandbox/plan.rs` holds this). A running application sees the compositor's setting as of the launch or the last `oma omarchy sync`.
+What the host says (ADR 0062) comes from `odkd`, a per-user daemon outside every sandbox. Its socket is `$XDG_RUNTIME_DIR/odk/odkd.sock`, and oma binds the directory `odk/` into the sandbox's private runtime directory at the same path, read-only, for every application and with no permission to ask for, since the socket can only say what the user's settings are: the reduced-motion request (Hyprland's `animations:enabled`, ADR 0048), the text size and font (ADR 0043) and the theme's colours. The directory and not the socket is bound, so a socket made again is the one the application sees. A user with no `odkd` has no such directory, and nothing is bound. The sandbox shows nothing of `~/.config/omarchy`, `~/.config/fontconfig` or `~/.local/state/omarchy`, and nothing of `$XDG_RUNTIME_DIR/hypr` is ever mounted or granted: its socket accepts commands, so an application that could open it would not be sandboxed (a test in `sandbox/plan.rs` holds this). A test in `tests/sandbox.rs` connects to a socket through the bind, finds the directory read-only, and hears a socket made again at the same path.
 
 ### `/etc` baseline
 
@@ -50,7 +47,7 @@ Graphics drivers read `/sys` to identify a GPU, and without it Vulkan fails to i
 
 ## Session D-Bus
 
-The baseline of ADR 0012 gives the session bus socket to an application with a non-empty `dbus` list. A raw socket reaches every service on the bus, which makes the list of named services meaningless, and no filtering proxy is designed. Until one is, `oma run` refuses a Bundle that requests `dbus` and says so; the permission stays in the Manifest and the consent record, and nothing else in the sandbox depends on it.
+The baseline of ADR 0012 gives the session bus socket to an application with a non-empty `dbus` list. A raw socket reaches every service on the bus, which makes the list of named services meaningless, and no filtering proxy is designed. Until one is, `odk oma run` refuses a Bundle that requests `dbus` and says so; the permission stays in the Manifest and the consent record, and nothing else in the sandbox depends on it.
 
 ## `/etc` entries tied to permissions
 

@@ -2,6 +2,8 @@
 //! through its modules (ADR 0028).
 
 pub use odk_a11y as a11y;
+/// The database (ADR 0049). Present only with the `db` feature, which is off by default.
+#[cfg(feature = "db")]
 pub use odk_db as db;
 pub use odk_theme as theme;
 pub use odk_ui as ui;

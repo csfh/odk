@@ -55,8 +55,8 @@ impl World {
         let data = home.join(".local/share/oma/data").join(ID);
         let bin = root.join("oma-bin");
         fs::create_dir_all(&bin).unwrap();
-        let oma_bin = bin.join("oma");
-        fs::copy(env!("CARGO_BIN_EXE_oma"), &oma_bin).unwrap();
+        let oma_bin = bin.join("odk-oma");
+        fs::copy(env!("CARGO_BIN_EXE_odk-oma"), &oma_bin).unwrap();
         assert!(!bin.join("oma-consent").exists());
         World {
             _dir: dir,
@@ -156,7 +156,7 @@ impl World {
         out.join("Probe.oma")
     }
 
-    /// `oma run --wait` with `PATH` set to `path`, so a fake `systemd-run` can stand in for the
+    /// `odk oma run --wait` with `PATH` set to `path`, so a fake `systemd-run` can stand in for the
     /// user manager, which no test may start a unit in.
     pub fn run_wait_with_path(&self, path: &str) -> (Output, HashMap<String, String>) {
         self.run_target_with_path(ID, path)
@@ -205,7 +205,7 @@ impl World {
     pub fn oma_with_helper(&self, answer: &str) -> PathBuf {
         let dir = self.home.join("bin");
         fs::create_dir_all(&dir).unwrap();
-        fs::copy(env!("CARGO_BIN_EXE_oma"), dir.join("oma")).unwrap();
+        fs::copy(env!("CARGO_BIN_EXE_odk-oma"), dir.join("odk-oma")).unwrap();
         let helper = dir.join("oma-consent");
         fs::write(&helper, "#!/bin/sh\ncat > \"$(dirname \"$0\")/request.toml\"\ncat \"$(dirname \"$0\")/answer\"\n").unwrap();
         std::os::unix::fs::PermissionsExt::set_mode(
@@ -219,7 +219,7 @@ impl World {
 
     /// Runs the copy of `oma` in `bin` (see [`World::oma_with_helper`]).
     pub fn oma_in(&self, bin: &Path, args: &[&str]) -> Output {
-        let mut command = Command::new(bin.join("oma"));
+        let mut command = Command::new(bin.join("odk-oma"));
         command
             .args(args)
             .env_clear()

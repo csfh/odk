@@ -1,7 +1,7 @@
 //! Installing a Bundle into `~/Applications` (ADR 0009, ADR 0018).
 //!
 //! Minimal for now: it writes no `.desktop` entry, refuses an Identifier that is already
-//! installed (no upgrades, no previous version; only [`reinstall`], for `oma dev`, replaces one,
+//! installed (no upgrades, no previous version; only [`reinstall`], for `odk oma dev`, replaces one,
 //! ADR 0051), and records consent only with `accept_permissions`: the dialog is the caller's
 //! (`flow`, ADR 0033).
 
@@ -118,8 +118,8 @@ pub fn install(layout: &Layout, source: &Path, accept_permissions: bool) -> Resu
     Ok(target)
 }
 
-/// [`install`] that replaces the installed Bundle with the same Identifier, for `oma dev`
-/// (ADR 0051); `oma install` still refuses one. The old copy is moved aside under a name that
+/// [`install`] that replaces the installed Bundle with the same Identifier, for `odk oma dev`
+/// (ADR 0051); `odk oma install` still refuses one. The old copy is moved aside under a name that
 /// [`installed`] skips and put back if the new one cannot be installed, so a failure leaves what
 /// was there. Returns the new path and whether there was a copy to replace.
 pub fn reinstall(

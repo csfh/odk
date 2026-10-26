@@ -28,6 +28,7 @@ mod compositor;
 mod discovery;
 mod error;
 pub mod foundation;
+mod host;
 mod load;
 mod manager;
 mod oklch;
@@ -44,8 +45,9 @@ pub use color::{
 pub use compositor::{Hyprland, ReloadWatcher};
 pub use discovery::{ThemeFiles, ThemeSource, current_theme_dir, theme_name};
 pub use error::Error;
+pub use host::{FIRST_LINE_WAIT, Host, HostError, HostState, SOCKET_ENV, socket_path};
 pub use manager::{Failure, Fallback, Reload, ThemeDiagnostics, ThemeManager, ThemeSnapshot};
 pub use oklch::{JND, Oklab, Oklch, hue_distance};
 pub use palette::{Mode, Palette, PaletteKey};
-pub use scale::{TextScale, user_reduces_motion};
+pub use scale::TextScale;
 pub use watch::ThemeWatcher;

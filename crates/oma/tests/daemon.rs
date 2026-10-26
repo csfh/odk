@@ -84,7 +84,7 @@ fn the_application_reaches_its_daemons_socket_and_nothing_beside_it() {
     drop(other);
 }
 
-/// With no daemon on the socket, `oma run` starts one unit for the Bundle's own program with
+/// With no daemon on the socket, `odk oma run` starts one unit for the Bundle's own program with
 /// the socket as a socket unit and a slice of the session, and the application goes on.
 #[test]
 fn without_a_daemon_oma_starts_one_unit_and_the_application_goes_on() {

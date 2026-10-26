@@ -20,7 +20,7 @@ fn bundle(manifest: &str) -> TempDir {
 }
 
 fn inspect(dir: &TempDir) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_oma"))
+    Command::new(env!("CARGO_BIN_EXE_odk-oma"))
         .arg("inspect")
         .arg(dir.path())
         .output()
@@ -46,5 +46,5 @@ fn an_invalid_bundle_fails_with_a_message() {
     let out = inspect(&dir);
     assert!(!out.status.success());
     assert!(out.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&out.stderr).starts_with("oma: "));
+    assert!(String::from_utf8_lossy(&out.stderr).starts_with("odk oma: "));
 }

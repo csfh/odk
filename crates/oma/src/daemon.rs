@@ -1,6 +1,6 @@
 //! A Bundle's daemon (ADR 0050): the one program of the Bundle's that runs outside the sandbox.
 //!
-//! `oma run` makes sure it is there before it starts the application, and never stays to watch
+//! `odk oma run` makes sure it is there before it starts the application, and never stays to watch
 //! it. It is started as a transient systemd user unit, so `oma` is not its parent (ADR 0034) and
 //! `oma` is not a daemon (ADR 0025), with the socket as a socket unit of its own: systemd owns
 //! the socket, so its file survives the daemon restarting, which a bind mount of it into the
@@ -18,7 +18,7 @@ use crate::fmt::{Bundle, Daemon, Identifier};
 const WAIT: Duration = Duration::from_secs(5);
 
 /// The part of the user's session that the daemon is given: what its tools need to find the
-/// desktop and no more. `oma run` is started from the session, so these are the session's.
+/// desktop and no more. `odk oma run` is started from the session, so these are the session's.
 pub const SESSION_ENV: &[&str] = &[
     "PATH",
     "WAYLAND_DISPLAY",
@@ -242,7 +242,7 @@ pub fn ensure(
     Err(Error::NoSocket(unit.socket))
 }
 
-/// [`ensure`] with the real starter and the time to wait that `oma run` allows.
+/// [`ensure`] with the real starter and the time to wait that `odk oma run` allows.
 pub fn ensure_for_run(
     bundle: &Bundle,
     runtime_dir: &Path,

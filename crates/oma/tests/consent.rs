@@ -1,4 +1,4 @@
-//! The consent flows of `oma run`, `oma install` and `oma consent`, with a fake dialog helper
+//! The consent flows of `odk oma run`, `odk oma install` and `odk oma consent`, with a fake dialog helper
 //! that records the request it receives and gives a chosen answer. The real helper's window
 //! is checked by eye (`docs/checks.md`).
 
@@ -196,7 +196,7 @@ fn without_a_display_there_is_no_dialog_and_nothing_launches() {
     let bundle = w.bundle("audio = true");
     let bin = w.oma_with_helper("install\n");
     let out = output_retrying(
-        std::process::Command::new(bin.join("oma"))
+        std::process::Command::new(bin.join("odk-oma"))
             .args(["run", bundle.to_str().unwrap()])
             .env_clear()
             .env("HOME", &w.home)

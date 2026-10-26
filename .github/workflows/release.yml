@@ -1,0 +1,50 @@
+name: release
+
+# A tag `v*` builds the programs, packs them with tools/package-release, and publishes the
+# tarball, its checksum and install.sh as one GitHub release (ADR 0063). The one-liner in
+# install.sh downloads from that release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing tag to build and publish again
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+      - uses: ./.github/actions/rust-setup
+        with:
+          toolchain: stable
+      # The four programs the install puts down: `odk`, `odk-oma`, `oma-consent` and `odkd`.
+      - run: cargo build --release --locked -p odk-cli -p oma -p oma-consent -p odkd
+      - run: tools/package-release target/release dist "$TAG"
+      # --verify-tag: the release is of a tag that exists, never one made by this command. A tag
+      # with a `-` in it (v0.1.0-rc.1) is a pre-release and is never `latest`. A release that
+      # exists already gets its three files replaced.
+      - run: |
+          assets="dist/odk-x86_64-linux.tar.gz dist/odk-x86_64-linux.tar.gz.sha256 dist/install.sh"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber $assets
+          else
+            flag=""
+            case $TAG in *-*) flag="--prerelease" ;; esac
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes $flag $assets
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

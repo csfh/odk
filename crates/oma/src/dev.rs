@@ -1,4 +1,4 @@
-//! `oma dev`'s project file (ADR 0051): how to build one application and what goes into its
+//! `odk oma dev`'s project file (ADR 0051): how to build one application and what goes into its
 //! Bundle. It is read from `dev.toml` beside the Manifest and is never put in the Bundle.
 //!
 //! `oma` still compiles nothing of its own (ADR 0010, ADR 0032): the commands in `build` are the
@@ -17,7 +17,7 @@ pub const FILE: &str = "dev.toml";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("{} not found: `oma dev` needs a {FILE} beside the manifest to know how to build", .0.display())]
+    #[error("{} not found: `odk oma dev` needs a {FILE} beside the manifest to know how to build", .0.display())]
     NoFile(PathBuf),
     #[error("cannot access {}: {source}", path.display())]
     Io {
@@ -43,7 +43,7 @@ struct Raw {
     /// The manifest, relative to the project's directory.
     #[serde(default = "manifest_name")]
     manifest: String,
-    /// `FILE[=PATH]`, as `oma bundle --include` takes them, the files relative to the directory.
+    /// `FILE[=PATH]`, as `odk oma bundle --include` takes them, the files relative to the directory.
     #[serde(default)]
     include: Vec<String>,
 }

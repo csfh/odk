@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/oma-consent", "crates/deps", "examples/hello", "examples/gallery", "examples/todo"]
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "examples/hello", "examples/gallery", "examples/todo"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -31,3 +31,8 @@ opt-level = 3
 # gpui 0.2.2 does not compile on Linux without this; see patches/README.md and ADR 0029.
 [patch.crates-io]
 xattr = { path = "patches/xattr" }
+
+# Every member depends on `deps` so shared crates resolve one feature set (see crates/deps).
+# The dependency is named only in Cargo.toml, which cargo-machete treats as unused.
+[workspace.metadata.cargo-machete]
+ignored = ["deps"]

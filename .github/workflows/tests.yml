@@ -4,39 +4,84 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A new RustSec advisory should fail `audit` even when nobody has opened a
+  # pull request. The compile jobs skip this event.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer pull request run replaces the one in progress. A push to main,
+  # the Monday audit and a manual run are left to finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - name: System libraries for GPUI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
-            libfontconfig1-dev libvulkan-dev libasound2-dev
-      - name: Allow user namespaces for the sandbox tests
-        # Ubuntu 24.04 runners confine unprivileged user namespaces with AppArmor, which makes
-        # oma's "making mounts private" fail.
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/rust-setup
         with:
+          toolchain: stable
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
+          user-namespaces: true
+      # cargo fmt has no --locked; it does not read the lockfile.
       - run: cargo fmt --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace --no-fail-fast
+      # `--all-features` keeps `odk-db` in the lint and the tests: `odk::db` is behind
+      # the `db` feature, which is off by default (ADR 0049).
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --workspace --all-features --locked --no-fail-fast
         env:
           # The 4 ms draw budget is for the development machine; a shared runner is slower.
           GALLERY_FRAME_BUDGET_MS: 12
           DRAW_BUDGET_MS: 30
+
+  # Typechecks every target on the exact rust-version in the workspace manifest.
+  msrv:
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: setup
+        uses: ./.github/actions/rust-setup
+        with:
+          toolchain: msrv
+      - name: Confirm the exact compiler
+        run: |
+          got=$(rustc --version)
+          echo "$got"
+          case "$got" in
+            *" ${{ steps.setup.outputs.toolchain }} "*) ;;
+            *)
+              echo "::error::rustc is $got, wanted ${{ steps.setup.outputs.toolchain }}"
+              exit 1
+              ;;
+          esac
+      - run: cargo check --workspace --all-targets --all-features --locked
+
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-audit
+      # A vulnerability or a yanked crate fails the job. Unmaintained, unsound
+      # and notice advisories stay warnings. An accepted advisory is an id in
+      # .cargo/audit.toml. cargo-audit fetches the advisory database itself.
+      - run: cargo-audit audit
+
+  machete:
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-machete
+      - run: cargo-machete

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-oma">
+    <comment>Omarchy application bundle</comment>
+    <glob pattern="*.oma"/>
+    <magic priority="80">
+      <match type="string" value="OMA1" offset="0"/>
+    </magic>
+  </mime-type>
+</mime-info>

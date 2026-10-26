@@ -3953,6 +3953,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "odk-cli"
+version = "0.0.0"
+dependencies = [
+ "deps",
+ "tempfile",
+]
+
+[[package]]
 name = "odk-db"
 version = "0.0.0"
 dependencies = [
@@ -3970,6 +3978,7 @@ dependencies = [
  "deps",
  "log",
  "notify-debouncer-mini",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "toml 0.9.12+spec-1.1.0",
@@ -3990,6 +3999,17 @@ dependencies = [
  "tempfile",
  "unicode-segmentation",
  "zed-font-kit",
+]
+
+[[package]]
+name = "odkd"
+version = "0.0.0"
+dependencies = [
+ "deps",
+ "libc",
+ "odk-theme",
+ "tempfile",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]
@@ -5984,9 +6004,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.54.0"
+version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0c168a474b95bfecfe908a65d4bdffc523144b649a74c09c286afb35d53e0bc"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
  "bytes",
  "libc",

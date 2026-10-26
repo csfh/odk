@@ -27,7 +27,7 @@ pub enum Error {
     #[error("cannot stop the daemon of the copy being replaced: {0}")]
     StopDaemon(String),
     #[error(
-        "{0}\nno consent was recorded; grant the permissions without a dialog with `oma install --accept-permissions`"
+        "{0}\nno consent was recorded; grant the permissions without a dialog with `odk oma install --accept-permissions`"
     )]
     Dialog(consent::Error),
     #[error("cancelled; nothing was changed or started")]
@@ -65,8 +65,8 @@ fn opened_from_outside(layout: &Layout, bundle: &Bundle) -> bool {
         && install::find(layout, &bundle.manifest().identifier).is_none()
 }
 
-/// `oma run`: asks for consent if the Bundle needs any, then runs it. Returns the status
-/// `oma run` exits with.
+/// `odk oma run`: asks for consent if the Bundle needs any, then runs it. Returns the status
+/// `odk oma run` exits with.
 pub fn run(
     layout: &Layout,
     host: &HostEnv,
@@ -122,7 +122,7 @@ pub fn run(
     Ok(launch::run(layout, &bundle, host, &options)?)
 }
 
-/// `oma install`: with `accept_permissions` it records consent without a dialog; otherwise a
+/// `odk oma install`: with `accept_permissions` it records consent without a dialog; otherwise a
 /// dialog asks if the Bundle needs consent.
 pub fn install(
     layout: &Layout,
@@ -148,7 +148,7 @@ pub fn install(
     Ok(install::install(layout, source, accept)?)
 }
 
-/// `oma consent`: asks about whatever the Bundle needs that has not been granted, and records
+/// `odk oma consent`: asks about whatever the Bundle needs that has not been granted, and records
 /// the answer. `Ok(false)` means there was nothing to ask.
 pub fn consent(layout: &Layout, target: &str, ask: Ask) -> Result<bool, Error> {
     let bundle = launch::resolve(layout, target)?;
@@ -172,7 +172,7 @@ pub fn consent(layout: &Layout, target: &str, ask: Ask) -> Result<bool, Error> {
     Ok(true)
 }
 
-/// What [`dev`] did, for `oma dev` to say.
+/// What [`dev`] did, for `odk oma dev` to say.
 #[derive(Debug)]
 pub struct Prepared {
     pub identifier: Identifier,
@@ -180,7 +180,7 @@ pub struct Prepared {
     /// An installed copy was replaced, and not only installed.
     pub replaced: bool,
     /// Something that is not `oma`'s unit still accepts connections on the daemon's socket, so
-    /// `oma run` will use it, not the daemon of the Bundle just installed (ADR 0051).
+    /// `odk oma run` will use it, not the daemon of the Bundle just installed (ADR 0051).
     pub foreign_daemon: Option<PathBuf>,
 }
 
@@ -193,7 +193,7 @@ impl Drop for Scratch {
     }
 }
 
-/// `oma dev` up to running (ADR 0051): builds the project in `dir`, assembles its Bundle,
+/// `odk oma dev` up to running (ADR 0051): builds the project in `dir`, assembles its Bundle,
 /// asks for what its consent record lacks, stops the daemon of the copy it replaces and installs
 /// over it. The steps come in that order so that a build that fails, or a Cancel, changes nothing
 /// and stops nothing. Running the installed copy is [`run`]'s, by Identifier.
