@@ -3,14 +3,12 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::discovery::ThemeFiles;
-use crate::{Error, Palette, TextScale, sandbox_reduces_motion};
+use crate::{Error, Palette, TextScale};
 
-/// What one reading of a theme's files gives: the palette, the user's text size and, when
-/// `user_shell` is oma's sandbox copy, whether that copy asks for reduced motion.
+/// What one reading of a theme's files gives: the palette and the user's text size.
 pub(crate) struct Loaded {
     pub palette: Palette,
     pub text: TextScale,
-    pub reduced_motion: bool,
 }
 
 /// Reads a theme's two files, and a `shell.toml` when there is one, and builds its palette and
@@ -18,14 +16,8 @@ pub(crate) struct Loaded {
 /// missing `shell.toml` says nothing. A theme's `shell.toml` that is not TOML is an error, as
 /// it always was (ADR 0047); the other file is never one: unreadable, it says nothing.
 ///
-/// `read_motion` is set only when `user_shell` is oma's sandbox copy (ADR 0048). The user's own
-/// file is read for `[font] base-size` and never for `[motion] reduced`, so the same bytes that
-/// would reduce motion in the copy do not when `read_motion` is false.
-pub(crate) fn load(
-    files: &ThemeFiles,
-    user_shell: Option<&Path>,
-    read_motion: bool,
-) -> Result<Loaded, Error> {
+/// The user's file is read for `[font] base-size` and never for `[motion] reduced` (ADR 0048).
+pub(crate) fn load(files: &ThemeFiles, user_shell: Option<&Path>) -> Result<Loaded, Error> {
     let colors = read(&files.colors)?.ok_or_else(|| Error::Io {
         path: files.colors.clone(),
         source: ErrorKind::NotFound.into(),
@@ -37,7 +29,6 @@ pub(crate) fn load(
     Ok(Loaded {
         palette,
         text: TextScale::from_shell(shell.as_deref(), user.as_deref()),
-        reduced_motion: read_motion && sandbox_reduces_motion(user.as_deref()),
     })
 }
 
@@ -88,30 +79,6 @@ green = "#6B9A4A"
 blue = "#4A86C4"
 "##;
 
-    /// The user's own file is ignored even when it holds the key. The same text is read only
-    /// when the caller says the file is oma's sandbox copy (ADR 0048). A theme's `shell.toml`
-    /// is never that copy.
-    #[test]
-    fn the_users_shell_toml_is_ignored_and_the_sandbox_copy_is_read() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
-        fs::write(dir.path().join("shell.toml"), "[motion]\nreduced = true\n").unwrap();
-        let files = ThemeFiles::in_dir(dir.path(), None);
-        let user = dir.path().join("user.toml");
-        let reduced =
-            |user: Option<&Path>, copy: bool| load(&files, user, copy).unwrap().reduced_motion;
-        assert!(!reduced(None, true), "a theme is not the sandbox copy");
-        assert!(!reduced(Some(&user), true), "no such file");
-        fs::write(&user, "[motion]\nreduced = true\n").unwrap();
-        assert!(
-            !reduced(Some(&user), false),
-            "the user's own file is ignored"
-        );
-        assert!(reduced(Some(&user), true), "oma's copy of the same bytes");
-        fs::write(&user, "[motion").unwrap();
-        assert!(!reduced(Some(&user), true), "a copy that does not parse");
-    }
-
     #[test]
     fn the_users_own_shell_toml_wins_over_the_themes_and_is_never_an_error() {
         let dir = tempfile::tempdir().unwrap();
@@ -119,7 +86,7 @@ blue = "#4A86C4"
         fs::write(dir.path().join("shell.toml"), "[font]\nbase-size = 13\n").unwrap();
         let files = ThemeFiles::in_dir(dir.path(), None);
         let user = dir.path().join("user.toml");
-        let size = |user: Option<&Path>| load(&files, user, false).unwrap().text.base_size();
+        let size = |user: Option<&Path>| load(&files, user).unwrap().text.base_size();
         assert_eq!(size(None), 13.0);
         assert_eq!(size(Some(&user)), 13.0, "no such file");
         fs::write(&user, "[font]\nbase-size = 16\n").unwrap();
@@ -138,18 +105,17 @@ blue = "#4A86C4"
             "[spacing]\nscale = 2.0\n[font]\nbody = 30\n[controls]\nnormal-color = \"#112233\"\n",
         )
         .unwrap();
-        let loaded = load(&ThemeFiles::in_dir(dir.path(), None), None, true).unwrap();
+        let loaded = load(&ThemeFiles::in_dir(dir.path(), None), None).unwrap();
         assert!(loaded.text.is_default());
-        assert!(!loaded.reduced_motion);
     }
 
     #[test]
     fn a_missing_shell_toml_says_nothing_and_a_malformed_one_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let files = ThemeFiles::in_dir(dir.path(), None);
-        assert!(matches!(load(&files, None, false), Err(Error::Io { .. })));
+        assert!(matches!(load(&files, None), Err(Error::Io { .. })));
         fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
-        let loaded = load(&files, None, false).unwrap();
+        let loaded = load(&files, None).unwrap();
         assert_eq!(
             loaded.palette.accent,
             Palette::parse(COLORS).unwrap().accent
@@ -157,7 +123,7 @@ blue = "#4A86C4"
         assert!(loaded.text.is_default());
         fs::write(dir.path().join("shell.toml"), "[").unwrap();
         assert!(matches!(
-            load(&files, None, false),
+            load(&files, None),
             Err(Error::Toml {
                 file: "shell.toml",
                 ..

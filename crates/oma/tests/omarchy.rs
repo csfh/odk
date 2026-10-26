@@ -61,59 +61,6 @@ fn sync_copies_the_text_size_and_font_and_follows_the_user() {
     assert!(!mirror(&w).join("omarchy/shell.toml").exists());
 }
 
-/// ADR 0048: `sync` asks the compositor whether it animates windows and tells the sandbox what
-/// it said, as the user's request for reduced motion. The compositor here is a socket of the
-/// test's own, in the test's runtime directory; the machine's is never asked.
-#[test]
-fn sync_copies_the_compositors_request_for_reduced_motion() {
-    use std::io::{Read, Write};
-    use std::os::unix::net::UnixListener;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    let w = World::new();
-    let instance = w.runtime.join("hypr/test");
-    fs::create_dir_all(&instance).unwrap();
-    let listener = UnixListener::bind(instance.join(".socket.sock")).unwrap();
-    let animated = Arc::new(AtomicBool::new(false));
-    let now = animated.clone();
-    std::thread::spawn(move || {
-        for mut stream in listener.incoming().flatten() {
-            let mut question = [0u8; 128];
-            let n = stream.read(&mut question).unwrap_or(0);
-            assert_eq!(&question[..n], b"j/getoption animations:enabled");
-            let reply = format!(
-                "{{\"option\": \"animations:enabled\", \"bool\": {}, \"set\": true }}",
-                now.load(Ordering::SeqCst)
-            );
-            let _ = stream.write_all(reply.as_bytes());
-        }
-    });
-    let sync = || {
-        output_retrying(
-            Command::new(&w.oma_bin)
-                .args(["omarchy", "sync"])
-                .env_clear()
-                .env("HOME", &w.home)
-                .env("PATH", "/usr/bin")
-                .env("XDG_RUNTIME_DIR", &w.runtime),
-        )
-    };
-    let shell = || fs::read_to_string(mirror(&w).join("omarchy/shell.toml")).ok();
-
-    // Animations off, and the user has no `shell.toml` at all: the application is told.
-    assert!(sync().status.success());
-    assert_eq!(shell().as_deref(), Some("[motion]\nreduced = true\n"));
-
-    // Animations on: nothing is asked for, whatever the user's own file says.
-    animated.store(true, Ordering::SeqCst);
-    let omarchy = w.home.join(".config/omarchy");
-    fs::create_dir_all(&omarchy).unwrap();
-    fs::write(omarchy.join("shell.toml"), "[motion]\nreduced = true\n").unwrap();
-    assert!(sync().status.success());
-    assert_eq!(shell(), None);
-}
-
 /// What the package installs (`packaging/`, ADR 0044): a path unit on the two files Omarchy
 /// writes, which starts a one-shot service that runs `oma omarchy sync`, and both wanted by
 /// `default.target`, for the copy at login.

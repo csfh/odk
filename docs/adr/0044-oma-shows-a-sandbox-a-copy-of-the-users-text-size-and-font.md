@@ -1,12 +1,12 @@
 ---
-status: amended by ADR 0048
+status: accepted
 ---
 
 # oma shows a sandbox a copy of the user's text size and font
 
 ADR 0043 has ODK applications follow the user's text size and Omarchy's font, which live in `~/.config/omarchy/shell.toml` and `~/.config/fontconfig/fonts.conf`; the sandbox of ADR 0012 shows an application neither. Exposing the files does not work: `omarchy display text size` replaces `shell.toml` by renaming a new file over it, so a bind mount of that one file stays on the old one (shown with `unshare -rm`, `docs/checks.md`), and the directory it is in holds `shell.json`, hooks and plugins that no application should read. The user asked on 2026-10-23 whether `oma` could keep the state and tell running applications, and chose, over a resident `oma` or a socket, this: `oma run` writes a copy of the two settings into a directory `oma` owns (`~/.local/share/oma/omarchy/`), and the sandbox mounts its two parts read-only where the real files are, `~/.config/omarchy` and `~/.config/fontconfig`. The application reads the same paths it would read outside the sandbox, so `odk-theme` needs nothing for it.
 
-The copy holds only what an application needs: `omarchy/shell.toml` has `[font] base-size` and nothing else of the user's file (a number, 1 to 1000, or no file), and `fontconfig/fonts.conf` is the user's file as it is, if it is a regular file of at most 64 KiB. ADR 0048 adds `[motion] reduced = true` to that `shell.toml` when Hyprland's animations are off, written from Hyprland and not from the user's key, and the sandbox sets `OMA_SANDBOX=1` so a sandboxed application reads the key only there. A copy is replaced by writing a temporary file in the same directory and renaming it over, so a reader sees the old file or the new, and the directory a sandbox has mounted is never replaced; a setting the user has taken away is removed. A copy that cannot be made is a note on stderr and never stops a launch.
+The copy holds only what an application needs: `omarchy/shell.toml` has `[font] base-size` and nothing else of the user's file (a number, 1 to 1000, or no file), and `fontconfig/fonts.conf` is the user's file as it is, if it is a regular file of at most 64 KiB. A copy is replaced by writing a temporary file in the same directory and renaming it over, so a reader sees the old file or the new, and the directory a sandbox has mounted is never replaced; a setting the user has taken away is removed. A copy that cannot be made is a note on stderr and never stops a launch.
 
 ## Considered Options
 

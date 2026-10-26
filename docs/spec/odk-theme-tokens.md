@@ -9,7 +9,6 @@ Components (ADR 0027) use only tokens, never an Omarchy key name. Only colours, 
 | a theme's `colors.toml` | the palette, and nothing else of the theme's colours: `docs/spec/odk-source-palette.md`. Everything else is made from it |
 | a theme's `shell.toml` | `[font] base-size`, the user's text size when the user's own file has none (ADR 0043). It must be TOML, or the theme is refused (ADR 0041); nothing else in it is read, the `[controls]` colours included (ADR 0047) |
 | the user's `~/.config/omarchy/shell.toml` | `[font] base-size`, which wins over the theme's (ADR 0043). `[motion] reduced` in the user's own file is ignored (ADR 0048). Never an error |
-| oma's sandbox copy of that file, mounted at the same path, when `OMA_SANDBOX` is set | `[font] base-size`, and `[motion] reduced` when Hyprland does not answer (ADR 0044, ADR 0048). `oma omarchy sync` writes the key only when Hyprland's animations are off |
 | Hyprland's IPC socket, `$XDG_RUNTIME_DIR/hypr/<instance>/.socket.sock` and `.socket2.sock` | `animations:enabled`, asked, and its reloads followed: false is the user's request for reduced motion (ADR 0048). When it does not answer, motion is not reduced. Only the followed theme's manager asks (`ThemeManager::current`); a sandbox never reaches it |
 
 The tokens are the four layers of ADR 0040, each made from the one above and specified on its own:

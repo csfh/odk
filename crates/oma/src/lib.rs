@@ -6,7 +6,6 @@ pub mod consent;
 pub mod flow;
 pub mod fmt;
 pub mod grants;
-pub mod hyprland;
 pub mod install;
 pub mod layout;
 pub mod omarchy;

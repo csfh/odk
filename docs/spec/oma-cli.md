@@ -17,7 +17,7 @@ There is no `update`, `list` or `uninstall`. oma does not compile applications o
 | `oma bundle <executable> --manifest <manifest.toml> [-o <dir>]` | Assembles `<Name>.oma/` in `<dir>` (default the current directory) from a built executable and a Manifest, validates it and prints its path (ADR 0032). |
 | `oma consent <target>` | Shows the consent dialog for a Bundle through `oma-consent` (Allow or Cancel) and records the answer in its consent record; says so and opens nothing if there is nothing to ask. The same step `run` and `install` take when something is missing (ADR 0033). |
 | `oma inspect <bundle-dir>` | Prints the Bundle's name, Identifier, version and the permissions it requests, worded as in `consent-dialog.md`. |
-| `oma omarchy sync` | Copies the user's text size, request for reduced motion (what Hyprland says about animating windows, ADR 0048, or the key in `shell.toml` when it says nothing) and font into `~/.local/share/oma/omarchy/` for sandboxes to show (ADR 0044). `run` does it before every launch; the user units the package ships (`packaging/`) run it when either file changes and at login. |
+| `oma omarchy sync` | Copies the user's text size and font into `~/.local/share/oma/omarchy/` for sandboxes to show (ADR 0044). `run` does it before every launch; the user units the package ships (`packaging/`) run it when either file changes and at login. |
 | `oma --register` | Reconciles `~/Applications` and the inboxes: generates and removes `.desktop` entries, activates upgrades and enables or disables inbox watches. Idempotent. Used by the path units and the login run (ADR 0009, ADR 0015). |
 | `oma --init` | Internal. Runs the init inside an application's PID namespace (ADR 0024). Not for users and not a stable interface. |
 

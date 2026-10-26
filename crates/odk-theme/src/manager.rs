@@ -42,10 +42,10 @@ pub struct ThemeSnapshot {
     /// The user's text size as a scale (ADR 0043), read from `shell.toml` with the user's own
     /// over the theme's. The foundation tokens are scaled by it.
     pub text: TextScale,
-    /// Whether the user asks for reduced motion: the compositor's animations are off, or, when
-    /// this process is sandboxed and the compositor says nothing, oma's copy of `shell.toml`
-    /// says `[motion] reduced` (ADR 0048). The user's own file is not a source. The
-    /// application's own choice is separate, and either one reduces motion.
+    /// Whether the user asks for reduced motion: the compositor's animations are off (ADR 0048).
+    /// When the compositor says nothing, as it does to a sandboxed application, the user has not
+    /// asked. The user's own file is not a source. The application's own choice is separate, and
+    /// either one reduces motion.
     pub reduced_motion: bool,
     /// The semantic colours of ADR 0040 (`docs/spec/odk-semantic-tokens.md`), resolved from
     /// `palette` with `resolution.options`, with every component's colours checked against them
@@ -181,11 +181,8 @@ pub struct ThemeManager {
     /// The options every resolution uses from now on.
     options: ResolveOptions,
     /// The user's own `shell.toml`, or oma's sandbox copy of it mounted at the same path
-    /// (ADR 0043, ADR 0044).
+    /// (ADR 0043, ADR 0044). Only `[font] base-size` is read from it.
     user_shell: Option<PathBuf>,
-    /// `user_shell` is oma's sandbox copy, so `[motion] reduced` there is Hyprland's answer
-    /// (ADR 0048). The user's own file never sets this.
-    sandbox_copy: bool,
     /// The user's `fonts.conf`, which this manager does not read but whose changes it reports
     /// (see [`Self::user_files`]).
     user_fonts: Option<PathBuf>,
@@ -208,7 +205,6 @@ impl ThemeManager {
             failure: None,
             options: ResolveOptions::default(),
             user_shell: None,
-            sandbox_copy: false,
             user_fonts: None,
             compositor: None,
             compositor_animations: None,
@@ -218,7 +214,7 @@ impl ThemeManager {
     /// Also asks `compositor` whether it animates windows at every reload, and takes the answer
     /// as the user's request for reduced motion (ADR 0048): when animations are off the user
     /// asks, and when they are on the user does not. When the compositor says nothing, motion
-    /// is not reduced, unless [`Self::with_sandbox_copy`] says `shell.toml` is oma's copy.
+    /// is not reduced.
     /// Only [`Self::current`] asks one; a manager that must not depend on the machine never does.
     pub fn with_compositor(mut self, compositor: Hyprland) -> Self {
         self.compositor = Some(compositor);
@@ -232,18 +228,9 @@ impl ThemeManager {
 
     /// Also reads `path`, the user's own `shell.toml`, for the text size (ADR 0043). A file that
     /// is missing, unreadable or does not parse says nothing. `[motion] reduced` in this file
-    /// is ignored; [`Self::with_sandbox_copy`] is what reads that key.
+    /// is ignored (ADR 0048).
     pub fn with_user_shell(mut self, path: PathBuf) -> Self {
         self.user_shell = Some(path);
-        self
-    }
-
-    /// The `shell.toml` from [`Self::with_user_shell`] is oma's sandbox copy, mounted where the
-    /// user's file would be (ADR 0044, ADR 0048). `[motion] reduced` there is what `oma omarchy
-    /// sync` wrote from Hyprland, and counts while the compositor says nothing. The user's own
-    /// file never sets this. [`Self::current`] sets it when `OMA_SANDBOX` is set.
-    pub fn with_sandbox_copy(mut self) -> Self {
-        self.sandbox_copy = true;
         self
     }
 
@@ -275,19 +262,12 @@ impl ThemeManager {
     }
 
     /// A manager for Omarchy's current theme ([`ThemeSource::current`]), with the user's own
-    /// `~/.config/omarchy/shell.toml`. When `OMA_SANDBOX` is set, that file is oma's copy and
-    /// `[motion] reduced` is read (ADR 0048); otherwise the key is ignored. When the environment
-    /// gives no state directory it has nothing to load: it stays on the emergency palette and its
-    /// diagnostics say why.
+    /// `~/.config/omarchy/shell.toml`. When the environment gives no state directory it has
+    /// nothing to load: it stays on the emergency palette and its diagnostics say why.
     pub fn current() -> Self {
         match ThemeSource::current() {
             Ok(source) => {
                 let manager = Self::with_users_files(source);
-                let manager = if in_sandbox() {
-                    manager.with_sandbox_copy()
-                } else {
-                    manager
-                };
                 match Hyprland::from_environment() {
                     Some(compositor) => manager.with_compositor(compositor),
                     None => manager,
@@ -302,7 +282,6 @@ impl ThemeManager {
                 }),
                 options: ResolveOptions::default(),
                 user_shell: None,
-                sandbox_copy: false,
                 user_fonts: None,
                 compositor: None,
                 compositor_animations: None,
@@ -312,8 +291,7 @@ impl ThemeManager {
 
     /// A manager for `source` that reads the user's own files as [`Self::current`] does, so a
     /// theme loaded to be previewed in a running application is built at the user's text size.
-    /// It does not read `[motion] reduced`: that request belongs to the followed theme
-    /// (ADR 0048). Inside a sandbox, [`Self::current`] also marks the file as oma's copy.
+    /// It does not read `[motion] reduced` (ADR 0048).
     /// Use [`Self::new`] for a manager that must not depend on the machine.
     pub fn with_users_files(source: ThemeSource) -> Self {
         let manager = Self::new(source);
@@ -382,27 +360,20 @@ impl ThemeManager {
             Ok(files) => files,
             Err(error) => return self.fail(None, error),
         };
-        let Loaded {
-            palette,
-            text,
-            reduced_motion,
-        } = match load(&files, self.user_shell.as_deref(), self.sandbox_copy) {
+        let Loaded { palette, text } = match load(&files, self.user_shell.as_deref()) {
             Ok(loaded) => loaded,
             Err(error) => return self.fail(Some(files.colors), error),
         };
-        // The compositor's word is the user's when it gives one (ADR 0048). oma's copy of
-        // `shell.toml` counts only while the compositor says nothing, and only when this
-        // manager was told the file is that copy. The user's own file is ignored. A compositor
-        // that has answered and then says nothing, as one does while it restarts, keeps its
-        // last answer until it speaks again, so a restart never changes what the user sees.
+        // The compositor's word is the user's when it gives one (ADR 0048); when it says
+        // nothing, nothing is asked. The user's own file is ignored. A compositor that has
+        // answered and then says nothing, as one does while it restarts, keeps its last answer
+        // until it speaks again, so a restart never changes what the user sees.
         self.compositor_animations = self
             .compositor
             .as_ref()
             .and_then(Hyprland::animations_enabled)
             .or(self.compositor_animations);
-        let reduced_motion = self
-            .compositor_animations
-            .map_or(reduced_motion, |animated| !animated);
+        let reduced_motion = self.compositor_animations == Some(false);
         // Nothing partial is published: a theme whose semantic colours cannot be resolved is
         // a failed reload like any other.
         let (semantic, resolution) = match self.snapshot.resolve(&palette, &self.options) {
@@ -479,12 +450,6 @@ impl ThemeManager {
     }
 }
 
-/// `OMA_SANDBOX` is set by oma for every sandboxed application (ADR 0048). The `shell.toml`
-/// at the usual path is then oma's copy, not the user's own file.
-fn in_sandbox() -> bool {
-    std::env::var_os("OMA_SANDBOX").is_some()
-}
-
 /// `~/.config`, where Omarchy writes the user's text size (`omarchy/shell.toml`) and font
 /// (`fontconfig/fonts.conf`). Omarchy finds them from `$HOME`; inside oma's sandbox `$HOME` is
 /// the same path (ADR 0043).
@@ -555,10 +520,7 @@ impl fmt::Display for ThemeDiagnostics {
         }
         writeln!(f, "text size {} px", self.text.base_size())?;
         match (self.reduced_motion, self.compositor_animations) {
-            (true, Some(false)) => {
-                writeln!(f, "reduced motion: the compositor's animations are off")?
-            }
-            (true, _) => writeln!(f, "reduced motion: oma's copy of the compositor's setting")?,
+            (true, _) => writeln!(f, "reduced motion: the compositor's animations are off")?,
             (false, Some(true)) => writeln!(f, "the compositor's animations are on")?,
             (false, _) => {}
         }

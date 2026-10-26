@@ -674,32 +674,13 @@ fn the_compositors_animations_are_the_users_request_for_reduced_motion() {
     );
     assert_eq!(silent.diagnostics().compositor_animations, None);
 
-    // The same bytes in oma's sandbox copy do count, and only while the compositor is silent.
-    let mut copy = ThemeManager::new(c.source())
-        .with_user_shell(user.clone())
-        .with_sandbox_copy();
+    // A sandboxed application cannot reach the compositor and is not told: the same bytes in
+    // the file oma mounts for it (ADR 0044) ask for nothing either (ADR 0048).
+    let mut sandboxed = ThemeManager::new(c.source()).with_user_shell(user);
     assert!(
-        changed(copy.reload()).reduced_motion,
-        "a sandboxed application reads oma's copy"
+        !changed(sandboxed.reload()).reduced_motion,
+        "with no compositor to ask, motion is not reduced"
     );
-    assert!(
-        copy.diagnostics()
-            .to_string()
-            .contains("oma's copy of the compositor's setting"),
-        "{}",
-        copy.diagnostics()
-    );
-    let mut copy_heard = ThemeManager::new(c.source())
-        .with_user_shell(user)
-        .with_sandbox_copy()
-        .with_compositor(compositor.hyprland.clone());
-    compositor.animate(true);
-    assert!(
-        !changed(copy_heard.reload()).reduced_motion,
-        "the compositor outranks the copy"
-    );
-    compositor.animate(false);
-    assert!(changed(copy_heard.reload()).reduced_motion);
 }
 
 /// ADR 0048: a compositor that is restarted is silent for a moment and then answers from a new

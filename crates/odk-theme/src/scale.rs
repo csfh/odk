@@ -1,8 +1,8 @@
 //! The text size Omarchy's user has chosen, as a scale (ADR 0043,
 //! `docs/spec/odk-source-palette.md`, "Text size"). Of the user's own `shell.toml` only
-//! `[font] base-size` is read. `[motion] reduced` is read only from oma's sandbox copy of that
-//! file (ADR 0048), never from the user's own. The text size is the user's setting rather than
-//! a theme's: the machine-level `~/.config/omarchy/shell.toml` layers over the theme's.
+//! `[font] base-size` is read; `[motion] reduced` there is ignored (ADR 0048). The text size is the
+//! user's setting rather than a theme's: the machine-level `~/.config/omarchy/shell.toml` layers
+//! over the theme's.
 
 use toml::Table;
 
@@ -74,16 +74,6 @@ impl TextScale {
     }
 }
 
-/// Whether oma's sandbox copy of `shell.toml` asks for reduced motion: `[motion] reduced = true`
-/// (ADR 0048). The user's own file is never passed here. A missing file, text that does not
-/// parse, or anything but a boolean says nothing. A theme's `shell.toml` is not this file.
-pub(crate) fn sandbox_reduces_motion(shell: Option<&str>) -> bool {
-    shell
-        .and_then(|text| toml::from_str::<Table>(text).ok())
-        .and_then(|table| table.get("motion")?.as_table()?.get("reduced")?.as_bool())
-        .unwrap_or(false)
-}
-
 /// The `[font] base-size` of `text`, when it is a number.
 fn base_size(text: &str) -> Option<f32> {
     let table: Table = toml::from_str(text).ok()?;
@@ -107,25 +97,6 @@ mod tests {
         assert!(TextScale::from_shell(None, None).is_default());
         assert!(TextScale::from_shell(Some("[bar]\ntext = \"#fff\""), Some("")).is_default());
         assert_eq!(TextScale::default().factor(), 1.0);
-    }
-
-    /// Only `[motion] reduced = true` in oma's sandbox copy asks for reduced motion (ADR 0048).
-    /// The same bytes in the user's own file are ignored by the manager; this only parses a copy.
-    #[test]
-    fn only_a_boolean_in_the_sandbox_copy_asks_for_reduced_motion() {
-        assert!(sandbox_reduces_motion(Some("[motion]\nreduced = true\n")));
-        for says_nothing in [
-            None,
-            Some(""),
-            Some("[motion]\nreduced = false\n"),
-            Some("[motion]\nreduced = \"yes\"\n"),
-            Some("[motion]\nreduced = 1\n"),
-            Some("reduced = true\n"),
-            Some("[font]\nreduced = true\n"),
-            Some("[motion"),
-        ] {
-            assert!(!sandbox_reduces_motion(says_nothing), "{says_nothing:?}");
-        }
     }
 
     #[test]

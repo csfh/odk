@@ -22,31 +22,21 @@ const MAX_FONTS_CONF: u64 = 64 * 1024;
 /// too, so this only stops a number that is not a size from being written out.
 const MAX_BASE_SIZE: f64 = 1000.0;
 
-/// Copies the user's text size and font, and Hyprland's reduced-motion answer, into the mirror,
-/// replacing what is there and removing what is no longer set. Both directories always exist,
-/// empty for a user who has set nothing, so a sandbox always mounts them: the application
-/// cannot put a file of its own where Omarchy's would be, and a watch on the directory is
-/// there when a setting first appears. The mirror is [`Layout::omarchy_mirror`]:
-/// `omarchy/shell.toml` holds only `[font] base-size` and, when Hyprland's animations are off,
-/// `[motion] reduced = true` (ADR 0048). The user's own `[motion] reduced` is not copied.
-/// `fontconfig/fonts.conf` is `omarchy font set`'s file as it is. Every copy is atomic, so a
-/// reader sees the old file or the new, never half of one. Stops at the first error; a later
-/// call tries again.
+/// Copies the user's text size and font into the mirror, replacing what is there and removing
+/// what is no longer set. Both directories always exist, empty for a user who has set nothing,
+/// so a sandbox always mounts them: the application cannot put a file of its own where
+/// Omarchy's would be, and a watch on the directory is there when a setting first appears. The
+/// mirror is [`Layout::omarchy_mirror`]: `omarchy/shell.toml` holds only `[font] base-size`,
+/// and `fontconfig/fonts.conf` is `omarchy font set`'s file as it is. Nothing of a
+/// `[motion]` section is copied (ADR 0048). Every copy is atomic, so a reader sees the old
+/// file or the new, never half of one. Stops at the first error; a later call tries again.
 pub fn refresh(layout: &Layout) -> io::Result<()> {
-    refresh_with(layout, crate::hyprland::animations_enabled())
-}
-
-/// [`refresh`], with what the compositor said about animating windows: the user asks for reduced
-/// motion when it said they are off. When it said nothing, the mirror does not ask either. The
-/// user's own `[motion] reduced` is never copied (ADR 0048).
-pub fn refresh_with(layout: &Layout, animations_enabled: Option<bool>) -> io::Result<()> {
     let mirror = layout.omarchy_mirror();
     for name in ["omarchy", "fontconfig"] {
         private_dir(&mirror.join(name))?;
     }
-    // A user without a `shell.toml` can still have a compositor that asks for reduced motion.
     let text = fs::read_to_string(layout.user_omarchy_shell()).unwrap_or_default();
-    let shell = shell_file(&text, animations_enabled);
+    let shell = shell_file(&text);
     publish(&mirror.join("omarchy"), "shell.toml", shell.as_deref())?;
     let fonts = fs::File::open(layout.user_fonts_conf())
         .ok()
@@ -59,25 +49,18 @@ pub fn refresh_with(layout: &Layout, animations_enabled: Option<bool>) -> io::Re
 }
 
 /// `shell.toml` holding only the `[font] base-size` of `text`, when it has one that is a
-/// number, and `[motion] reduced = true` when the compositor said its animations are off
-/// (ADR 0048). The user's own key is not read. `None` when there is neither a size nor a
-/// request.
-fn shell_file(text: &str, animations_enabled: Option<bool>) -> Option<String> {
+/// number. `None` when there is none. The rest of the user's file is not read, and
+/// `[motion] reduced` in particular is not a source (ADR 0048).
+fn shell_file(text: &str) -> Option<String> {
     let table: toml::Table = toml::from_str(text).unwrap_or_default();
-    let size = || {
-        let value = table.get("font")?.as_table()?.get("base-size")?;
-        let size = match value {
-            toml::Value::Integer(i) => *i as f64,
-            toml::Value::Float(f) => *f,
-            _ => return None,
-        };
-        (size.is_finite() && size > 0.0 && size <= MAX_BASE_SIZE)
-            .then(|| format!("[font]\nbase-size = {value}\n"))
+    let value = table.get("font")?.as_table()?.get("base-size")?;
+    let size = match value {
+        toml::Value::Integer(i) => *i as f64,
+        toml::Value::Float(f) => *f,
+        _ => return None,
     };
-    let reduced =
-        (animations_enabled == Some(false)).then(|| "[motion]\nreduced = true\n".to_owned());
-    let parts: Vec<String> = [size(), reduced].into_iter().flatten().collect();
-    (!parts.is_empty()).then(|| parts.join("\n"))
+    (size.is_finite() && size > 0.0 && size <= MAX_BASE_SIZE)
+        .then(|| format!("[font]\nbase-size = {value}\n"))
 }
 
 /// Makes `dir/name` hold `content`, or not exist when there is none. The directory is there
@@ -135,7 +118,8 @@ mod tests {
 
     const FONTS: &str = "<?xml version=\"1.0\"?>\n<fontconfig><match/></fontconfig>\n";
 
-    /// The user's own `[motion] reduced` is not a source (ADR 0048). Hyprland's answer is.
+    /// The user's own `[motion] reduced` is not a source (ADR 0048), and nothing of a `[motion]`
+    /// section reaches the copy.
     #[test]
     fn the_users_reduced_motion_key_is_not_copied() {
         let w = world();
@@ -148,7 +132,7 @@ mod tests {
             "[font]\nbase-size = 14\n\n[motion]\nreduced = true\n",
         ] {
             write(text);
-            refresh_with(&w.layout, None).unwrap();
+            refresh(&w.layout).unwrap();
             let mirrored = mirrored(&w, "omarchy/shell.toml");
             assert!(
                 mirrored.as_deref().is_none_or(|s| !s.contains("reduced")),
@@ -157,7 +141,7 @@ mod tests {
         }
         // A text size beside the key is still copied, and the key is not.
         write("[font]\nbase-size = 14\n\n[motion]\nreduced = true\n");
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(
             mirrored(&w, "omarchy/shell.toml").as_deref(),
             Some("[font]\nbase-size = 14\n")
@@ -172,7 +156,7 @@ mod tests {
             "[bar]\ntext = \"#ffffff\"\n\n[font]\nbase-size = 14\nbody = 20\n",
         )
         .unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(
             mirrored(&w, "omarchy/shell.toml").as_deref(),
             Some("[font]\nbase-size = 14\n"),
@@ -185,7 +169,7 @@ mod tests {
         let w = world();
         let write = |text: &str| fs::write(w.layout.user_omarchy_shell(), text).unwrap();
         write("[font]\nbase-size = 13.5\n");
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(
             mirrored(&w, "omarchy/shell.toml").as_deref(),
             Some("[font]\nbase-size = 13.5\n")
@@ -202,7 +186,7 @@ mod tests {
             "not toml [",
         ] {
             write(bad);
-            refresh_with(&w.layout, None).unwrap();
+            refresh(&w.layout).unwrap();
             assert_eq!(mirrored(&w, "omarchy/shell.toml"), None, "{bad:?}");
         }
     }
@@ -212,7 +196,7 @@ mod tests {
         let w = world();
         fs::write(w.layout.user_omarchy_shell(), "[font]\nbase-size = 16\n").unwrap();
         fs::write(w.layout.user_fonts_conf(), FONTS).unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert!(mirrored(&w, "omarchy/shell.toml").is_some());
         assert_eq!(
             mirrored(&w, "fontconfig/fonts.conf").as_deref(),
@@ -221,7 +205,7 @@ mod tests {
 
         fs::remove_file(w.layout.user_omarchy_shell()).unwrap();
         fs::remove_file(w.layout.user_fonts_conf()).unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(mirrored(&w, "omarchy/shell.toml"), None);
         assert_eq!(mirrored(&w, "fontconfig/fonts.conf"), None);
         // The directories stay, which is what a mount of them needs.
@@ -234,21 +218,21 @@ mod tests {
         let w = world();
         let dir = w.layout.omarchy_mirror().join("omarchy");
         fs::write(w.layout.user_omarchy_shell(), "[font]\nbase-size = 14\n").unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         let (dir_inode, file_inode) = (
             fs::metadata(&dir).unwrap().ino(),
             fs::metadata(dir.join("shell.toml")).unwrap().ino(),
         );
 
         // The same content writes nothing.
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(
             fs::metadata(dir.join("shell.toml")).unwrap().ino(),
             file_inode
         );
 
         fs::write(w.layout.user_omarchy_shell(), "[font]\nbase-size = 18\n").unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(
             mirrored(&w, "omarchy/shell.toml").as_deref(),
             Some("[font]\nbase-size = 18\n")
@@ -273,12 +257,12 @@ mod tests {
             vec![b' '; MAX_FONTS_CONF as usize + 1],
         )
         .unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(mirrored(&w, "fontconfig/fonts.conf"), None);
 
         fs::remove_file(w.layout.user_fonts_conf()).unwrap();
         fs::create_dir(w.layout.user_fonts_conf()).unwrap();
-        refresh_with(&w.layout, None).unwrap();
+        refresh(&w.layout).unwrap();
         assert_eq!(mirrored(&w, "fontconfig/fonts.conf"), None);
     }
 
@@ -292,36 +276,5 @@ mod tests {
         assert!(!mirror.join("fontconfig/fonts.conf").exists());
         // But the directories are there, for a sandbox to mount and for a watch to start on.
         assert!(mirror.join("omarchy").is_dir() && mirror.join("fontconfig").is_dir());
-    }
-
-    #[test]
-    fn the_compositors_word_is_copied_and_silence_does_not_ask() {
-        let w = world();
-        let mirrored_motion = |w: &World| mirrored(w, "omarchy/shell.toml");
-        let write = |text: &str| fs::write(w.layout.user_omarchy_shell(), text).unwrap();
-        const ASKED: Option<&str> = Some("[motion]\nreduced = true\n");
-
-        // Animations off: the request, even from a user with no `shell.toml` at all.
-        let _ = fs::remove_file(w.layout.user_omarchy_shell());
-        refresh_with(&w.layout, Some(false)).unwrap();
-        assert_eq!(mirrored_motion(&w).as_deref(), ASKED);
-
-        // Animations on: no request, whatever the key says.
-        write("[motion]\nreduced = true\n");
-        refresh_with(&w.layout, Some(true)).unwrap();
-        assert_eq!(mirrored_motion(&w), None);
-
-        // And off beside a text size: both are written, and a key that says no does not undo it.
-        write("[font]\nbase-size = 14\n[motion]\nreduced = false\n");
-        refresh_with(&w.layout, Some(false)).unwrap();
-        assert_eq!(
-            mirrored_motion(&w).as_deref(),
-            Some("[font]\nbase-size = 14\n\n[motion]\nreduced = true\n")
-        );
-
-        // The compositor says nothing: the user's key is ignored, and nothing is asked.
-        write("[motion]\nreduced = true\n");
-        refresh_with(&w.layout, None).unwrap();
-        assert_eq!(mirrored_motion(&w), None);
     }
 }
