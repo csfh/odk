@@ -154,7 +154,7 @@ pub fn run(
     })?;
     for (dir, why) in &plan.unavailable {
         eprintln!(
-            "oma: note: the {} folder is not available ({why:?}), so the application starts without it",
+            "odk oma: note: the {} folder is not available ({why:?}), so the application starts without it",
             dir.as_str()
         );
     }
@@ -474,7 +474,7 @@ fn become_init(
         fail(format!("cannot keep capabilities for the init: {e}"));
     }
 
-    let argv0 = std::ffi::CString::new("oma").unwrap();
+    let argv0 = std::ffi::CString::new("odk-oma").unwrap();
     let argv1 = std::ffi::CString::new("--init").unwrap();
     let argv2 = std::ffi::CString::new(config).unwrap();
     let argv = [

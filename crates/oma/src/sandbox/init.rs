@@ -77,7 +77,7 @@ pub fn run(config_text: &str) -> ! {
     let config: Config = match toml::from_str(config_text) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("oma: bad init configuration: {e}");
+            eprintln!("odk oma: bad init configuration: {e}");
             std::process::exit(1);
         }
     };

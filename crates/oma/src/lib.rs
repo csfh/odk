@@ -3,6 +3,7 @@
 
 pub mod bundle;
 pub mod consent;
+pub mod entry;
 pub mod flow;
 pub mod fmt;
 pub mod grants;
