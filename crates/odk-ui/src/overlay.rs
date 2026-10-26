@@ -46,6 +46,95 @@ impl Layer {
 thread_local! {
     /// How many modal overlays the element being laid out is inside of.
     static INSIDE: Cell<usize> = const { Cell::new(0) };
+    /// How deep the rows of an overlay that will itself be deferred are being built. A tooltip
+    /// there cannot call `deferred` (GPUI panics), so [`lift`] sends it to the host instead.
+    static OVERLAY_CONTENT: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Set while the rows of a menu or command list are built, and dropped before that list's own
+/// [`lift`], so the list stays deferred and a tooltip inside a row does not nest `deferred`.
+#[must_use]
+pub(crate) struct OverlayContent(usize);
+
+impl OverlayContent {
+    pub(crate) fn enter() -> Self {
+        let previous = OVERLAY_CONTENT.get();
+        OVERLAY_CONTENT.set(previous + 1);
+        Self(previous)
+    }
+}
+
+impl Drop for OverlayContent {
+    fn drop(&mut self) {
+        OVERLAY_CONTENT.set(self.0);
+    }
+}
+
+/// Lays `child` out while [`OverlayContent`] is set, so a tooltip rendered in that layout is
+/// lifted to the host. The flag has to be set here, not while the child is built: a `Tooltip`
+/// renders later, in its own `request_layout`.
+struct DuringOverlay(AnyElement);
+
+impl Element for DuringOverlay {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        let _guard = OverlayContent::enter();
+        (self.0.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.0.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.0.paint(window, cx);
+    }
+}
+
+impl IntoElement for DuringOverlay {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+/// See [`DuringOverlay`].
+pub(crate) fn during_overlay(child: impl IntoElement) -> AnyElement {
+    DuringOverlay(child.into_any_element()).into_any_element()
 }
 
 /// Puts `INSIDE` back when a scope ends, even by a panic.
@@ -127,10 +216,11 @@ impl IntoElement for Inside {
 /// Lifts `overlay` above the window in `layer`.
 ///
 /// GPUI 0.2.2 cannot draw a `deferred` element inside another one, and a modal overlay is
-/// deferred. So an overlay declared inside a modal's content is not deferred: it is kept for
-/// the window's [`RaisedHost`], which draws it above every deferred overlay. Overlays elsewhere
-/// are deferred in place, as ADR 0037 describes. `id` names the overlay, so one that is lifted
-/// again is kept once.
+/// deferred. So an overlay declared inside a modal's content, or inside the rows of a menu or
+/// command list ([`OverlayContent`]), is not deferred: it is kept for the window's
+/// [`RaisedHost`], which draws it above every deferred overlay. Overlays elsewhere are deferred
+/// in place, as ADR 0037 describes. `id` names the overlay, so one that is lifted again is kept
+/// once.
 pub(crate) fn lift(
     id: &ElementId,
     layer: Layer,
@@ -139,7 +229,7 @@ pub(crate) fn lift(
     cx: &mut App,
 ) -> AnyElement {
     let inside = INSIDE.get();
-    if inside == 0 {
+    if inside == 0 && OVERLAY_CONTENT.get() == 0 {
         return deferred(overlay)
             .with_priority(layer.priority())
             .into_any_element();

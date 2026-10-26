@@ -239,25 +239,34 @@ pub(crate) fn truncation_probe(
     (was, probe)
 }
 
+/// How a truncation tooltip's wrapper sits in its parent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ClipFit {
+    /// As wide as the trigger.
+    Hug,
+    /// The parent's width, so a control that ellipsizes because it is width-bounded still is.
+    Fill,
+}
+
 /// The full `text` in a tooltip around `trigger` when `show` is set. The tooltip adds no tab
-/// stop. `fill` makes the wrapper take the parent's width, so a control that ellipsizes because
-/// it is width-bounded still is.
+/// stop. `keyboard` opens it while the trigger is highlighted but not focused, as a command row
+/// is. `fit` is how the wrapper takes its width.
 pub(crate) fn overflow_tooltip(
     id: &ElementId,
     text: impl Into<SharedString>,
     show: bool,
-    fill: bool,
+    fit: ClipFit,
+    keyboard: bool,
     trigger: impl IntoElement,
 ) -> AnyElement {
     let text = text.into();
     if !show || text.is_empty() {
         trigger.into_any_element()
     } else {
-        let mut tip = Tooltip::new(child_id(id, "clip"), text, trigger);
-        if fill {
-            tip = tip.fill_width();
-        }
-        tip.into_any_element()
+        Tooltip::new(child_id(id, "clip"), text, trigger)
+            .fit(fit)
+            .keyboard(keyboard)
+            .into_any_element()
     }
 }
 

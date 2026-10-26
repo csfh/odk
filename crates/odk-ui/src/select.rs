@@ -549,7 +549,8 @@ impl RenderOnce for Select {
             &id,
             full_value,
             clipped && flow != FlowKind::Wrap,
-            true,
+            decoration::ClipFit::Fill,
+            false,
             field,
         );
         div()

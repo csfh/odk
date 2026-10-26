@@ -177,7 +177,14 @@ fn prose(
     )
     .child(content.clone())
     .child(probe);
-    decoration::overflow_tooltip(&id, content, was && flow != FlowKind::Wrap, true, block)
+    decoration::overflow_tooltip(
+        &id,
+        content,
+        was && flow != FlowKind::Wrap,
+        decoration::ClipFit::Fill,
+        false,
+        block,
+    )
 }
 
 /// One line of `text` shortened in the middle to the box it is given, painted from that box.
@@ -226,7 +233,7 @@ fn middle_line(
     )
     .h(line_height)
     .w_full();
-    decoration::overflow_tooltip(id, full, stored, true, body)
+    decoration::overflow_tooltip(id, full, stored, decoration::ClipFit::Fill, false, body)
 }
 
 /// What each text drew last, by its content, for the checklist's tests.

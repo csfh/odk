@@ -74,7 +74,7 @@ A `Toast` never takes focus when it appears, and never interrupts typing. Its st
 
 The user's text size is `[font] base-size` in `shell.toml`, kept to 9–20 px (ADR 0043). The default is 12 px, so the range is 75% to 167% of the default. Borders, the focus ring, radii, durations, the 24 px target minimum and a fixed overlay width do not scale. An `Autosize` overlay scales its measure and stays inside the window (ADR 0058). WCAG 1.4.4 asks for text to resize to 200% without loss of content or function. ODK's ceiling is 167%, and that clamp is unchanged: 20 px is as large as `omarchy display text size` accepts, and a larger size is not offered. There is no separate page zoom.
 
-When a control truncates, the full string stays in `Describe` and, when the control measured an overflow, in a tooltip on hover and on keyboard focus. The tooltip adds no tab stop. Text that is not a tab stop gets the hover tooltip only. That is visual recovery. It does not meet 1.3.1, 4.1.2 or 1.4.4, and ADR 0036 is unchanged: there is still no accessibility tree.
+When a control truncates, the full string stays in `Describe` and, when the control measured an overflow, in a tooltip on hover and on keyboard focus. A menu row's keyboard focus is its highlight; a command row opens its tooltip while it is the highlighted command. Neither adds a tab stop. A title, a menu heading, a status and the current page of a breadcrumb are not tab stops, so their tooltips are hover only. That is visual recovery. It does not meet 1.3.1, 4.1.2 or 1.4.4, and ADR 0036 is unchanged: there is still no accessibility tree.
 
 ## WCAG 2.2
 

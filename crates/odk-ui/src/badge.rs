@@ -158,6 +158,13 @@ impl RenderOnce for Badge {
                 .child(self.label.clone())
                 .child(probe),
         );
-        decoration::overflow_tooltip(&id, self.label, was && flow != FlowKind::Wrap, true, badge)
+        decoration::overflow_tooltip(
+            &id,
+            self.label,
+            was && flow != FlowKind::Wrap,
+            decoration::ClipFit::Fill,
+            false,
+            badge,
+        )
     }
 }

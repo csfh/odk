@@ -26,12 +26,21 @@ thread_local! {
     static FOCUSED: Cell<Option<Bounds<Pixels>>> = const { Cell::new(None) };
     /// The scroll offset last asked for, so a clamp that cannot move any further does not ask again.
     static TRIED: Cell<Option<Point<Pixels>>> = const { Cell::new(None) };
+    /// Which frame the window is rendering. A tooltip compares it with the last frame it was
+    /// drawn, so one that left the tree (a menu that closed) can open again the next time.
+    static FRAME: Cell<u64> = const { Cell::new(0) };
 }
 
 /// Drops the focused bounds recorded on the previous frame. Called once, at the start of the
 /// window's render, before anything is prepainted.
 pub(crate) fn begin_frame() {
     FOCUSED.with(|c| c.set(None));
+    FRAME.with(|c| c.set(c.get().wrapping_add(1)));
+}
+
+/// The frame [`begin_frame`] is rendering, or 0 before the first one.
+pub(crate) fn frame() -> u64 {
+    FRAME.with(|c| c.get())
 }
 
 /// Notes `bounds` as the focused control, and asks a reveal-scroll body around it to bring it

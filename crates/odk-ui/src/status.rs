@@ -2,13 +2,14 @@
 //! it means (`docs/spec/odk-component-tokens.md`).
 
 use gpui::{
-    App, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
-    div, px,
+    App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
+    Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::semantic;
 
 use crate::components;
+use crate::decoration::{self, ClipFit};
 use crate::layout::{StyledExt, h_flex, truncate_end};
 use crate::theme::colour;
 
@@ -42,7 +43,8 @@ impl From<Status> for semantic::Role {
 /// A small dot in its status's colour with a label beside it, such as "● Online". The label
 /// always shows and says what the status is, so it never rests on the dot's colour, which a
 /// monochrome theme does not have; an inactive status is also a hollow ring rather than a dot.
-/// Decoration and text: it takes no focus.
+/// Decoration and text: it takes no focus. A truncated label shows the full text in a tooltip
+/// on hover only; nothing is added to the tab order to carry it.
 #[derive(IntoElement)]
 pub struct StatusIndicator {
     status: Status,
@@ -66,15 +68,15 @@ impl Describe for StatusIndicator {
 }
 
 impl RenderOnce for StatusIndicator {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let s = components().status_dot(self.status.into());
         #[cfg(test)]
         crate::drawn::record(&format!("odk-status/{}", self.label), s);
-        let size = px(s.size);
+        let dot_size = px(s.size);
         let mut dot = div()
             .debug_selector(|| "odk-status/dot".into())
             .flex_shrink_0()
-            .size(size)
+            .size(dot_size)
             .rounded(px(s.shape.corner_radius(s.size, s.size)));
         dot = if s.filled {
             dot.bg(colour(s.colour))
@@ -82,6 +84,24 @@ impl RenderOnce for StatusIndicator {
             dot.border(px(s.border_width))
                 .border_color(colour(s.colour))
         };
+        let id = ElementId::Name(SharedString::from(format!("odk-status-{}", self.label)));
+        let text_size = px(components()
+            .foundation()
+            .typography
+            .style(s.label_role)
+            .size);
+        let (was, probe) =
+            decoration::truncation_probe(&id, self.label.clone(), text_size, 1, window, cx);
+        // The label box stays the flex item that shrinks. The tooltip hugs the text inside it,
+        // so the measure keeps seeing the box and not the full string.
+        let text = decoration::overflow_tooltip(
+            &id,
+            self.label.clone(),
+            was,
+            ClipFit::Hug,
+            false,
+            div().child(self.label),
+        );
         let mut row = h_flex()
             .debug_selector(|| "odk-status".into())
             .gap(px(s.gap))
@@ -89,7 +109,7 @@ impl RenderOnce for StatusIndicator {
             .text_role(s.label_role)
             .text_color(colour(s.label))
             .child(dot)
-            .child(truncate_end(div().min_w_0().child(self.label)));
+            .child(truncate_end(div().min_w_0().child(text).child(probe)));
         // As wide as its label, not stretched across a column.
         row.style().align_self = Some(gpui::AlignSelf::Start);
         row.max_w_full()

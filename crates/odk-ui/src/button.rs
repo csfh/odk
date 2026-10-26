@@ -464,7 +464,18 @@ impl RenderOnce for Button {
         }
         // The full label, only when the last frame measured it as truncated. The tooltip adds
         // no tab stop; Describe above still reports the full label (ADR 0058).
-        decoration::overflow_tooltip(&self.id, self.label, clipped, self.full_width, button)
+        decoration::overflow_tooltip(
+            &self.id,
+            self.label,
+            clipped,
+            if self.full_width {
+                decoration::ClipFit::Fill
+            } else {
+                decoration::ClipFit::Hug
+            },
+            false,
+            button,
+        )
     }
 }
 

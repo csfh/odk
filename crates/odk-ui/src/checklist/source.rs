@@ -513,6 +513,11 @@ const PROCESS_STATE: &[(&str, &str, &str)] = &[
         "the nesting depth of overlays being drawn",
     ),
     (
+        "overlay.rs",
+        "OVERLAY_CONTENT",
+        "set while a menu or command list is laid out, so a tooltip in a row is lifted to the host",
+    ),
+    (
         "reveal.rs",
         "REVEAL",
         "how many reveal-scroll bodies the element being prepainted is inside",
@@ -526,6 +531,11 @@ const PROCESS_STATE: &[(&str, &str, &str)] = &[
         "reveal.rs",
         "TRIED",
         "the scroll offset last asked for, so a clamp that cannot move further does not ask again",
+    ),
+    (
+        "reveal.rs",
+        "FRAME",
+        "which frame the window is rendering, so a tooltip that left the tree can open again",
     ),
 ];
 

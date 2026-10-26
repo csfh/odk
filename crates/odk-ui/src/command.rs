@@ -12,13 +12,13 @@ use gpui::{
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 
-use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
+use crate::decoration::{self, Applied, ClipFit, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::input::Input;
 use crate::interaction::{Pointer, pointer_states};
 use crate::layout::{h_flex, inside_window, middle_ellipsis, text_width, truncate_end, v_flex};
 use crate::menu_list::hint_text;
-use crate::overlay::{Action, Dismiss, Transition, layer_over, modal};
+use crate::overlay::{Action, Dismiss, Transition, during_overlay, layer_over, modal};
 use crate::theme::colour;
 use crate::{StyledExt, components};
 use odk_theme::foundation::MotionDuration;
@@ -151,7 +151,9 @@ fn step(enabled: &[usize], current: Option<usize>, forward: bool) -> Option<usiz
 /// the highlight, wrapping; Enter, when it comes up, closes the palette and runs the
 /// highlighted command, and does nothing when none is left; Escape, a click on the scrim or a click outside asks to
 /// close. Focus never leaves the field, so Tab stays where it is. A click on a command, or
-/// hovering one, highlights it, and a click runs it. Controlled: the application owns `open`.
+/// hovering one, highlights it, and a click runs it. A truncated row shows the full label in a
+/// tooltip on hover and while it is highlighted; the row is not a tab stop, and Escape still
+/// closes the palette. Controlled: the application owns `open`.
 /// While it closes it keeps drawing the commands it last had open.
 #[derive(IntoElement)]
 pub struct Command {
@@ -370,11 +372,22 @@ impl RenderOnce for Command {
             .iter()
             .map(|&i| {
                 let item = &shown.items[i];
+                let highlighted = current == Some(i);
                 let states = States::NONE
                     .disabled(item.disabled)
-                    .highlighted(current == Some(i));
+                    .highlighted(highlighted);
                 let s = c.menu_item(density, states, false);
                 let g = s.geometry;
+                let full = item.label.clone();
+                let label_size = px(f.typography.style(g.type_role).size);
+                let (was, probe) = decoration::truncation_probe(
+                    &child_id(&self.id, format!("row-{i}")),
+                    full.clone(),
+                    label_size,
+                    1,
+                    window,
+                    cx,
+                );
                 let mut row = h_flex()
                     .group(format!("row-{i}"))
                     .id(child_id(&self.id, format!("row-{i}")))
@@ -385,7 +398,6 @@ impl RenderOnce for Command {
                     .gap(px(g.gap))
                     .text_role(g.type_role)
                     .child({
-                        let label = item.label.clone();
                         let shown = if item.flow == Some(FlowKind::Middle) {
                             let hint = item.hint.as_ref().map(|h| {
                                 text_width(
@@ -402,23 +414,26 @@ impl RenderOnce for Command {
                                 - hint.unwrap_or(px(0.0))
                                 - px(g.gap))
                             .max(px(0.0));
-                            let size = px(f.typography.style(g.type_role).size);
-                            let text = middle_ellipsis(&label, |sample| {
-                                text_width(window, &SharedString::from(sample.to_owned()), size)
-                                    <= budget
+                            let text = middle_ellipsis(&full, |sample| {
+                                text_width(
+                                    window,
+                                    &SharedString::from(sample.to_owned()),
+                                    label_size,
+                                ) <= budget
                             });
                             #[cfg(test)]
                             shown_label::record(&part_name(&self.id, &format!("label-{i}")), &text);
                             SharedString::from(text)
                         } else {
-                            label
+                            full.clone()
                         };
                         truncate_end(
                             div()
                                 .flex_1()
                                 .min_w_0()
                                 .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
-                                .child(shown),
+                                .child(shown)
+                                .child(probe),
                         )
                     })
                     .children(item.hint.as_ref().map(|h| {
@@ -456,7 +471,16 @@ impl RenderOnce for Command {
                             }
                         });
                 }
-                row.into_any_element()
+                // Focus stays in the field. `highlighted` opens the tooltip; the row is not a
+                // tab stop. Escape is the palette's, on the panel around this list.
+                decoration::overflow_tooltip(
+                    &child_id(&self.id, format!("row-{i}")),
+                    full,
+                    was,
+                    ClipFit::Fill,
+                    highlighted,
+                    row.w_full(),
+                )
             })
             .collect();
 
@@ -484,6 +508,9 @@ impl RenderOnce for Command {
                 )
             })
             .children(rows);
+        // The rows' tooltips render while this list is laid out. The palette is deferred, so
+        // they are lifted to the host instead of nesting `deferred`.
+        let list = during_overlay(list);
         let width = px(COMMAND_WIDTH).min(inside_window(viewport.width, margin));
         let top = viewport.height * COMMAND_TOP;
         let panel = v_flex()

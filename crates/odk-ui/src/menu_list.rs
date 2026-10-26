@@ -1,7 +1,9 @@
 //! The list surface that `ContextMenu`, `DropdownMenu` and a `Select`'s list share, on component
 //! tokens (`docs/spec/odk-component-tokens.md`, "Menus"): items, separators, checkable,
 //! disabled and danger items, and key hints. Up and Down move between enabled items, Home and
-//! End jump, Enter or Space chooses, and Escape, Tab or a click outside closes.
+//! End jump, Enter or Space chooses, and Escape, Tab or a click outside closes. A truncated
+//! row shows the full label in a tooltip on hover and while it is highlighted; a truncated
+//! heading does so on hover only. The tooltip adds no tab stop, and Escape still closes the menu.
 //!
 //! An item is hovered (the pointer is over it), highlighted (the keyboard is on it: it has
 //! focus) or selected (it is checked, the chosen option of a select), and each is drawn apart:
@@ -21,7 +23,7 @@ use odk_theme::component::{MenuItemStyle, States};
 use odk_theme::foundation::{Density, MotionDuration, TypeRole};
 
 use crate::components;
-use crate::decoration::{FlowKind, SizeMode};
+use crate::decoration::{self, ClipFit, FlowKind, SizeMode};
 use crate::focus::{
     Axis, FocusNext, FocusPrevious, child_id, focus_handle, move_focus, part_name, roving_target,
 };
@@ -30,7 +32,7 @@ use crate::interaction::{Pointer, pointer_states};
 use crate::layout::{
     StyledExt, h_flex, inside_window, middle_ellipsis, tail, text_width, truncate_end, v_flex,
 };
-use crate::overlay::{Layer, Transition, dismiss_catcher, layer_over, lift};
+use crate::overlay::{Layer, Transition, dismiss_catcher, during_overlay, layer_over, lift};
 use crate::placement::{Align, Placement, place};
 use crate::select::{Typed, find, typed_char};
 use crate::theme::{colour, mono};
@@ -436,20 +438,29 @@ pub(crate) fn surface(
                 continue;
             }
             Entry::Heading(label) => {
-                list = list.child(
-                    div()
-                        .debug_selector(|| part_name(id, &format!("heading-{i}")))
-                        .flex_shrink_0()
-                        .px(px(c
-                            .menu_item(density, States::NONE, false)
-                            .geometry
-                            .padding_x))
-                        .pt(px(m.separator_margin))
-                        .pb(px(f.spacing.s1))
-                        .text_role(TypeRole::Small)
-                        .text_color(colour(m.heading))
-                        .child(truncate_end(div().child(label))),
-                );
+                let hid = child_id(id, format!("heading-{i}"));
+                let small = px(f.typography.style(TypeRole::Small).size);
+                let (was, probe) =
+                    decoration::truncation_probe(&hid, label.clone(), small, 1, window, cx);
+                let heading = div()
+                    .debug_selector(|| part_name(id, &format!("heading-{i}")))
+                    .w_full()
+                    .flex_shrink_0()
+                    .px(px(c
+                        .menu_item(density, States::NONE, false)
+                        .geometry
+                        .padding_x))
+                    .pt(px(m.separator_margin))
+                    .pb(px(f.spacing.s1))
+                    .text_role(TypeRole::Small)
+                    .text_color(colour(m.heading))
+                    .child(truncate_end(
+                        div().w_full().min_w_0().child(label.clone()).child(probe),
+                    ));
+                // A heading is not a tab stop and is not highlighted. Hover only.
+                list = list.child(div().w_full().min_w_0().flex_shrink_0().child(
+                    decoration::overflow_tooltip(&hid, label, was, ClipFit::Fill, false, heading),
+                ));
                 continue;
             }
             Entry::Item(item) => item,
@@ -467,9 +478,17 @@ pub(crate) fn surface(
         drawn::record(&part_name(id, &format!("row-{i}")), s);
         let flow = item.flow.unwrap_or(FlowKind::End);
         let full_label = item.label.clone();
+        let label_size = px(ig_type_size(&ig, &f));
+        let (was, probe) = decoration::truncation_probe(
+            &child_id(id, format!("label-{i}")),
+            full_label.clone(),
+            label_size,
+            1,
+            window,
+            cx,
+        );
         let display_label = if flow == FlowKind::Middle {
             let budget = label_budget(width, &item, &ig, &f, window);
-            let label_size = px(ig_type_size(&ig, &f));
             SharedString::from(middle_ellipsis(&full_label, |sample| {
                 text_width(window, &SharedString::from(sample.to_owned()), label_size) <= budget
             }))
@@ -513,7 +532,8 @@ pub(crate) fn surface(
                         .flex_1()
                         .min_w_0()
                         .debug_selector(|| part_name(id, &format!("label-{i}")))
-                        .child(display_label),
+                        .child(display_label)
+                        .child(probe),
                 )
             })
             .children(item.hint.map(|h| {
@@ -537,8 +557,23 @@ pub(crate) fn surface(
                     }
                 });
         }
-        list = list.child(row);
+        // Highlight is the row's own focus handle, already inside this wrapper, so the tooltip
+        // opens from it. The wrapper adds no tab stop. `highlighted` covers the same frame.
+        list = list.child(div().w_full().min_w_0().flex_shrink_0().child(
+            decoration::overflow_tooltip(
+                &child_id(id, format!("row-{i}")),
+                full_label,
+                was,
+                ClipFit::Fill,
+                highlighted,
+                row.w_full(),
+            ),
+        ));
     }
+
+    // Tooltips in the rows render during this layout. The list is deferred, so they must be
+    // lifted to the host; the flag is set while the list is laid out, which is when they render.
+    let list = during_overlay(list);
 
     // The catcher first, so the list is over it: a press anywhere else closes the menu and
     // presses nothing.

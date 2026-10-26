@@ -4,6 +4,7 @@ use gpui::{
 };
 use odk_a11y::{Accessible, Describe, Role};
 
+use crate::decoration::ClipFit;
 use crate::focus::{child_id, part_name};
 use crate::hover_card::{Hover, render_hover};
 use crate::layout::{StyledExt, inside_window};
@@ -32,7 +33,9 @@ pub struct Tooltip {
     trigger: AnyElement,
     placement: Placement,
     align: Align,
-    fill: bool,
+    fit: ClipFit,
+    /// Open while the trigger is the highlighted row of a list that does not focus the row.
+    keyboard: bool,
 }
 
 impl Tooltip {
@@ -47,14 +50,22 @@ impl Tooltip {
             trigger: trigger.into_any_element(),
             placement: Placement::Top,
             align: Align::Start,
-            fill: false,
+            fit: ClipFit::Hug,
+            keyboard: false,
         }
     }
 
-    /// The wrapper takes the parent's width. A truncation tooltip uses this so the control it
-    /// wraps stays as narrow as the slot it ellipsizes in.
-    pub(crate) fn fill_width(mut self) -> Self {
-        self.fill = true;
+    /// How the wrapper sits in its parent. A truncation tooltip passes [`ClipFit::Fill`] so the
+    /// control it wraps stays as narrow as the slot it ellipsizes in.
+    pub(crate) fn fit(mut self, fit: ClipFit) -> Self {
+        self.fit = fit;
+        self
+    }
+
+    /// Open at once while `on`, for a highlighted command row. The wrapper stays out of the tab
+    /// order; the palette's field keeps focus.
+    pub(crate) fn keyboard(mut self, on: bool) -> Self {
+        self.keyboard = on;
         self
     }
 
@@ -88,7 +99,8 @@ impl RenderOnce for Tooltip {
                 tab_stop: false,
                 placement: self.placement,
                 align: self.align,
-                fill: self.fill,
+                fit: self.fit,
+                keyboard: self.keyboard,
                 transition: Transition::of(MotionDuration::Fast, MotionDuration::Exit),
                 panel: Box::new(move |window, _| {
                     let style = components().tooltip();
