@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0052 and ADR 0055
+status: amended by ADR 0052 and ADR 0060
 ---
 
 # An upgrade is a higher version of the same Identifier, offered through a per-application inbox

@@ -21,17 +21,17 @@ Any key not listed here is an error. No text in the Manifest that oma later writ
 | `description` | string | no | One-line summary, with no control characters. |
 | `icon` | string | no | Path inside the Bundle to a PNG or SVG file, under the same containment rules as `executable`. |
 | `categories` | array of strings | no | freedesktop registered category names, used for the `.desktop` entry (ADR 0014). Each is non-empty and contains only letters, digits and `-`. |
-| `publisher` | string | no | The publisher's domain (ADR 0055). A hostname: lowercase letters, digits, hyphens and dots, no scheme, no userinfo, no port, no path, and not an IP address. At most 253 characters. oma fetches `https://<publisher>/.well-known/oma-keys` and nowhere else. Absent means there is no domain to confirm a signature against. |
+| `publisher` | string | yes | The publisher host in the signed manifest (ADR 0060). A hostname: lowercase letters, digits, hyphens and dots, no scheme, no userinfo, no port, no path, and not an IP address. At most 253 characters. An internationalized name is the punycode form. It must equal the signed manifest's `publisher`. It is display text and the first-contact host of `https://<publisher>/.well-known/oma-keys`. It is not the root of trust. The code still accepts a Bundle with no `publisher` until it follows ADR 0060. |
 
 ## Identifier
 
 Two or more segments separated by `.`. Each segment starts with a lowercase letter `a`–`z` and contains only lowercase letters, digits and `-`. The whole string is at most 128 characters. Example: `com.example.foo`. Underscores are not allowed. oma escapes the Identifier with `systemd-escape` when it builds unit names (ADR 0015).
 
-Two Bundles with the same Identifier are the same application at different versions.
+Two Bundles with the same Identifier and the same pinned publisher root are the same application at different versions (ADR 0060). The same Identifier under a different root is a different publisher's application and does not share data or permissions.
 
 ## Version
 
-Semver 2.0.0 precedence applies: a pre-release such as `1.2.0-beta.1` sorts below `1.2.0`, and build metadata is ignored when comparing. Only a strictly higher version is an upgrade (ADR 0015). An equal or lower version staged in an inbox is rejected; the only way down is `oma rollback` (ADR 0011).
+Semver 2.0.0 precedence applies to this string: a pre-release such as `1.2.0-beta.1` sorts below `1.2.0`, and build metadata is ignored when comparing. It is the version people read, and the payload digest covers it (ADR 0060). The upgrade check is the signed monotonic integer in the prefix manifest. A file whose integer is lower than the stored high-water mark is refused, including when this string looks newer. The same integer is accepted only when the payload digest matches the one already stored. A higher integer is an upgrade when ADR 0060 accepts the file. The only way to run an older installed copy is `odk oma rollback` (ADR 0011), which does not lower the mark.
 
 ## Executable
 

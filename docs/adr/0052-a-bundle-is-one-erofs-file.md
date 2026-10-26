@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0060
 ---
 
 # A Bundle is one EROFS file

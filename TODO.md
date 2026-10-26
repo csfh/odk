@@ -42,9 +42,9 @@ Not built: `.desktop` registration, upgrades, `rollback`, `purge` and the path u
 depends on ODK, so this can run in parallel with the ODK work. `.desktop` registration is the one
 users would notice, because installed applications would show up in launchers.
 
-ADR 0052 to 0055 (accepted) replace the directory Bundle this list assumed with one `.oma`
-file, and describe the MIME type, the path units, the install of `oma` (a domain script, later
-Omarchy's repository) and the signature. The code still installs a directory (ADR 0022). The
+ADR 0052 to 0054 and ADR 0060 (accepted) replace the directory Bundle this list assumed with one `.oma`
+file, and describe the MIME type, the path units, the install of `odk-oma` (a verified file, later
+Omarchy's repository) and the signature. ADR 0060 supersedes ADR 0055. The code still installs a directory (ADR 0022). The
 work below follows the accepted ADRs.
 
 - [ ] `.desktop` registration
