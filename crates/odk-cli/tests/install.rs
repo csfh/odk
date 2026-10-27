@@ -1,7 +1,8 @@
 //! `install.sh` (ADR 0063), against a release built by `tools/package-release`, the same script CI
 //! uses, in a throwaway home. The programs are shell scripts, except `odk`, which is the real
-//! dispatcher so that the layout is shown to work. `systemctl` is a stub that records its
-//! arguments; nothing here reaches the real user manager, the network or the real home.
+//! dispatcher so that the layout is shown to work. `systemctl` and `update-mime-database` are stubs
+//! that record their arguments; nothing here reaches the real user manager, the network or the
+//! real home.
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -35,6 +36,10 @@ impl World {
             "#!/bin/sh\necho \"$*\" >>\"$SYSTEMCTL_LOG\"\n\
              if [ \"$1 $2\" = \"--user show-environment\" ] && [ -e \"$NO_MANAGER\" ]; then exit 1; fi\nexit 0\n",
         );
+        executable(
+            &root.join("stubs/update-mime-database"),
+            "#!/bin/sh\necho \"$*\" >>\"$MIME_LOG\"\n",
+        );
         Self { _dir: dir, root }
     }
 
@@ -43,7 +48,16 @@ impl World {
     }
 
     fn log(&self) -> Vec<String> {
-        fs::read_to_string(self.root.join("systemctl.log"))
+        self.lines("systemctl.log")
+    }
+
+    /// The directories `update-mime-database` was asked to rebuild.
+    fn mime_log(&self) -> Vec<String> {
+        self.lines("mime.log")
+    }
+
+    fn lines(&self, log: &str) -> Vec<String> {
+        fs::read_to_string(self.root.join(log))
             .unwrap_or_default()
             .lines()
             .map(str::to_owned)
@@ -106,6 +120,7 @@ impl World {
                 format!("file://{}", self.root.join("release").display()),
             )
             .env("SYSTEMCTL_LOG", self.root.join("systemctl.log"))
+            .env("MIME_LOG", self.root.join("mime.log"))
             .env("NO_MANAGER", self.root.join("no-manager"));
         for (k, v) in extra {
             command.env(k, v);
@@ -157,13 +172,14 @@ fn skip_as_root() -> bool {
     String::from_utf8_lossy(&id.stdout).trim() == "0"
 }
 
-const FILES: [&str; 6] = [
+const FILES: [&str; 7] = [
     ".local/bin/odk",
     ".local/lib/odk/odk-oma",
     ".local/lib/odk/oma-consent",
     ".local/lib/odk/odkd",
     ".config/systemd/user/odkd.socket",
     ".config/systemd/user/odkd.service",
+    ".local/share/mime/packages/oma.xml",
 ];
 
 #[test]
@@ -193,7 +209,7 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
                 .permissions()
                 .mode()
                 & 0o777;
-            let want = if file.contains("systemd") {
+            let want = if file.contains("systemd") || file.ends_with(".xml") {
                 0o644
             } else {
                 0o755
@@ -236,6 +252,16 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
                 "--user try-restart odkd.service"
             ],
             "{log:?}"
+        );
+
+        // The file type, as packaged, and the user's MIME database rebuilt with it (ADR 0065).
+        assert_eq!(
+            fs::read(w.home().join(".local/share/mime/packages/oma.xml")).unwrap(),
+            fs::read(repo().join("packaging/mime/oma.xml")).unwrap()
+        );
+        assert_eq!(
+            w.mime_log(),
+            [w.home().join(".local/share/mime").display().to_string()]
         );
     }
 }
@@ -506,6 +532,32 @@ fn the_unit_directory_follows_xdg_config_home_and_the_programs_stay_under_local(
 }
 
 #[test]
+fn the_file_type_follows_xdg_data_home() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    let data = w.root.join("home/data");
+    let env = [("XDG_DATA_HOME", data.display().to_string())];
+    let o = w.install_with(&["sh"], &[], &env);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(data.join("mime/packages/oma.xml").is_file());
+    assert!(!w.home().join(".local/share/mime").exists());
+    assert_eq!(w.mime_log(), [data.join("mime").display().to_string()]);
+
+    let o = w.install_with(&["sh"], &["--uninstall"], &env);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(!data.join("mime/packages/oma.xml").exists());
+    assert_eq!(
+        w.mime_log().len(),
+        2,
+        "rebuilt without it: {:?}",
+        w.mime_log()
+    );
+}
+
+#[test]
 fn uninstall_removes_what_was_installed_and_nothing_else() {
     if skip_as_root() {
         return;
@@ -534,6 +586,12 @@ fn uninstall_removes_what_was_installed_and_nothing_else() {
     ] {
         assert!(w.home().join(kept).is_file(), "{kept}");
     }
+    let mime = w.home().join(".local/share/mime").display().to_string();
+    assert_eq!(
+        w.mime_log(),
+        [mime.clone(), mime],
+        "rebuilt without the type"
+    );
     assert!(
         w.log()
             .iter()
