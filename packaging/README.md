@@ -10,9 +10,12 @@ from the repository except `tools/package-release`.
 | `~/.local/bin/odk` | the `odk` program (`crates/odk-cli`) |
 | `~/.local/lib/odk/odk-oma`, `oma-consent`, `odkd` | the programs behind it |
 | `~/.config/systemd/user/odkd.socket`, `odkd.service` | `systemd/user/` |
+| `~/.local/share/mime/packages/oma.xml` | `mime/oma.xml` |
 
 It then enables `odkd.socket` for the user's session; the first connection starts `odkd`, and an
-upgrade restarts a running one. `odkd.service` names the program with `%h`, so the units hold
+upgrade restarts a running one. It runs `update-mime-database` on the user's MIME directory, so a
+file manager knows a `.oma` file as a kind of disk image (ADR 0065). The units follow
+`XDG_CONFIG_HOME` and the type follows `XDG_DATA_HOME`. `odkd.service` names the program with `%h`, so the units hold
 no user name. `sh install.sh --uninstall` removes exactly these files.
 
 A tag `v*` runs `.github/workflows/release.yml`, which builds the four programs and runs
@@ -31,9 +34,11 @@ request #9):
 | File | Would be installed as |
 |---|---|
 | `binfmt.d/odk.conf` | `/usr/lib/binfmt.d/odk.conf`, the `binfmt_misc` line that runs `/usr/lib/odk/odk-oma` with the path of a `.oma` file; it needs root |
-| `mime/oma.xml` | `/usr/share/mime/packages/oma.xml`, the type `application/x-oma` |
+| `mime/oma.xml` | `/usr/share/mime/packages/oma.xml`, the type `application/x-oma`, a sub-class of the raw disk image |
 | `applications/oma.desktop` | `/usr/share/applications/oma.desktop`, the handler `Exec=/usr/bin/odk oma run %f` |
 
-A per-user install rewrites that `Exec` to the home directory's `odk`. None of these three is
-installed by `install.sh`, because nothing makes a single-file `.oma` yet and `odk oma` refuses
-one.
+A per-user install rewrites that `Exec` to the home directory's `odk`. `install.sh` installs the
+type for the user, and not the `binfmt_misc` line or the handler, because nothing makes a
+single-file `.oma` yet and `odk oma run` refuses one. Until the handler is installed, the
+default for the type is a disk image's, Disk Image Mounter, so double-clicking a `.oma` file
+mounts it (ADR 0065).

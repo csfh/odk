@@ -77,3 +77,10 @@ fn the_mime_type_matches_by_name_and_by_the_four_bytes_at_the_start() {
     assert!(xml.contains(r#"<magic priority="80">"#));
     assert!(xml.contains(r#"<match type="string" value="OMA1" offset="0"/>"#));
 }
+
+#[test]
+fn a_bundle_file_is_a_kind_of_raw_disk_image() {
+    // So a file manager offers a disk image's tools for it, Disk Image Mounter first (ADR 0065).
+    let xml = packaging("mime/oma.xml");
+    assert!(xml.contains(r#"<sub-class-of type="application/vnd.efi.img"/>"#));
+}

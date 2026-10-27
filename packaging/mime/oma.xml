@@ -2,6 +2,9 @@
 <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
   <mime-type type="application/x-oma">
     <comment>Omarchy application bundle</comment>
+    <!-- A Bundle file is an EROFS image, so a file manager offers what it offers for a disk
+         image: Disk Image Mounter mounts it read-only (ADR 0065). -->
+    <sub-class-of type="application/vnd.efi.img"/>
     <glob pattern="*.oma"/>
     <magic priority="80">
       <match type="string" value="OMA1" offset="0"/>

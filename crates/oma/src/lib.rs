@@ -13,6 +13,7 @@ pub mod install;
 pub mod layout;
 pub mod sandbox;
 pub mod userdirs;
+pub mod view;
 
 #[cfg(test)]
 mod testutil;

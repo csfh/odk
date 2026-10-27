@@ -1,6 +1,7 @@
 #!/bin/sh
 # Installs odk for the user who runs it (ADR 0063): the `odk` command, the programs behind it, and
-# the `odkd` daemon with its systemd user units. No root, nothing outside the home directory.
+# the `odkd` daemon with its systemd user units, and the `.oma` file type (ADR 0065). No root,
+# nothing outside the home directory.
 #
 #   curl --proto '=https' --tlsv1.2 -fsSL https://github.com/csfh/odk/releases/latest/download/install.sh | sh
 #
@@ -16,6 +17,7 @@
 # Where things go:  ~/.local/bin/odk
 #                   ~/.local/lib/odk/{odk-oma,oma-consent,odkd}
 #                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd.service}
+#                   ${XDG_DATA_HOME:-~/.local/share}/mime/packages/oma.xml
 #
 # Running it again upgrades. `ODK_BASE_URL` names another place to download from, for tests.
 set -eu
@@ -35,7 +37,7 @@ while [ $# -gt 0 ]; do
             tag=$2
             shift
             ;;
-        --help | -h) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help | -h) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option '$1' (try --help)" ;;
     esac
     shift
@@ -49,6 +51,18 @@ bin=$prefix/bin
 lib=$prefix/lib/odk
 case ${XDG_CONFIG_HOME:-} in /*) config=$XDG_CONFIG_HOME ;; *) config=$HOME/.config ;; esac
 units=$config/systemd/user
+case ${XDG_DATA_HOME:-} in /*) data=$XDG_DATA_HOME ;; *) data=$HOME/.local/share ;; esac
+mime=$data/mime
+
+# The file type is known to the desktop once its database is rebuilt. Without the tool the
+# type is in place for when it is there.
+refresh_types() {
+    if command -v update-mime-database >/dev/null 2>&1; then
+        update-mime-database "$mime" || say "note: update-mime-database failed; .oma files may not be recognised yet"
+    else
+        say "note: update-mime-database (shared-mime-info) is not installed, so .oma files are not recognised yet"
+    fi
+}
 
 # A user manager is there when it answers. Over ssh with no session bus it does not.
 have_user_manager() {
@@ -68,7 +82,7 @@ if [ "$action" = uninstall ]; then
         systemctl --user disable --now odkd.socket odkd.service >/dev/null 2>&1 || true
     fi
     for file in "$bin/odk" "$lib/odk-oma" "$lib/oma-consent" "$lib/odkd" \
-        "$units/odkd.socket" "$units/odkd.service"; do
+        "$units/odkd.socket" "$units/odkd.service" "$mime/packages/oma.xml"; do
         if [ -e "$file" ]; then
             rm -f "$file"
             say "removed $file"
@@ -76,6 +90,7 @@ if [ "$action" = uninstall ]; then
     done
     rmdir "$lib" 2>/dev/null || true
     if have_user_manager; then systemctl --user daemon-reload || true; fi
+    if [ -d "$mime/packages" ]; then refresh_types; fi
     say "done; application data under ~/.local/share/oma is kept"
     exit 0
 fi
@@ -141,7 +156,7 @@ mkdir "$work/stage"
 tar -xzf "$work/$name.tar.gz" -C "$work/stage" --no-same-owner --no-same-permissions
 src=$work/stage/odk
 for file in VERSION bin/odk lib/odk/odk-oma lib/odk/oma-consent lib/odk/odkd \
-    share/systemd/user/odkd.socket share/systemd/user/odkd.service; do
+    share/systemd/user/odkd.socket share/systemd/user/odkd.service share/mime/packages/oma.xml; do
     [ -f "$src/$file" ] && [ ! -L "$src/$file" ] || die "the tarball has no $file; nothing was installed"
 done
 version=$(cat "$src/VERSION")
@@ -162,6 +177,8 @@ put 755 "$src/lib/odk/oma-consent" "$lib/oma-consent"
 put 755 "$src/lib/odk/odkd" "$lib/odkd"
 put 644 "$src/share/systemd/user/odkd.socket" "$units/odkd.socket"
 put 644 "$src/share/systemd/user/odkd.service" "$units/odkd.service"
+put 644 "$src/share/mime/packages/oma.xml" "$mime/packages/oma.xml"
+refresh_types
 
 # --- start --------------------------------------------------------------------------------
 if have_user_manager; then
@@ -181,4 +198,5 @@ say "installed odk $version"
 say "  command:  $bin/odk"
 say "  private:  $lib/ (odk-oma, oma-consent, odkd)"
 say "  units:    $units/ (odkd.socket, odkd.service); started: $started"
+say "  type:     $mime/packages/oma.xml (a .oma file opens as a disk image)"
 say "  remove:   sh install.sh --uninstall"
