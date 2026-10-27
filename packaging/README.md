@@ -20,6 +20,11 @@ A tag `v*` runs `.github/workflows/release.yml`, which builds the four programs 
 `install.sh`; those three are the release. The installer's test builds a tarball with the same
 script, so the layout cannot drift.
 
+Before the tag, `version` in `[workspace.package]` of the root `Cargo.toml` is set to the tag
+without its `v`, with `Cargo.lock`, in a commit on `main`. The workflow publishes nothing when the
+built `odk --version` says another (ADR 0064), so `v0.1.0-rc.1` and `v0.1.0-rc.2`, which say
+`0.0.0`, cannot be published again.
+
 Text for a system install, which nothing installs yet (ADR 0053, ADR 0056, ADR 0060 on pull
 request #9):
 

@@ -33,6 +33,11 @@ jobs:
           toolchain: stable
       # The four programs the install puts down: `odk`, `odk-oma`, `oma-consent` and `odkd`.
       - run: cargo build --release --locked -p odk-cli -p oma -p oma-consent -p odkd
+      # The tag is the workspace's version with a `v` (ADR 0064): a tag that says another is not
+      # published. A tag made before that ADR says `0.0.0` and cannot be published again.
+      - run: |
+          said=$(target/release/odk --version)
+          [ "$said" = "odk ${TAG#v}" ] || { echo "::error::tag $TAG, but the build says '$said'"; exit 1; }
       - run: tools/package-release target/release dist "$TAG"
       # --verify-tag: the release is of a tag that exists, never one made by this command. A tag
       # with a `-` in it (v0.1.0-rc.1) is a pre-release and is never `latest`. A release that
