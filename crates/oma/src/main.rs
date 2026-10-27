@@ -66,6 +66,17 @@ enum Command {
         #[arg(long = "include", value_name = "FILE[=PATH]")]
         includes: Vec<String>,
     },
+    /// Mount a Bundle file read-only, as a disk image, to look inside it, and print the directory
+    Mount {
+        /// Path to a Bundle file
+        file: PathBuf,
+        /// Then open the directory in the file manager
+        #[arg(long, conflicts_with = "unmount")]
+        open: bool,
+        /// Unmount it instead, wherever it was mounted from
+        #[arg(long)]
+        unmount: bool,
+    },
 }
 
 /// The words that are subcommands, which are never a path to a Bundle.
@@ -225,6 +236,28 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        Command::Mount {
+            file,
+            open,
+            unmount,
+        } => {
+            use oma::view::{self, Kernel, Udisksctl};
+            let done = if unmount {
+                view::unmount(&file, &Kernel::host(), &Udisksctl)
+            } else {
+                view::mount(&file, &Kernel::host(), &Udisksctl).and_then(|dir| {
+                    println!("{}", dir.display());
+                    if open { view::open(&dir) } else { Ok(()) }
+                })
+            };
+            match done {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
     }
 }
 
