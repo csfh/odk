@@ -9,7 +9,7 @@
 use std::os::unix::fs::FileTypeExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::fmt::{Bundle, Daemon, Identifier};
@@ -165,16 +165,25 @@ pub struct SystemctlStop;
 impl Stopper for SystemctlStop {
     fn stop(&self, id: &Identifier) -> Result<(), String> {
         let name = unit_name(id);
-        let status = Command::new("systemctl")
+        // Its standard error is kept for a failure: `--quiet` does not stop it saying "not
+        // loaded", which is no failure here.
+        let output = Command::new("systemctl")
             .args(["--user", "--quiet", "stop"])
             .arg(format!("{name}.socket"))
             .arg(format!("{name}.service"))
-            .status()
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
             .map_err(|e| format!("systemctl: {e}"))?;
         // 5 is "not loaded": nothing of ours was running, which is what was wanted.
-        match status.code() {
+        match output.status.code() {
             Some(0 | 5) => Ok(()),
-            _ => Err(format!("systemctl --user stop {name} {status}")),
+            _ => Err(format!(
+                "systemctl --user stop {name} {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
         }
     }
 }
