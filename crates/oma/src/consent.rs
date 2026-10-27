@@ -167,6 +167,21 @@ mod tests {
     use crate::testutil::bundle;
     use crate::userdirs;
 
+    /// [`super::ask_with`], run again while the helper is "Text file busy": another test thread
+    /// may fork while this one's script is still open for writing, which the kernel refuses to
+    /// execute until the fork's copy of the descriptor closes.
+    fn ask_with(helper: &Path, request: &Request) -> Result<Button, Error> {
+        for _ in 0..50 {
+            match super::ask_with(helper, request) {
+                Err(Error::Spawn(e)) if e.kind() == io::ErrorKind::ExecutableFileBusy => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                other => return other,
+            }
+        }
+        super::ask_with(helper, request)
+    }
+
     fn script(dir: &Path, body: &str) -> PathBuf {
         let path = dir.join("helper");
         fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
