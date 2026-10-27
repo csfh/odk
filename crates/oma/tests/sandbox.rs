@@ -1,4 +1,4 @@
-//! End-to-end tests of `oma run`: a probe program is bundled, installed and run in the real
+//! End-to-end tests of `odk oma run`: a probe program is bundled, installed and run in the real
 //! sandbox under a temporary home, and what it reports is checked. Nothing here touches the
 //! real home, `~/Applications` or `~/.local/share/oma`.
 
@@ -455,7 +455,7 @@ fn setup_errors_reach_the_terminal_even_when_detached() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("WAYLAND_DISPLAY"));
 
     // A Bundle that passes validation but whose program cannot start (a bare ELF header): the
-    // failure comes back over the pipe, so a detached `oma run` still reports it.
+    // failure comes back over the pipe, so a detached `odk oma run` still reports it.
     let bundle = w.home.join("Applications/Probe.oma");
     let mut header = vec![0u8; 64];
     header[..4].copy_from_slice(b"\x7fELF");

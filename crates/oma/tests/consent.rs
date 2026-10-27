@@ -1,4 +1,4 @@
-//! The consent flows of `oma run`, `oma install` and `oma consent`, with a fake dialog helper
+//! The consent flows of `odk oma run`, `odk oma install` and `odk oma consent`, with a fake dialog helper
 //! that records the request it receives and gives a chosen answer. The real helper's window
 //! is checked by eye (`docs/checks.md`).
 

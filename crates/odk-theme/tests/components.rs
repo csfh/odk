@@ -858,6 +858,12 @@ fn text_and_headings_take_their_type_roles() {
             let h = t.heading(level);
             assert_eq!((h.colour, h.role), (s.text.primary, role), "{name} {level}");
         }
+        // Monospace text is the same text in the `mono` role.
+        for secondary in [false, true] {
+            let (plain, mono) = (t.text(secondary), t.text_mono(secondary));
+            assert_eq!(mono.colour, plain.colour, "{name}");
+            assert_eq!(mono.role, TypeRole::Mono, "{name}");
+        }
     }
     let rows = tokens("nord").diagnostics(&ResolveOptions::default());
     for (component, variant, role) in [

@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0052
+status: amended by ADR 0050 and ADR 0052
 ---
 
 # `oma bundle` assembles a Bundle from a built executable and a Manifest

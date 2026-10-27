@@ -17,7 +17,7 @@ Access is read-only unless a row says otherwise, and private tmpfs mounts are wr
 | `/proc` | a fresh procfs of the application's own PID namespace, showing only its own processes (ADR 0024) |
 | `/dev` | a minimal private set: `null`, `zero`, `full`, `random`, `urandom`, `tty`, and a private `/dev/shm` tmpfs not shared with other applications, and the usual `fd`, `stdin`, `stdout` and `stderr` links; `/dev/dri` only with `gpu` |
 | `/tmp` | a private tmpfs, per application and per launch |
-| `/run` and `$XDG_RUNTIME_DIR` | a private tmpfs holding only what the application's permissions bring: the Wayland socket always, the PipeWire socket with `audio`, `/run/systemd/resolve/stub-resolv.conf` with `network`, and `odkd`'s directory when it is installed (below). The session bus socket is not provided: see [Session D-Bus](#session-d-bus) |
+| `/run` and `$XDG_RUNTIME_DIR` | a private tmpfs holding only what the application's permissions bring: the Wayland socket always, the PipeWire socket with `audio`, `/run/systemd/resolve/stub-resolv.conf` with `network`, the one socket a declared `[daemon]` listens on (ADR 0050), bound at its own relative path and nothing beside it, and `odkd`'s directory when it is installed (below). The session bus socket is not provided: see [Session D-Bus](#session-d-bus) |
 | `/var` | not visible |
 | `/sys` | not visible, except with `gpu` the slice described below |
 | `$XDG_RUNTIME_DIR/odk/`, `odkd`'s socket directory, when there is one (ADR 0062) | read-only |

@@ -21,6 +21,7 @@ mod input;
 mod input_group;
 mod interaction;
 mod kbd;
+mod layout;
 mod menu;
 mod motion;
 mod nav_list;

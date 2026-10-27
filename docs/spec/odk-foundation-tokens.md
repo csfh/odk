@@ -81,6 +81,8 @@ Spacing by purpose. A component asks for a purpose, not a step, when one fits.
 | `form_gap` | 16 | `s4` |
 | `field_gap` | 6 | its own value: an optical exception to the grid, between a field's label and its control, and between the other parts of a form field (description, message) |
 | `menu_item_gap` | 8 | `s2` |
+| `sidebar_width` | 220 | its own value: the width of an application's sidebar (`sidebar_frame`) |
+| `content_width` | 1000 | its own value: the widest a page's column grows (`content_column`); a wider window centres it |
 
 ### Text size (`f.text_scale`)
 

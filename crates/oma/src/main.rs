@@ -42,6 +42,15 @@ enum Command {
         #[arg(long)]
         accept_permissions: bool,
     },
+    /// Build a project, install its Bundle over the installed copy and run it (needs a dev.toml)
+    Dev {
+        /// The project's directory, which holds manifest.toml and dev.toml
+        #[arg(default_value = ".")]
+        project: PathBuf,
+        /// Stay, relay terminal signals and exit with the application's status
+        #[arg(long)]
+        wait: bool,
+    },
     /// Assemble `<Name>.oma/` from a built executable and a manifest.toml (compiles nothing)
     Bundle {
         /// The built x86_64 ELF executable
@@ -52,6 +61,10 @@ enum Command {
         /// Directory to create the Bundle in
         #[arg(short, long, default_value = ".")]
         out: PathBuf,
+        /// A regular file to put in the Bundle too: `FILE` or `FILE=PATH/IN/BUNDLE`. Repeat it.
+        /// An executable bit is kept; a symlink is refused (ADR 0050)
+        #[arg(long = "include", value_name = "FILE[=PATH]")]
+        includes: Vec<String>,
     },
 }
 
@@ -141,11 +154,68 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Command::Dev { project, wait } => {
+            let Some(layout) = oma::layout::Layout::from_env() else {
+                eprintln!("odk oma: $HOME is not set");
+                return ExitCode::FAILURE;
+            };
+            let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+            let prepared = match oma::flow::dev(
+                &layout,
+                &project,
+                runtime.as_deref().filter(|p| p.is_absolute()),
+                &oma::consent::ask,
+                &oma::daemon::SystemctlStop,
+            ) {
+                Ok(prepared) => prepared,
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let what = if prepared.replaced {
+                "replaced the installed copy at"
+            } else {
+                "installed at"
+            };
+            eprintln!(
+                "odk oma: {} {what} {}",
+                prepared.identifier,
+                prepared.installed.display()
+            );
+            if let Some(socket) = &prepared.foreign_daemon {
+                eprintln!(
+                    "odk oma: something else is serving {}, so the application will use that daemon, not the one just built",
+                    socket.display()
+                );
+            }
+            let host = oma::sandbox::launch::HostEnv::from_process();
+            match oma::flow::run(
+                &layout,
+                &host,
+                prepared.identifier.as_str(),
+                wait,
+                &oma::consent::ask,
+            ) {
+                Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         Command::Bundle {
             executable,
             manifest,
             out,
-        } => match oma::bundle::assemble(&executable, &manifest, &out) {
+            includes,
+        } => match includes
+            .iter()
+            .map(|text| oma::bundle::Include::parse(text))
+            .collect::<Result<Vec<_>, _>>()
+            .and_then(|includes| {
+                oma::bundle::assemble_with(&executable, &manifest, &out, &includes)
+            }) {
             Ok(bundle) => {
                 println!("{}", bundle.display());
                 ExitCode::SUCCESS

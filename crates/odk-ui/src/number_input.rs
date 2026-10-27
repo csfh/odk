@@ -13,6 +13,7 @@ use crate::button::Size;
 use crate::number::{Rules, parse};
 
 type NumberHandler = Rc<dyn Fn(Option<f64>, &mut Window, &mut App) + 'static>;
+type CommitHandler = Rc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
 
 /// A field for a number, with a step down and a step up button at its end.
 ///
@@ -34,6 +35,7 @@ pub struct NumberInput {
     rules: Rules,
     on_change: Option<NumberHandler>,
     on_submit: Option<NumberHandler>,
+    on_commit: Option<CommitHandler>,
 }
 
 impl NumberInput {
@@ -44,6 +46,7 @@ impl NumberInput {
             rules: Rules::default(),
             on_change: None,
             on_submit: None,
+            on_commit: None,
         }
     }
 
@@ -138,6 +141,17 @@ impl NumberInput {
         self
     }
 
+    /// Called with the number the field settles on: when Enter is pressed, when the field is
+    /// left, and after each step by Up, Down or a button. It is not called while a number is
+    /// being typed (typing `80` passes through `8`, which `on_change` hears and this does not),
+    /// nor for text that is no number, nor when the number is the one the field started with,
+    /// was given by `value`, or was last committed, so leaving a field untouched is not a commit.
+    /// This is the one to write a setting from; `on_change` is the one to show a preview from.
+    pub fn on_commit(mut self, handler: impl Fn(f64, &mut Window, &mut App) + 'static) -> Self {
+        self.on_commit = Some(Rc::new(handler));
+        self
+    }
+
     /// Called with the committed number when Enter is pressed.
     pub fn on_submit(
         mut self,
@@ -156,6 +170,13 @@ impl NumberInput {
         }
         if let Some(f) = self.on_submit {
             input = input.on_submit(move |text, window, cx| f(parse(text), window, cx));
+        }
+        if let Some(f) = self.on_commit {
+            input = input.on_commit(move |text, window, cx| {
+                if let Some(number) = parse(text) {
+                    f(number, window, cx);
+                }
+            });
         }
         input
     }

@@ -3,9 +3,10 @@
 //! namespaces, and [`super::mounts`] and [`super::init`] carry it out.
 
 use std::fs;
+use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 
-use crate::fmt::{Access, Permissions, UserDir};
+use crate::fmt::{Access, Daemon, Permissions, UserDir};
 use crate::sandbox::landlock::Rights;
 use crate::userdirs::{Resolved, Unavailable};
 
@@ -42,6 +43,9 @@ pub struct Plan {
     pub network: bool,
     /// Named directories that were asked for but cannot be given (ADR 0012).
     pub unavailable: Vec<(UserDir, Unavailable)>,
+    /// The Bundle declares a daemon whose socket is not in the runtime directory, so the
+    /// application starts without it (ADR 0050).
+    pub daemon_socket_missing: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -56,6 +60,8 @@ pub enum Error {
         "the `dbus` permission is not supported yet: a raw session-bus socket would reach every service, and there is no filtering proxy"
     )]
     DbusUnsupported,
+    #[error("the daemon's {0}")]
+    BadDaemonSocket(String),
     #[error("cannot read {}: {source}", path.display())]
     Io {
         path: PathBuf,
@@ -246,6 +252,29 @@ impl Plan {
             }
         }
 
+        // The Bundle's daemon runs outside the sandbox (ADR 0050); the application is given the
+        // one file it listens on, bound where it is on the host. Its parent directories exist
+        // only in this tmpfs. A socket that is not there leaves the application without it.
+        let mut daemon_socket_missing = false;
+        if let Some(daemon) = &p.daemon {
+            Daemon::check_socket(&daemon.socket).map_err(Error::BadDaemonSocket)?;
+            let relative = Path::new(&daemon.socket);
+            let src = runtime.join(relative);
+            if fs::metadata(&src).is_ok_and(|m| m.file_type().is_socket()) {
+                if let Some(parent) = relative.parent().filter(|d| !d.as_os_str().is_empty()) {
+                    ops.push(Op::Dir(run_user.join(parent)));
+                }
+                ops.push(Op::Bind {
+                    src,
+                    dst: run_user.join(relative),
+                    readonly: false,
+                    device: false,
+                });
+            } else {
+                daemon_socket_missing = true;
+            }
+        }
+
         // /etc: a private tmpfs with only the entries the permissions justify.
         ops.push(Op::Tmpfs("/etc".into()));
         landlock.push(("/etc".into(), Rights::Read));
@@ -342,6 +371,7 @@ impl Plan {
             cwd: i.home.to_owned(),
             network: p.network,
             unavailable,
+            daemon_socket_missing,
         })
     }
 }
@@ -617,6 +647,7 @@ mod tests {
             updates: true,
             filesystem: Vec::new(),
             dbus_talk: Vec::new(),
+            daemon: None,
         };
         for permissions in [Permissions::default(), everything] {
             let p = plan(&w, &permissions).unwrap();
@@ -643,6 +674,91 @@ mod tests {
                     .iter()
                     .all(|(src, ..)| *src != w.runtime.as_path()),
                 "the host's runtime directory as a whole"
+            );
+        }
+    }
+
+    fn with_daemon(socket: &str) -> Permissions {
+        Permissions {
+            daemon: Some(Daemon {
+                executable: "bin/d".into(),
+                args: vec![],
+                socket: socket.into(),
+            }),
+            ..Default::default()
+        }
+    }
+
+    /// The application is given the daemon's socket and nothing else of the runtime directory
+    /// around it (ADR 0050).
+    #[test]
+    fn the_daemons_socket_is_bound_alone_at_the_same_relative_path() {
+        let w = world();
+        let dir = w.runtime.join("app");
+        fs::create_dir_all(&dir).unwrap();
+        let _listener = std::os::unix::net::UnixListener::bind(dir.join("d.sock")).unwrap();
+        fs::write(dir.join("cache.json"), "{}").unwrap();
+
+        let p = plan(&w, &with_daemon("app/d.sock")).unwrap();
+        assert!(!p.daemon_socket_missing);
+        let dst = Path::new("/run/user/1000/app/d.sock");
+        assert!(
+            binds(&p).contains(&(dir.join("d.sock").as_path(), dst, false)),
+            "{:?}",
+            binds(&p)
+        );
+        assert!(
+            p.ops.contains(&Op::Dir("/run/user/1000/app".into())),
+            "its directory exists in the private runtime directory"
+        );
+        for (src, ..) in binds(&p) {
+            assert_ne!(src, dir.as_path(), "never the directory");
+            assert!(
+                !src.ends_with("cache.json"),
+                "nothing beside the socket is given"
+            );
+        }
+        // No Landlock rule of its own: the private /run already covers it, as the Wayland
+        // socket's is.
+        assert!(p.landlock.iter().all(|(path, _)| !path.ends_with("d.sock")));
+    }
+
+    #[test]
+    fn a_daemons_socket_that_is_not_there_or_not_a_socket_is_not_bound() {
+        let w = world();
+        let p = plan(&w, &with_daemon("app/none.sock")).unwrap();
+        assert!(p.daemon_socket_missing, "nothing is there");
+        assert!(!has_dst(&p, "/run/user/1000/app/none.sock"));
+
+        fs::create_dir_all(w.runtime.join("app")).unwrap();
+        fs::write(w.runtime.join("app/file.sock"), "not a socket").unwrap();
+        let p = plan(&w, &with_daemon("app/file.sock")).unwrap();
+        assert!(p.daemon_socket_missing, "a plain file is never bound");
+        assert!(!has_dst(&p, "/run/user/1000/app/file.sock"));
+
+        assert!(
+            !plan(&w, &Permissions::default())
+                .unwrap()
+                .daemon_socket_missing
+        );
+    }
+
+    /// The Manifest's parser refuses these, and so does the plan, for a [`Permissions`] built
+    /// some other way: the compositor's command socket is never granted.
+    #[test]
+    fn a_daemon_socket_in_the_compositors_directory_is_refused_by_the_plan_too() {
+        let w = world();
+        let instance = w.runtime.join("hypr/abc");
+        fs::create_dir_all(&instance).unwrap();
+        let _listener =
+            std::os::unix::net::UnixListener::bind(instance.join(".socket.sock")).unwrap();
+        for socket in ["hypr/abc/.socket.sock", "../escape", "/etc/passwd", ""] {
+            assert!(
+                matches!(
+                    plan(&w, &with_daemon(socket)),
+                    Err(Error::BadDaemonSocket(_))
+                ),
+                "{socket:?}"
             );
         }
     }

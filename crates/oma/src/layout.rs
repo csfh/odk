@@ -53,6 +53,11 @@ impl Layout {
         self.state.join("grants").join(format!("{id}.toml"))
     }
 
+    /// Where `odk oma dev` assembles a Bundle before it installs it (ADR 0051).
+    pub fn dev_dir(&self) -> PathBuf {
+        self.state.join("dev")
+    }
+
     /// The application's own inbox (ADR 0015).
     pub fn inbox_dir(&self, id: &Identifier) -> PathBuf {
         self.state.join("inbox").join(id.as_str())

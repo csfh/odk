@@ -1,9 +1,9 @@
-//! `oma run`: from a Bundle to a running, sandboxed application (ADR 0005, ADR 0024).
+//! `odk oma run`: from a Bundle to a running, sandboxed application (ADR 0005, ADR 0024).
 //!
 //! The steps that need no privilege come first (consent, the plan), then the namespaces are
 //! created with `clone`, the child builds the new root and re-executes `oma` as the init, and
 //! the init starts the application. Setup errors travel back over a pipe that closes when the
-//! application has started, so `oma run` reports them even though it does not stay.
+//! application has started, so `odk oma run` reports them even though it does not stay.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -31,10 +31,20 @@ pub enum Error {
     Invalid(#[from] fmt::Error),
     #[error(transparent)]
     Grants(#[from] grants::Error),
-    #[error("it asks for permissions that have not been granted:\n{}\ngrant them with `oma install --accept-permissions`", .0.iter().map(|l| format!("  {l}")).collect::<Vec<_>>().join("\n"))]
+    #[error("it asks for permissions that have not been granted:\n{}\ngrant them with `odk oma install --accept-permissions`", .0.iter().map(|l| format!("  {l}")).collect::<Vec<_>>().join("\n"))]
     ConsentRequired(Vec<String>),
     #[error(transparent)]
     Plan(#[from] plan::Error),
+    #[error(transparent)]
+    Daemon(#[from] crate::daemon::Error),
+    #[error(
+        "this application declares a daemon, which keeps running after it closes, so it cannot be run once: install it first"
+    )]
+    DaemonNeedsInstall,
+    #[error(
+        "this application declares a daemon, which runs outside the sandbox, so only the installed copy of it can be run: use `odk oma run <identifier>`, or install this one"
+    )]
+    DaemonOnlyFromTheInstalledCopy,
     #[error(transparent)]
     Landlock(#[from] landlock::Error),
     #[error("cannot create the sandbox: {0}")]
@@ -52,7 +62,7 @@ fn io_error(path: &Path, source: io::Error) -> Error {
     }
 }
 
-/// What `oma run` needs to know about the host.
+/// What `odk oma run` needs to know about the host.
 pub struct HostEnv {
     pub uid: u32,
     pub gid: u32,
@@ -127,6 +137,29 @@ pub fn run(
     }
     preflight(bundle)?;
 
+    // The daemon, if the Bundle declares one, is there before the sandbox is planned, since the
+    // plan binds its socket (ADR 0050). It outlives this launch, which a run once must not.
+    let env = |name: &str| std::env::var(name).ok();
+    if manifest.permissions.daemon.is_some() {
+        if options.run_once {
+            return Err(Error::DaemonNeedsInstall);
+        }
+        // The consent covers the installed program. A copy of the Bundle elsewhere, one the
+        // application wrote into its own data directory or one that was downloaded, would have
+        // its `bin/` started outside the sandbox with that consent and no question, so only
+        // the installed one runs a daemon.
+        let installed = install::find(layout, id);
+        if installed.as_ref().map(|b| b.root()) != Some(bundle.root()) {
+            return Err(Error::DaemonOnlyFromTheInstalledCopy);
+        }
+        if let Some(runtime) = host.runtime_dir.as_deref() {
+            let started = crate::daemon::ensure_for_run(bundle, runtime, &env)?;
+            if started == Some(crate::daemon::Outcome::Started) {
+                eprintln!("odk oma: note: started the application's daemon");
+            }
+        }
+    }
+
     let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
     let data_dir = layout.data_dir(id);
     let inbox_dir = layout.inbox_dir(id);
@@ -152,6 +185,11 @@ pub fn run(
         host_root: Path::new("/"),
         host_env: &env,
     })?;
+    if plan.daemon_socket_missing {
+        eprintln!(
+            "odk oma: note: the application's daemon has no socket yet, so the application starts without it"
+        );
+    }
     for (dir, why) in &plan.unavailable {
         eprintln!(
             "odk oma: note: the {} folder is not available ({why:?}), so the application starts without it",

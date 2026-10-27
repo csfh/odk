@@ -18,6 +18,10 @@ use crate::TextScale;
 const GRID: f32 = 4.0;
 /// The gap between a field's label and its control: an optical exception to the grid.
 const FIELD_GAP: f32 = 6.0;
+/// The width of an application's sidebar at scale 1.
+const SIDEBAR_WIDTH: f32 = 220.0;
+/// The widest a page's column of content grows at scale 1; a wider window centres it.
+const CONTENT_WIDTH: f32 = 1000.0;
 /// The least radius that reads as a corner at scale 1 (ADR 0042).
 const RADIUS_SUBTLE: f32 = 2.0;
 const BORDER_WIDTH: f32 = 1.0;
@@ -126,6 +130,8 @@ impl FoundationTokens {
                 form_gap: spacing.s4,
                 field_gap: text.px(FIELD_GAP),
                 menu_item_gap: spacing.s2,
+                sidebar_width: text.px(SIDEBAR_WIDTH),
+                content_width: text.px(CONTENT_WIDTH),
             },
             spacing,
             typography: TypographyTokens {
@@ -263,6 +269,10 @@ pub struct LayoutTokens {
     /// Between a field's label and its control: 6 px, off the grid on purpose.
     pub field_gap: f32,
     pub menu_item_gap: f32,
+    /// The width of an application's sidebar (`sidebar_frame`).
+    pub sidebar_width: f32,
+    /// The widest a page's column grows (`content_column`).
+    pub content_width: f32,
 }
 
 /// How tightly controls are packed. It changes their size and padding, never a colour.
@@ -688,6 +698,8 @@ mod tests {
         assert_eq!(big.spacing.s4, 24.0);
         assert_eq!(big.layout.dialog_padding, big.spacing.s6);
         assert_eq!(big.layout.field_gap, 9.0);
+        assert_eq!(big.layout.sidebar_width, 330.0);
+        assert_eq!(big.layout.content_width, 1500.0);
 
         // None of how it is drawn.
         assert_eq!(big.geometry, plain.geometry);
@@ -821,6 +833,8 @@ mod tests {
         assert_eq!(l.form_gap, 16.0);
         assert_eq!(l.field_gap, 6.0);
         assert_eq!(l.menu_item_gap, 8.0);
+        assert_eq!(l.sidebar_width, 220.0);
+        assert_eq!(l.content_width, 1000.0);
     }
 
     #[test]

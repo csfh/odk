@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0055
+status: amended by ADR 0050 and ADR 0055
 ---
 
 # omalaunch keeps a consent record per Identifier and prompts on anything not in it
