@@ -24,6 +24,8 @@ before any code.
 - [ ] Drag: sliders, resizable panels, scroll bars. `Input` drag-selection already settled part
   of it.
 - [ ] Virtualised lists.
+- [ ] The motion driver of ADR 0059 (accepted 2026-10-27): the steps under "First implementation" in
+  `docs/spec/odk-motion.md`, starting with one driver behind today's private calls.
 
 ## 3. Left for the user
 
