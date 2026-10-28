@@ -1,9 +1,0 @@
-[Unit]
-Description=Copy Omarchy's text size and font for oma's sandboxes
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/oma omarchy sync
-
-[Install]
-WantedBy=default.target

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=odk
+Comment=Run an Omarchy application bundle
+Exec=/usr/bin/odk oma run %f
+MimeType=application/x-oma;
+NoDisplay=true
+Terminal=false

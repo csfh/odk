@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0040, ADR 0043, ADR 0046, ADR 0047 and ADR 0048
+status: amended by ADR 0040, ADR 0043, ADR 0047, ADR 0048 and ADR 0062
 ---
 
 # ODK takes only colours from Omarchy; every size, width and duration is ODK's own

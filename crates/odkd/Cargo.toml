@@ -1,0 +1,16 @@
+[package]
+name = "odkd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Tells every ODK application what the host says: reduced motion, text size, font, colours (ADR 0062)"
+
+[dependencies]
+deps.workspace = true
+libc = "0.2"
+odk-theme = { path = "../odk-theme" }
+toml = "0.9"
+
+[dev-dependencies]
+tempfile = "3"

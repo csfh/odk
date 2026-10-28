@@ -1,10 +1,15 @@
 [package]
 name = "oma"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "Runs, installs and sandboxes .oma Bundles"
+
+[[bin]]
+# The program behind `odk oma`, private and not on PATH (ADR 0056). The library keeps the name `oma`.
+name = "odk-oma"
+path = "src/main.rs"
 
 [dependencies]
 deps.workspace = true

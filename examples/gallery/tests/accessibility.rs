@@ -106,8 +106,8 @@ fn a_menu_is_driven_by_the_keyboard() {
     );
 }
 
-/// The gallery's Reduced switch makes every transition zero, and a user's own request in
-/// `shell.toml` stays on when the gallery's switch is off: the toolbar then says whose it is.
+/// The gallery's Reduced switch makes every transition zero, and the system's request
+/// stays on when the gallery's switch is off: the toolbar then says whose it is.
 #[test]
 fn reduced_motion_follows_the_switch_and_the_users_request() {
     let _serial = serial();

@@ -2,14 +2,14 @@
 
 Normative. This spec says what ODK reads from Omarchy and where each of ADR 0040's layers is specified. It must not change a decision recorded in an ADR; if it needs to, write a new ADR first. Where the two disagree, the ADR wins.
 
-Components (ADR 0027) use only tokens, never an Omarchy key name. Only colours, the user's text size, Omarchy's font and the user's own request for reduced motion come from Omarchy (ADR 0043, ADR 0046); every size, width and duration is ODK's own, and the text size scales the sizes (ADR 0035, ADR 0043). `odk-theme` reads two files in `~/.local/state/omarchy/current/theme/` (`docs/checks.md`) and, beside them, the user's own:
+Components (ADR 0027) use only tokens, never an Omarchy key name. Only colours, the user's text size, Omarchy's font and the user's own request for reduced motion come from Omarchy (ADR 0043, ADR 0048); every size, width and duration is ODK's own, and the text size scales the sizes (ADR 0035, ADR 0043). `odk-theme` reads two files in `~/.local/state/omarchy/current/theme/` (`docs/checks.md`) and, beside them, the user's own:
 
 | File | What is read |
 |---|---|
-| a theme's `colors.toml` | the palette, and nothing else of the theme's colours: `docs/spec/odk-source-palette.md`. Everything else is made from it |
+| a theme's `colors.toml` | the palette, and nothing else of the theme's colours: `docs/spec/odk-source-palette.md`. Everything else is made from it. `odkd` reads it and sends its entries as they are; an application takes them from `odkd` (ADR 0062) |
 | a theme's `shell.toml` | `[font] base-size`, the user's text size when the user's own file has none (ADR 0043). It must be TOML, or the theme is refused (ADR 0041); nothing else in it is read, the `[controls]` colours included (ADR 0047) |
-| the user's `~/.config/omarchy/shell.toml` | `[font] base-size`, which wins over the theme's, and `[motion] reduced`, which counts only when the compositor does not say (ADR 0043, ADR 0046, ADR 0048). Never an error |
-| Hyprland's IPC socket, `$XDG_RUNTIME_DIR/hypr/<instance>/.socket.sock` and `.socket2.sock` | `animations:enabled`, asked, and its reloads followed: false is the user's request for reduced motion (ADR 0048). Only the followed theme's manager asks (`ThemeManager::current`); a sandbox never reaches it |
+| the user's `~/.config/omarchy/shell.toml` | `[font] base-size`, which wins over the theme's (ADR 0043), read by `odkd` and sent as the size. `[motion] reduced` in the user's own file is ignored (ADR 0048). Never an error |
+| Hyprland's IPC socket, `$XDG_RUNTIME_DIR/hypr/<instance>/.socket.sock` and `.socket2.sock` | `animations:enabled`, asked, and its reloads followed: false is the user's request for reduced motion (ADR 0048). When it does not answer, motion is not reduced. Only `odkd` asks, and sends the answer to every application; no application connects to it, and a sandbox never reaches it |
 
 The tokens are the four layers of ADR 0040, each made from the one above and specified on its own:
 

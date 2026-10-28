@@ -3,7 +3,7 @@
 Two projects for Omarchy (Arch Linux, Hyprland, Wayland only):
 
 - **ODK**, the Omarchy Development Kit: Rust applications with a GPUI interface that follows the user's Omarchy theme, and an embedded Luau machine for plugins. Applications depend on one `odk` crate.
-- **OMA**, Omarchy Managed Application: a bundle format (`<App>.oma/`, a directory) and `oma`, the program that verifies, installs, sandboxes and starts one. `oma` does not depend on ODK.
+- **OMA**, Omarchy Managed Application: a bundle format and `oma`, the program that verifies, installs, sandboxes and starts one. A Bundle is one `.oma` file (ADR 0052). The code still installs a directory (`<App>.oma/`) until it catches up. `oma` does not depend on ODK.
 
 Pre-release: every crate is 0.0.0. Stable Rust (edition 2024), Linux x86_64.
 
@@ -18,6 +18,14 @@ Pre-release: every crate is 0.0.0. Stable Rust (edition 2024), Linux x86_64.
 | Know whether it is ready | `docs/release-readiness.md`, `CHANGELOG.md` |
 | Understand a decision | `docs/adr/`, with `GLOSSARY.md` for the terms |
 | Work with an agent in this repository | `CLAUDE.md` |
+
+## Install
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/csfh/odk/releases/latest/download/install.sh | sh
+```
+
+Puts `odk`, `odk oma` and the `odkd` daemon under your home directory (ADR 0063); no root. Releases are not published yet, so until the first tag that address does not exist.
 
 ## Commands
 

@@ -15,8 +15,11 @@ _Avoid_: SDK, framework
 Omarchy Managed Application: the application bundle format and the ecosystem around it.
 
 **Bundle**:
-An application packaged as a directory named `<App>.oma/`, holding its Manifest, executable and resources. Always a directory, never a single file.
-_Avoid_: package, archive, app image, .oma file
+An application packaged as one `<App>.oma` file (ADR 0052): a read-only EROFS image of its Manifest, executable and resources, mounted rather than extracted. The code still installs a directory `<App>.oma/` until it catches up.
+_Avoid_: package, archive, app image
+
+**Publisher**:
+The domain a Bundle's Manifest names. That domain's list of signing keys is the root of trust for the Bundle's signature (ADR 0055). A domain that was unreachable and comes back with a different key is a new publisher.
 
 **Manifest**:
 The declarative TOML file inside a Bundle that names the application and declares the permissions it requests.
@@ -37,13 +40,13 @@ _Avoid_: the launcher (ambiguous with Omarchy's own application launcher), OMA r
 A Luau extension loaded by an ODK application to add or change behaviour, without changing the application's Rust code.
 
 **oma-consent**:
-The small helper program that shows the consent dialog for oma and reports the user's answer. It decides nothing and holds no state. Called `omagate` in ADR 0026 and `omalaunch-consent` in the first draft of ADR 0025. `oma consent <target>` runs it.
+The small helper program that shows the consent dialog for oma and reports the user's answer. It decides nothing and holds no state. Called `omagate` in ADR 0026 and `omalaunch-consent` in the first draft of ADR 0025. `odk oma consent <target>` runs it.
 
 **Inbox**:
 The per-application directory where an application stages a new version of itself for oma to pick up. An application can write only to its own.
 
 **Flea**:
-The file explorer that presents a Bundle directory as a single application instead of a folder.
+The file explorer that presents a Bundle as a single application. It runs the file on open and mounts it for "Show contents" (ADR 0053). The code still describes the Bundle directory until it catches up.
 
 **Theme**:
 An Omarchy theme: a named set of colours and settings that Omarchy applies to the whole desktop. Stock themes ship with Omarchy; users install or write their own.
@@ -142,15 +145,15 @@ What closes an overlay without choosing anything in it: Escape, a press outside 
 _Avoid_: cancel, close policy
 
 **Database**:
-An application's own SQLite file, in its own data directory, which ODK opens, brings up to date with the application's migrations and gives the application as a cheap handle that never blocks the window (`odk::db`, ADR 0049). Not shared between applications.
+An application's own SQLite file, in its own data directory, which ODK opens, brings up to date with the application's migrations and gives the application as a cheap handle that never blocks the window (`odk::db`, the `db` feature of `odk`, off by default, ADR 0049). Not shared between applications.
 _Avoid_: store, DB layer
 
 **Reduced motion**:
-A request that nothing move for its own sake: every transition shows its end state at once, a fade included, and a spinner stands still, while every state change still happens. How long a tooltip waits to open, or a toast stays, is not shortened. The application can ask for it, and so can the user, by turning off the compositor's window animations (Hyprland's `animations:enabled`); either one is enough. The categories are ADR 0059 (proposed).
+A request that nothing move for its own sake: every transition shows its end state at once, a fade included, and a spinner stands still, while every state change still happens. How long a tooltip waits to open, or a toast stays, is not shortened. The application can ask for it, and so can the user, by turning off the compositor's window animations (Hyprland's `animations:enabled`, which `odkd` reads and tells every application); either one is enough. The categories are ADR 0059.
 _Avoid_: no animation, prefers-reduced-motion (a browser's name for it), crossfade
 
 **Motion**:
-How a control goes from one state it already has to the next: a duration and a curve from the foundation, or a spring that settles without passing the target, by the component's default or by a decoration attached to it (ADR 0059, proposed). Reduced motion shows the end state at once.
+How a control goes from one state it already has to the next: a duration and a curve from the foundation, or a spring that settles without passing the target, by the component's default or by a decoration attached to it (ADR 0059). Reduced motion shows the end state at once.
 _Avoid_: animation library, Framer Motion (the spirit of the API, not a dependency)
 
 **Activation**:

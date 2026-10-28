@@ -1,6 +1,6 @@
 [package]
 name = "odk-theme"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,7 @@ description = "Omarchy's current theme as ODK's semantic tokens, with change not
 deps.workspace = true
 log = "0.4"
 notify-debouncer-mini = "0.6"
+serde_json = "1"
 thiserror = "2"
 toml = "0.9"
 

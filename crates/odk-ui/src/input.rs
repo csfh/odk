@@ -201,6 +201,8 @@ pub struct Input {
     pub(crate) description: Option<SharedString>,
     on_change: Option<ValueHandler>,
     on_submit: Option<ValueHandler>,
+    /// A number field's commit: see [`InputState::report_commit`].
+    on_commit: Option<ValueHandler>,
 }
 
 /// What a search, password or number field adds to an `Input`, crate-private, so each is an
@@ -252,6 +254,7 @@ impl Input {
             description: None,
             on_change: None,
             on_submit: None,
+            on_commit: None,
         }
     }
 
@@ -349,6 +352,16 @@ impl Input {
         self
     }
 
+    /// A number field's commit, with the text of the number it settled on. `NumberInput` is the
+    /// only field that has one.
+    pub(crate) fn on_commit(
+        mut self,
+        handler: impl Fn(&str, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_commit = Some(Rc::new(handler));
+        self
+    }
+
     /// The density the field draws at: its own, else its size's step from the application's.
     pub(crate) fn density_in(&self, c: &ComponentTokens) -> Density {
         self.density
@@ -439,6 +452,10 @@ pub(crate) struct InputState {
     multiline: bool,
     on_change: Option<ValueHandler>,
     on_submit: Option<ValueHandler>,
+    on_commit: Option<ValueHandler>,
+    /// The number the field started with, was last given from outside, or last committed, so
+    /// that a commit that settles on the same number is not a commit.
+    committed: Option<f64>,
     /// The text `on_change` last heard.
     reported: String,
     layout: Option<Layout>,
@@ -480,6 +497,8 @@ impl InputState {
             multiline: false,
             on_change: None,
             on_submit: None,
+            on_commit: None,
+            committed: crate::number::parse(text),
             reported: text.to_owned(),
             layout: None,
             scroll: point(px(0.0), px(0.0)),
@@ -626,6 +645,7 @@ impl InputState {
             return;
         }
         self.commit_number(window, cx);
+        self.report_commit(window, cx);
         if let Some(f) = self.on_submit.clone() {
             let text = self.editor.text().to_owned();
             f(&text, window, cx);
@@ -642,6 +662,7 @@ impl InputState {
         self.goal_x = None;
         self.commit_number(window, cx);
         self.text_changed(window, cx);
+        self.report_commit(window, cx);
     }
 
     /// Puts `text` in place of the whole text as one step that Ctrl+Z undoes, with the caret
@@ -679,6 +700,27 @@ impl InputState {
         };
         let text = rules.step(self.editor.text(), steps);
         self.replace_all(&text, window, cx);
+        self.report_commit(window, cx);
+    }
+
+    /// Tells `on_commit` the number the field settled on, when it is one and is not the number
+    /// the field started with, was given, or last committed. Enter, leaving the field and a step
+    /// settle on a number; each keystroke on the way to one does not, which is what `on_change`
+    /// is for. A change that is written somewhere wants this one: typing `80` passes through
+    /// `8`.
+    fn report_commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(f) = self.on_commit.clone() else {
+            return;
+        };
+        let Some(number) = crate::number::parse(self.editor.text()) else {
+            return;
+        };
+        if self.committed == Some(number) {
+            return;
+        }
+        self.committed = Some(number);
+        let text = self.editor.text().to_owned();
+        f(&text, window, cx);
     }
 
     /// Whether a number field's text is not a number, once the user has left it or committed it:
@@ -1387,6 +1429,7 @@ impl RenderOnce for Input {
             }
             s.on_change = self.on_change.clone();
             s.on_submit = self.on_submit.clone();
+            s.on_commit = self.on_commit.clone();
             // A controlled value that differs from the text replaces it, except while the IME
             // is composing: the application has not heard of the pre-edit text.
             if let Some(value) = self.value.as_ref().map(given)
@@ -1403,6 +1446,8 @@ impl RenderOnce for Input {
                 && s.followed != Some(value)
             {
                 s.followed = Some(value);
+                // What the application says the number is is where a commit is measured from.
+                s.committed = value;
                 let text = value.map(|v| r.text_of(v)).unwrap_or_default();
                 if crate::number::parse(s.editor.text()) != value {
                     s.editor.set_text(&text);

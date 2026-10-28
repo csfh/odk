@@ -95,6 +95,7 @@ Each group belongs to the components named, which are its only consumers. "Text"
 | `kbd()` | `Kbd` | `surface.sunken`, text primary, `border.default` | one line of `mono` and its borders, padding 4, `radius.small` |
 | `form_field(states)` | `FormField` | label text primary (disabled when the control is), description text secondary, required mark the danger role's text colour, optional mark text tertiary | label `body_strong`, description and message `small`; `field_gap` (6) between label, description, control and message; `form_gap` (16) between fields |
 | `text(secondary)` | `Text` | text primary, or text secondary for `muted()` text | type `body`; no box |
+| `text_mono(secondary)` | `Text::mono()` | the colours of `text(secondary)` | type `mono`; no box |
 | `heading(level)` | `Heading`, and through it the titles of `Dialog` and `Sheet` | text primary | type by level (`heading_role`): 1 (and 0) `title`, 2 `heading`, 3 and higher `subtitle`; no box |
 | `form_message(role)` | `FormField`'s message | an error (`Danger`), a warning or a confirmation (`Success`) in the role's text colour with its status mark; helper text (`Neutral`) text secondary, no mark | type `small`, the mark its size |
 
