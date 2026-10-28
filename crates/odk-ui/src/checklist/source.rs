@@ -15,6 +15,7 @@ pub(super) const COMPONENTS: &[(&str, &str, bool)] = &[
     ("Button", "button.rs", true),
     ("Checkbox", "checkbox.rs", true),
     ("Command", "command.rs", true),
+    ("DataTable", "data_table.rs", true),
     ("ContextMenu", "menu.rs", true),
     ("Dialog", "dialog.rs", true),
     ("DropdownMenu", "menu.rs", true),
@@ -58,6 +59,7 @@ const ON_COMPONENT_TOKENS: &[&str] = &[
     "button.rs",
     "checkbox.rs",
     "command.rs",
+    "data_table.rs",
     "dialog.rs",
     "form_field.rs",
     "hover_card.rs",
@@ -145,11 +147,19 @@ fn code_lines(text: &str) -> impl Iterator<Item = (usize, &str)> {
 fn every_component_is_listed() {
     for (file, text) in sources() {
         for line in text.lines() {
-            let Some(name) = line.strip_prefix("impl RenderOnce for ") else {
+            // `impl RenderOnce for Name {`, or `impl<R> RenderOnce for Name<R> {` for a
+            // component generic over the application's data.
+            let Some((_, name)) = line
+                .starts_with("impl")
+                .then(|| line.split_once("RenderOnce for "))
+                .flatten()
+            else {
                 continue;
             };
             let name = name.trim_end_matches(" {");
+            let name = name.split('<').next().unwrap_or(name);
             let public = text.contains(&format!("pub struct {name} "))
+                || text.contains(&format!("pub struct {name}<"))
                 || text.contains(&format!("pub struct {name};"));
             if public {
                 assert!(
@@ -640,7 +650,9 @@ fn no_empty_names() {
 fn every_component_implements_describe() {
     let all: String = sources().into_iter().map(|(_, t)| t).collect();
     for (name, _, _) in COMPONENTS {
-        if !all.contains(&format!("impl Describe for {name} ")) {
+        if !all.contains(&format!("Describe for {name} "))
+            && !all.contains(&format!("Describe for {name}<"))
+        {
             assert_known_gap(name, 14);
         }
     }
@@ -649,10 +661,10 @@ fn every_component_implements_describe() {
 /// The doc comment directly above `pub struct name`.
 fn doc_comment(text: &str, name: &str) -> String {
     let lines: Vec<&str> = text.lines().collect();
-    let Some(at) = lines
-        .iter()
-        .position(|l| l.starts_with(&format!("pub struct {name} ")))
-    else {
+    let Some(at) = lines.iter().position(|l| {
+        l.starts_with(&format!("pub struct {name} "))
+            || l.starts_with(&format!("pub struct {name}<"))
+    }) else {
         return String::new();
     };
     let mut doc = Vec::new();
@@ -696,6 +708,9 @@ fn every_component_is_in_the_prelude() {
         Checkbox::new("cb", "Wrap lines"),
         Command::new("cmd", "Commands").item(CommandItem::new("Open")),
         ContextMenu::new("d", "Row actions", Text::new("t")),
+        DataTable::new("dt", "Processes", vec![1u32])
+            .column(Column::new("n", "N", |n: &u32| n.to_string().into()).sort_by(|n: &u32| *n))
+            .default_sort("n", SortDirection::Descending),
         Dialog::new("dl", "Rename file"),
         DropdownMenu::new("e", "l"),
         FormField::new("ff", "Name").child(Input::new("ffi", "Name")),
@@ -708,6 +723,7 @@ fn every_component_is_in_the_prelude() {
         NumberInput::new("ni", "Quantity"),
         PasswordInput::new("pw", "Password"),
         Progress::new("pr", "Uploading"),
+        Resizable::horizontal("rz", "Split").panel(ResizablePanel::new()),
         RadioGroup::new("rg", "Theme"),
         SearchInput::new("si", "Search"),
         Select::new("sl", "Country"),
