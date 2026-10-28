@@ -46,6 +46,8 @@ getrandom_02 = { package = "getrandom", version = "0.2", features = ["js", "rdra
 crypto-common = { version = "0.1", features = ["rand_core", "std"] }
 digest_010 = { package = "digest", version = "0.10", features = ["alloc", "core-api", "mac", "std"] }
 subtle = { version = "2", features = ["default", "i128", "std"] }
+# Through url in GPUI, and in oma for the consent dialog's hosts (ADR 0060, section 7).
+idna = { version = "1", features = ["alloc", "compiled_data", "default", "std"] }
 event-listener-strategy = { version = "0.5", features = ["default", "std"] }
 
 [build-dependencies]
@@ -69,6 +71,7 @@ ignored = [
     "futures-core",
     "getrandom_02",
     "hashbrown",
+    "idna",
     "libc",
     "linux-raw-sys",
     "log",

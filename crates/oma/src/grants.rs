@@ -1,16 +1,25 @@
-//! The consent record: what the user has allowed an application, per Identifier (ADR 0023).
+//! The consent record: what the user has allowed an application.
+//!
+//! A directory Bundle's record is per Identifier (ADR 0023). A signed file's is per
+//! (root key id, app id) pair (ADR 0060, section 2). It holds the pin, the host the root was
+//! pinned from, consent, the high-water mark and a denial, and nothing else, since the rest of
+//! its schema is open (`docs/oma-trust-plan.md`, question 14). The two records live at
+//! different paths, so a record from before ADR 0060 is never read as a pin.
 
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::fmt::{Access, Daemon, FsGrant, Identifier, Permissions, UserDir};
 use crate::layout::Layout;
+use crate::trust::{KeyId, Mark, PublicKey, Publisher};
 
 const VERSION: u32 = 1;
+/// A pair's record. Its own number, so neither kind of record is read as the other.
+const PAIR_VERSION: u32 = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -39,6 +48,20 @@ struct File {
     daemon: Option<DaemonEntry>,
 }
 
+/// The permissions part of a record, as a pair's record nests it.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Granted {
+    network: bool,
+    gpu: bool,
+    audio: bool,
+    updates: bool,
+    filesystem: Vec<Entry>,
+    dbus_talk: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    daemon: Option<DaemonEntry>,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Entry {
@@ -54,13 +77,106 @@ struct DaemonEntry {
     socket: String,
 }
 
+impl Granted {
+    fn of(permissions: &Permissions) -> Self {
+        Self {
+            network: permissions.network,
+            gpu: permissions.gpu,
+            audio: permissions.audio,
+            updates: permissions.updates,
+            filesystem: permissions
+                .filesystem
+                .iter()
+                .map(|g| Entry {
+                    dir: g.dir.as_str().to_owned(),
+                    access: match g.access {
+                        Access::Read => "read",
+                        Access::Write => "write",
+                    }
+                    .to_owned(),
+                })
+                .collect(),
+            dbus_talk: permissions.dbus_talk.clone(),
+            daemon: permissions.daemon.as_ref().map(|d| DaemonEntry {
+                executable: d.executable.clone(),
+                args: d.args.clone(),
+                socket: d.socket.clone(),
+            }),
+        }
+    }
+
+    fn permissions(self) -> Result<Permissions, String> {
+        let mut filesystem = Vec::new();
+        for entry in self.filesystem {
+            let dir = UserDir::parse(&entry.dir)
+                .ok_or_else(|| format!("unknown directory {:?}", entry.dir))?;
+            let access = match entry.access.as_str() {
+                "read" => Access::Read,
+                "write" => Access::Write,
+                other => return Err(format!("unknown access {other:?}")),
+            };
+            filesystem.push(FsGrant { dir, access });
+        }
+        Ok(Permissions {
+            network: self.network,
+            gpu: self.gpu,
+            audio: self.audio,
+            updates: self.updates,
+            filesystem,
+            dbus_talk: self.dbus_talk,
+            daemon: self.daemon.map(|d| Daemon {
+                executable: d.executable,
+                args: d.args,
+                socket: d.socket,
+            }),
+        })
+    }
+}
+
+/// The text at `path`, or `None` if there is no file.
+fn read(path: &Path) -> Result<Option<String>, Error> {
+    match fs::read_to_string(path) {
+        Ok(t) => Ok(Some(t)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(Error::Io {
+            path: path.to_owned(),
+            source,
+        }),
+    }
+}
+
+/// Writes `text` to `path`, private to the user and replaced atomically.
+fn write_private(path: &Path, text: &str) -> Result<(), Error> {
+    let io = |path: &Path, source| Error::Io {
+        path: path.to_owned(),
+        source,
+    };
+    let dir = path.parent().expect("a record has a parent");
+    fs::create_dir_all(dir).map_err(|e| io(dir, e))?;
+    let name = path
+        .file_name()
+        .expect("a record has a name")
+        .to_string_lossy();
+    let staging = dir.join(format!(".{name}.partial-{}", std::process::id()));
+    let result = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&staging)
+        .and_then(|mut f| f.write_all(text.as_bytes()).and_then(|()| f.sync_all()))
+        .and_then(|()| fs::rename(&staging, path));
+    if let Err(source) = result {
+        let _ = fs::remove_file(&staging);
+        return Err(io(path, source));
+    }
+    Ok(())
+}
+
 /// What the user has consented to for one application.
 pub fn load(layout: &Layout, id: &Identifier) -> Result<Option<Permissions>, Error> {
     let path = layout.grants_file(id);
-    let text = match fs::read_to_string(&path) {
-        Ok(t) => t,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(source) => return Err(Error::Io { path, source }),
+    let Some(text) = read(&path)? else {
+        return Ok(None);
     };
     let damaged = |reason: String| Error::Damaged {
         path: path.clone(),
@@ -76,82 +192,191 @@ pub fn load(layout: &Layout, id: &Identifier) -> Result<Option<Permissions>, Err
     if file.identifier != id.as_str() {
         return Err(damaged(format!("it names {:?}", file.identifier)));
     }
-    let mut filesystem = Vec::new();
-    for entry in file.filesystem {
-        let dir = UserDir::parse(&entry.dir)
-            .ok_or_else(|| damaged(format!("unknown directory {:?}", entry.dir)))?;
-        let access = match entry.access.as_str() {
-            "read" => Access::Read,
-            "write" => Access::Write,
-            other => return Err(damaged(format!("unknown access {other:?}"))),
-        };
-        filesystem.push(FsGrant { dir, access });
-    }
-    Ok(Some(Permissions {
+    let granted = Granted {
         network: file.network,
         gpu: file.gpu,
         audio: file.audio,
         updates: file.updates,
-        filesystem,
+        filesystem: file.filesystem,
         dbus_talk: file.dbus_talk,
-        daemon: file.daemon.map(|d| Daemon {
-            executable: d.executable,
-            args: d.args,
-            socket: d.socket,
-        }),
-    }))
+        daemon: file.daemon,
+    };
+    granted.permissions().map(Some).map_err(damaged)
 }
 
 /// Records consent for exactly `permissions`, replacing any earlier record. The file is
 /// private to the user and replaced atomically.
 pub fn save(layout: &Layout, id: &Identifier, permissions: &Permissions) -> Result<(), Error> {
-    let path = layout.grants_file(id);
-    let io = |path: &PathBuf, source| Error::Io {
-        path: path.clone(),
-        source,
-    };
-    let dir = path.parent().expect("grants file has a parent").to_owned();
-    fs::create_dir_all(&dir).map_err(|e| io(&dir, e))?;
+    let granted = Granted::of(permissions);
     let file = File {
         grant_version: VERSION,
         identifier: id.as_str().to_owned(),
-        network: permissions.network,
-        gpu: permissions.gpu,
-        audio: permissions.audio,
-        updates: permissions.updates,
-        filesystem: permissions
-            .filesystem
-            .iter()
-            .map(|g| Entry {
-                dir: g.dir.as_str().to_owned(),
-                access: match g.access {
-                    Access::Read => "read",
-                    Access::Write => "write",
-                }
-                .to_owned(),
-            })
-            .collect(),
-        dbus_talk: permissions.dbus_talk.clone(),
-        daemon: permissions.daemon.as_ref().map(|d| DaemonEntry {
-            executable: d.executable.clone(),
-            args: d.args.clone(),
-            socket: d.socket.clone(),
+        network: granted.network,
+        gpu: granted.gpu,
+        audio: granted.audio,
+        updates: granted.updates,
+        filesystem: granted.filesystem,
+        dbus_talk: granted.dbus_talk,
+        daemon: granted.daemon,
+    };
+    write_private(
+        &layout.grants_file(id),
+        &toml::to_string(&file).expect("a grant serialises"),
+    )
+}
+
+/// What `odk-oma` keeps for one (root key id, app id) pair (ADR 0060, sections 2 and 7).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pair {
+    /// The pin: the publisher root this application belongs to.
+    pub root: PublicKey,
+    /// The host the root was first discovered at. Display text and the first-contact host, not
+    /// the root of trust.
+    pub publisher: Publisher,
+    /// What the user has consented to. `None` until something is granted.
+    pub permissions: Option<Permissions>,
+    pub mark: Option<Mark>,
+    /// The user cancelled the first-install dialog for this pair. A launch, `--register` and
+    /// another pass over the same file do not ask again; `odk oma install` may.
+    pub denied: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PairFile {
+    grant_version: u32,
+    app_id: String,
+    /// The root's 32 bytes, as 64 lowercase hex digits.
+    root_public_key: String,
+    publisher: String,
+    denied: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    high_water: Option<HighWater>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    permissions: Option<Granted>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HighWater {
+    /// Decimal, since a TOML integer cannot hold every `u64`.
+    version: String,
+    payload_sha256: String,
+}
+
+/// The record of the pair (`root`, `app`), if there is one.
+pub fn load_pair(layout: &Layout, root: &KeyId, app: &Identifier) -> Result<Option<Pair>, Error> {
+    let path = layout.pair_grants_file(root, app);
+    let Some(text) = read(&path)? else {
+        return Ok(None);
+    };
+    let damaged = |reason: String| Error::Damaged {
+        path: path.clone(),
+        reason,
+    };
+    let file: PairFile = toml::from_str(&text).map_err(|e| damaged(e.to_string()))?;
+    if file.grant_version != PAIR_VERSION {
+        return Err(damaged(format!(
+            "unknown grant_version {}",
+            file.grant_version
+        )));
+    }
+    if file.app_id != app.as_str() {
+        return Err(damaged(format!("it names {:?}", file.app_id)));
+    }
+    let key = crate::trust::unhex::<32>(&file.root_public_key)
+        .map(PublicKey::from_bytes)
+        .ok_or_else(|| damaged("its root_public_key is not 64 lowercase hex digits".into()))?;
+    // The directory is named for the root, so a record under another root's name is not this one.
+    if key.key_id() != *root {
+        return Err(damaged(format!("its root is {}, not {root}", key.key_id())));
+    }
+    let publisher = Publisher::parse(&file.publisher).map_err(|e| damaged(e.to_string()))?;
+    let mark = match file.high_water {
+        None => None,
+        Some(h) => Some(Mark {
+            version: h.version.parse().map_err(|_| {
+                damaged(format!(
+                    "high_water.version {:?} is not a number",
+                    h.version
+                ))
+            })?,
+            payload_sha256: crate::trust::unhex::<32>(&h.payload_sha256).ok_or_else(|| {
+                damaged("high_water.payload_sha256 is not 64 lowercase hex digits".into())
+            })?,
         }),
     };
-    let text = toml::to_string(&file).expect("a grant serialises");
-    let staging = dir.join(format!(".{id}.toml.partial-{}", std::process::id()));
-    let result = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&staging)
-        .and_then(|mut f| f.write_all(text.as_bytes()).and_then(|()| f.sync_all()))
-        .and_then(|()| fs::rename(&staging, &path));
-    if let Err(source) = result {
-        let _ = fs::remove_file(&staging);
-        return Err(io(&path, source));
+    let permissions = file
+        .permissions
+        .map(Granted::permissions)
+        .transpose()
+        .map_err(damaged)?;
+    Ok(Some(Pair {
+        root: key,
+        publisher,
+        permissions,
+        mark,
+        denied: file.denied,
+    }))
+}
+
+/// Writes the record of the pair (`pair.root`, `app`), replacing any earlier one.
+pub fn save_pair(layout: &Layout, app: &Identifier, pair: &Pair) -> Result<(), Error> {
+    let file = PairFile {
+        grant_version: PAIR_VERSION,
+        app_id: app.as_str().to_owned(),
+        root_public_key: crate::trust::hex(pair.root.as_bytes()),
+        publisher: pair.publisher.to_string(),
+        denied: pair.denied,
+        high_water: pair.mark.map(|m| HighWater {
+            version: m.version.to_string(),
+            payload_sha256: crate::trust::hex(&m.payload_sha256),
+        }),
+        permissions: pair.permissions.as_ref().map(Granted::of),
+    };
+    write_private(
+        &layout.pair_grants_file(&pair.root.key_id(), app),
+        &toml::to_string(&file).expect("a pair's record serialises"),
+    )
+}
+
+/// Every pair that has a record, for asking which roots are pinned and from which hosts. A
+/// directory or file that is not a pair's is skipped; a pair's record that is damaged is an error.
+pub fn pairs(layout: &Layout) -> Result<Vec<(Identifier, Pair)>, Error> {
+    let top = layout.pairs_dir();
+    let roots = match fs::read_dir(&top) {
+        Ok(r) => r,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(source) => return Err(Error::Io { path: top, source }),
+    };
+    let mut found = Vec::new();
+    for root in roots.flatten() {
+        let Some(root_id) = root
+            .file_name()
+            .to_str()
+            .and_then(|n| n.parse::<KeyId>().ok())
+        else {
+            continue;
+        };
+        let Ok(apps) = fs::read_dir(root.path()) else {
+            continue;
+        };
+        for app in apps.flatten() {
+            let name = app.file_name();
+            let Some(app_id) = name
+                .to_str()
+                .and_then(|n| n.strip_suffix(".toml"))
+                .and_then(|n| n.parse::<Identifier>().ok())
+            else {
+                continue;
+            };
+            if let Some(pair) = load_pair(layout, &root_id, &app_id)? {
+                found.push((app_id, pair));
+            }
+        }
     }
-    Ok(())
+    found.sort_by(|a, b| (a.1.root.key_id(), a.0.as_str()).cmp(&(b.1.root.key_id(), b.0.as_str())));
+    Ok(found)
 }
 
 /// The part of `requested` that `granted` does not cover. Empty means nothing new is asked.
@@ -230,6 +455,96 @@ mod tests {
             args: args.iter().map(|a| (*a).into()).collect(),
             socket: socket.into(),
         }
+    }
+
+    fn pair(seed: u8) -> Pair {
+        use crate::trust::SigningKey;
+        Pair {
+            root: SigningKey::from_seed(&[seed; 32]).unwrap().public_key(),
+            publisher: Publisher::parse("apps.csfh.dev").unwrap(),
+            permissions: Some(everything()),
+            mark: Some(Mark {
+                version: u64::MAX,
+                payload_sha256: [0xab; 32],
+            }),
+            denied: false,
+        }
+    }
+
+    #[test]
+    fn a_pairs_record_loads_back_is_private_and_is_found() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let layout = Layout::new(dir.path(), dir.path());
+        let record = pair(1);
+        let root = record.root.key_id();
+        save_pair(&layout, &id(), &record).unwrap();
+        assert_eq!(
+            load_pair(&layout, &root, &id()).unwrap(),
+            Some(record.clone())
+        );
+        let path = layout.pair_grants_file(&root, &id());
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(pairs(&layout).unwrap(), vec![(id(), record.clone())]);
+
+        let bare = Pair {
+            permissions: None,
+            mark: None,
+            denied: true,
+            ..record
+        };
+        save_pair(&layout, &id(), &bare).unwrap();
+        assert_eq!(load_pair(&layout, &root, &id()).unwrap(), Some(bare));
+    }
+
+    #[test]
+    fn a_pairs_record_under_another_roots_name_or_damaged_is_an_error() {
+        let dir = TempDir::new().unwrap();
+        let layout = Layout::new(dir.path(), dir.path());
+        save_pair(&layout, &id(), &pair(1)).unwrap();
+        let one = pair(1).root.key_id();
+        let two = pair(2).root.key_id();
+        let path = layout.pair_grants_file(&one, &id());
+        let text = fs::read_to_string(&path).unwrap();
+        // The record of root 1, copied to where root 2's would be.
+        let moved = layout.pair_grants_file(&two, &id());
+        fs::create_dir_all(moved.parent().unwrap()).unwrap();
+        fs::write(&moved, &text).unwrap();
+        assert!(matches!(
+            load_pair(&layout, &two, &id()),
+            Err(Error::Damaged { .. })
+        ));
+        for (from, to) in [
+            ("grant_version = 2", "grant_version = 1"),
+            ("denied = false", "denied = false\nextra = 1"),
+            ("app_id = \"com.example.t\"", "app_id = \"com.example.u\""),
+            (
+                "publisher = \"apps.csfh.dev\"",
+                "publisher = \"Apps.csfh.dev\"",
+            ),
+        ] {
+            assert!(text.contains(from), "{from}");
+            fs::write(&path, text.replacen(from, to, 1)).unwrap();
+            assert!(
+                matches!(load_pair(&layout, &one, &id()), Err(Error::Damaged { .. })),
+                "{to}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_record_from_before_adr_0060_is_not_a_pairs() {
+        let dir = TempDir::new().unwrap();
+        let layout = Layout::new(dir.path(), dir.path());
+        save(&layout, &id(), &everything()).unwrap();
+        assert!(pairs(&layout).unwrap().is_empty());
+        assert_eq!(
+            load_pair(&layout, &pair(1).root.key_id(), &id()).unwrap(),
+            None
+        );
     }
 
     #[test]

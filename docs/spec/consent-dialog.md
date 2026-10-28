@@ -32,6 +32,7 @@ For an upgrade, only the **new** permissions are listed. The ones already in the
 |---|---|
 | First open of a Bundle outside `~/Applications`, under a root already pinned for that app id | Install, Run once, Cancel |
 | A publisher root that is not pinned for that app id (ADR 0060) | Install, Run once, Cancel |
+| Before that, when its host is confusable with a host pinned for a different root | Confirm, Cancel: the note alone, with nothing that installs. Install and Run once are offered only after Confirm, in their own dialog |
 | An upgrade that verifies under the pinned root and requests something new, with a previous version kept | Allow, Keep previous version, Cancel |
 | Any other installed Bundle that requests something new | Allow, Cancel |
 | `odk oma install` of a Bundle that requests something new, under the pinned root | Install, Cancel |
@@ -62,6 +63,8 @@ The trust lines are signed fields, plus the URL that was fetched (ADR 0060). The
 | Situation | Note |
 |---|---|
 | A new publisher root | This pins the publisher key {fingerprint} for {app id} {version}. The publisher host is {unicode host} ({punycode}). |
+| The root is already pinned for another app id | This publisher key is already pinned for {other app id}. {app id} is another application under it. |
+| The file was fetched | It was fetched from {url}. |
 | The publisher host is confusable with a host already pinned for a different root | {unicode host} looks like {existing host}, which is already pinned for a different publisher. Confirm that this is a different publisher before installing. |
 | `user.xdg.origin.url` or `user.xdg.referrer.url` is shown at all | Unverified download note: {value}. This is not the publisher. |
 
@@ -83,7 +86,7 @@ lines = ["Can use the graphics card directly"]
 notes = ["Desktop: you have no such folder, so this will not be available"]
 ```
 
-`lines` are the permission lines, already worded; `notes` are the unavailable-folder notes. `buttons` are the offered answers in the order shown: `install`, `run-once`, `allow`, `keep-previous` and `cancel`.
+`lines` are the permission lines, already worded; `notes` are the unavailable-folder notes. `buttons` are the offered answers in the order shown: `install`, `run-once`, `allow`, `keep-previous`, `confirm` and `cancel`. For a signed file (ADR 0060), `name` and `identifier` are both the signed app id and `version` is the monotonic version: the image is not read for them, and `lines` is empty until the open question of how permission lines are read is settled (`docs/oma-trust-plan.md`, question 12).
 
 **Answer**, one line on standard output: exactly one of the offered words, and exit status 0. Closing the window or pressing Escape is `cancel`.
 

@@ -11,7 +11,8 @@ use std::process::{Command, Stdio};
 
 use serde::Serialize;
 
-use crate::fmt::{Bundle, Permissions, UserDir, permission_lines};
+use crate::fmt::{Bundle, Identifier, Permissions, UserDir, permission_lines};
+use crate::trust::{PublicKey, Publisher};
 use crate::userdirs::Resolved;
 
 /// An answer the dialog can give.
@@ -20,6 +21,9 @@ pub enum Button {
     Install,
     RunOnce,
     Allow,
+    /// Confirms the confusable-host note, on its own, before Install or Run once is offered
+    /// (ADR 0060, section 7).
+    Confirm,
     Cancel,
 }
 
@@ -29,14 +33,21 @@ impl Button {
             Self::Install => "install",
             Self::RunOnce => "run-once",
             Self::Allow => "allow",
+            Self::Confirm => "confirm",
             Self::Cancel => "cancel",
         }
     }
 
     fn parse(word: &str) -> Option<Self> {
-        [Self::Install, Self::RunOnce, Self::Allow, Self::Cancel]
-            .into_iter()
-            .find(|b| b.word() == word)
+        [
+            Self::Install,
+            Self::RunOnce,
+            Self::Allow,
+            Self::Confirm,
+            Self::Cancel,
+        ]
+        .into_iter()
+        .find(|b| b.word() == word)
     }
 }
 
@@ -81,6 +92,91 @@ impl Request {
                 })
                 .collect(),
         }
+    }
+}
+
+/// Who a signed file says it is: the signed fields the first-install dialog shows, and the URL
+/// `odk-oma` fetched it from, if it fetched it (ADR 0060, section 7). Nothing comes from the
+/// image.
+#[derive(Debug, Clone)]
+pub struct Identity<'a> {
+    pub app_id: &'a Identifier,
+    /// The monotonic version, not the image's semver.
+    pub version: u64,
+    pub root: &'a PublicKey,
+    pub publisher: &'a Publisher,
+    /// `None` for a file opened from disk, which has no download host.
+    pub fetched: Option<&'a str>,
+}
+
+impl Request {
+    /// The first-install dialog for a root that is not pinned for this app id. `also_for` is an
+    /// app id the root is already pinned for, which the dialog names beside this one.
+    pub fn new_root(
+        identity: &Identity<'_>,
+        also_for: Option<&Identifier>,
+        buttons: &[Button],
+    ) -> Self {
+        let (unicode, punycode) = host_forms(identity.publisher);
+        let mut notes = vec![format!(
+            "This pins the publisher key {} for {} {}. The publisher host is {unicode} ({punycode}).",
+            grouped(identity.root),
+            identity.app_id,
+            identity.version
+        )];
+        if let Some(other) = also_for {
+            notes.push(format!(
+                "This publisher key is already pinned for {other}. {} is another application under it.",
+                identity.app_id
+            ));
+        }
+        if let Some(url) = identity.fetched {
+            notes.push(format!("It was fetched from {url}."));
+        }
+        Self::signed(identity, buttons, notes)
+    }
+
+    /// The confusable-host note on its own: Confirm or Cancel, and nothing that installs.
+    pub fn confusable(identity: &Identity<'_>, existing: &Publisher) -> Self {
+        let (unicode, _) = host_forms(identity.publisher);
+        let (existing, _) = host_forms(existing);
+        let notes = vec![format!(
+            "{unicode} looks like {existing}, which is already pinned for a different publisher. Confirm that this is a different publisher before installing."
+        )];
+        Self::signed(identity, &[Button::Confirm, Button::Cancel], notes)
+    }
+
+    fn signed(identity: &Identity<'_>, buttons: &[Button], notes: Vec<String>) -> Self {
+        Self {
+            // The image's name is not read (ADR 0060, section 7): the dialog names the app id.
+            name: identity.app_id.to_string(),
+            identifier: identity.app_id.to_string(),
+            version: identity.version.to_string(),
+            situation: "new",
+            buttons: buttons.iter().map(|b| b.word()).collect(),
+            lines: Vec::new(),
+            notes,
+        }
+    }
+}
+
+/// The fingerprint in groups of eight hex digits.
+fn grouped(root: &PublicKey) -> String {
+    let hex = root.fingerprint().to_string();
+    hex.as_bytes()
+        .chunks(8)
+        .map(|g| std::str::from_utf8(g).expect("hex is ASCII"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The host as a person reads it and as it is signed. A name the IDNA rules refuse is shown
+/// only as signed.
+fn host_forms(publisher: &Publisher) -> (String, String) {
+    let punycode = publisher.to_string();
+    match idna::domain_to_unicode(&punycode) {
+        (unicode, Ok(())) => (unicode, punycode),
+        (_, Err(_)) => (punycode.clone(), punycode),
     }
 }
 
@@ -301,6 +397,67 @@ mod tests {
             ask_with(&dir.path().join("nope"), &req),
             Err(Error::HelperMissing(_))
         ));
+    }
+
+    #[test]
+    fn a_signed_files_dialog_shows_the_host_in_unicode_and_punycode_and_the_key_grouped() {
+        use crate::trust::SigningKey;
+        let app: Identifier = "dev.csfh.notes".parse().unwrap();
+        let root = SigningKey::from_seed(&[1; 32]).unwrap().public_key();
+        let publisher = Publisher::parse("xn--bcher-kva.example").unwrap();
+        let identity = Identity {
+            app_id: &app,
+            version: 12,
+            root: &root,
+            publisher: &publisher,
+            fetched: None,
+        };
+        let r = Request::new_root(
+            &identity,
+            None,
+            &[Button::Install, Button::RunOnce, Button::Cancel],
+        );
+        let fp = root.fingerprint().to_string();
+        assert_eq!(
+            r.notes,
+            [format!(
+                "This pins the publisher key {} {} {} {} {} {} {} {} for dev.csfh.notes 12. The publisher host is b\u{fc}cher.example (xn--bcher-kva.example).",
+                &fp[0..8],
+                &fp[8..16],
+                &fp[16..24],
+                &fp[24..32],
+                &fp[32..40],
+                &fp[40..48],
+                &fp[48..56],
+                &fp[56..64]
+            )]
+        );
+        assert_eq!(
+            (r.name.as_str(), r.identifier.as_str(), r.version.as_str()),
+            ("dev.csfh.notes", "dev.csfh.notes", "12")
+        );
+        assert!(r.lines.is_empty());
+
+        let existing = Publisher::parse("bucher.example").unwrap();
+        let warning = Request::confusable(&identity, &existing);
+        assert_eq!(warning.buttons, ["confirm", "cancel"]);
+        assert_eq!(
+            warning.notes,
+            [
+                "b\u{fc}cher.example looks like bucher.example, which is already pinned for a different publisher. Confirm that this is a different publisher before installing."
+            ]
+        );
+    }
+
+    #[test]
+    fn confirm_is_an_answer_only_where_it_is_offered() {
+        let dir = TempDir::new().unwrap();
+        let helper = script(dir.path(), "cat > /dev/null; echo confirm");
+        assert!(ask_with(&helper, &request(&[Button::Install, Button::Cancel])).is_err());
+        assert_eq!(
+            ask_with(&helper, &request(&[Button::Confirm, Button::Cancel])).unwrap(),
+            Button::Confirm
+        );
     }
 
     #[test]
