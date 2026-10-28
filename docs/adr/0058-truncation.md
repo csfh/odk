@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0070
 ---
 
 # Text truncates by a component's default, and a decoration changes it

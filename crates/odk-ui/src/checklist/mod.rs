@@ -13,6 +13,7 @@ mod button;
 mod checkbox;
 mod command;
 mod content;
+mod data_table;
 mod decoration;
 mod dialog;
 mod form_field;

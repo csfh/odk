@@ -1791,3 +1791,40 @@ fn a_resize_handle_takes_one_border_of_room_and_a_target_of_the_minimum() {
         assert!(c.resize_handle(States::NONE.focused(true)).focus_visible);
     }
 }
+
+// A data table (ADR 0070).
+
+#[test]
+fn a_table_row_is_a_control_high_and_its_selection_survives_the_pointer() {
+    for name in ["tokyo-night", "catppuccin-latte", "vantablack"] {
+        let c = tokens(name);
+        for density in Density::ALL {
+            let t = c.table(density);
+            assert_eq!(
+                t.geometry.height,
+                c.foundation().controls.for_density(density).height,
+                "{name} {density:?}"
+            );
+        }
+        let rest = c.table_row(States::NONE);
+        let selected = c.table_row(States::NONE.selected(true));
+        let hovered = c.table_row(States::NONE.hovered(true));
+        let both = c.table_row(States::NONE.selected(true).hovered(true));
+        assert_ne!(
+            rest.current.background, selected.current.background,
+            "{name}"
+        );
+        assert_ne!(
+            hovered.current.background, selected.current.background,
+            "{name}: a row under the pointer never passes for the selected one"
+        );
+        assert_ne!(
+            both.current.background, hovered.current.background,
+            "{name}"
+        );
+        let header = c.table_header(true, States::NONE);
+        let fixed = c.table_header(false, States::NONE.hovered(true));
+        assert!(header.responds && !fixed.responds, "{name}");
+        assert_eq!(fixed.current, c.table_header(false, States::NONE).current);
+    }
+}

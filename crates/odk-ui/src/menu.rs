@@ -53,6 +53,11 @@ pub struct ContextMenu {
     menu: Option<MenuBuilder>,
     focusable: bool,
     applied: Applied,
+    /// Where the keyboard opens the menu, below this, in place of below the whole trigger: a
+    /// data table's selected row.
+    anchor: Option<Rc<Cell<Option<Bounds<Pixels>>>>>,
+    /// The wrapper fills its parent as a column, for a trigger that fills it: a table's rows.
+    fill: bool,
 }
 
 impl ContextMenu {
@@ -70,7 +75,23 @@ impl ContextMenu {
             menu: None,
             focusable: true,
             applied: Applied::default(),
+            anchor: None,
+            fill: false,
         }
+    }
+
+    /// The wrapper around the trigger fills its parent, as a column, so a trigger that fills it
+    /// (a data table's rows) gets the room.
+    pub(crate) fn fill(mut self) -> Self {
+        self.fill = true;
+        self
+    }
+
+    /// The menu opens below `anchor` from the keyboard, when it holds bounds, rather than below
+    /// the whole trigger.
+    pub(crate) fn keyboard_anchor(mut self, anchor: Rc<Cell<Option<Bounds<Pixels>>>>) -> Self {
+        self.anchor = Some(anchor);
+        self
     }
 
     /// Attaches a size decoration. A menu grows to its longest label up to the window;
@@ -144,7 +165,13 @@ impl RenderOnce for ContextMenu {
         let overlay = surface(&self.id, menu, how, window, cx);
 
         let (mouse_state, key_state) = (state.clone(), state);
-        div()
+        let anchor = self.anchor.clone();
+        let wrapper = if self.fill {
+            div().flex().flex_col().flex_1().size_full().min_h_0()
+        } else {
+            div()
+        };
+        wrapper
             .id(self.id.clone())
             .debug_selector(|| part_name(&self.id, "trigger"))
             .relative()
@@ -160,7 +187,10 @@ impl RenderOnce for ContextMenu {
                 let ks = &event.keystroke;
                 if opens_context_menu(&ks.key, ks.modifiers.shift) {
                     key_state.update(cx, |s, cx| {
-                        let b = s.trigger.get();
+                        let b = anchor
+                            .as_ref()
+                            .and_then(|a| a.get())
+                            .unwrap_or_else(|| s.trigger.get());
                         s.open = true;
                         s.at = point(b.origin.x, b.origin.y + b.size.height);
                         cx.notify();

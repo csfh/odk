@@ -40,6 +40,8 @@ pub struct Content {
     pub long_path: &'static [&'static str],
     /// A resizable group's three panels: each one's title and body.
     pub panels: [(&'static str, &'static str); 3],
+    /// The names a data table's processes take, in turn.
+    pub processes: &'static [&'static str],
     pub alignment: [&'static str; 4],
     pub tabs: &'static [&'static str],
     /// Three periods for a segmented control: day, week and month.
@@ -156,6 +158,9 @@ impl Content {
                     "Active since 09:12. Bluetooth service for the adapter hci0.",
                 ),
                 ("Log", "09:12 Starting Bluetooth service…"),
+            ],
+            processes: &[
+                "hyprland", "waybar", "firefox", "atmosd", "pipewire", "kitty",
             ],
             alignment: ["Left", "Center", "Right", "Justify"],
             tabs: &["General", "Display", "Advanced", "About"],
@@ -319,6 +324,13 @@ impl Content {
                     "サービスは起動していません。ログを確認してください。🔥🔥",
                 ),
                 ("L", "x"),
+            ],
+            processes: &[
+                "x",
+                "Hintergrunddienstverwaltungsprozessüberwachung",
+                "/usr/lib/a/very/long/unbroken/path/to/an/executable/that/never/wraps",
+                "日本語のプロセス名",
+                "🔥🔥🔥",
             ],
             alignment: [
                 "Linksbündig",

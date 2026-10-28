@@ -23,7 +23,8 @@ before any code.
 
 - [x] Drag (ADR 0069): a drag holds the window until the button is released, and every drag has
   keys. `Resizable` is built on it; sliders and scroll bars can follow.
-- [ ] Virtualised lists.
+- [x] Virtualised lists (ADR 0070): rows of one height on GPUI's `uniform_list`. `DataTable` is
+  built on it.
 - [ ] The motion driver of ADR 0059 (accepted 2026-10-27): the steps under "First implementation" in
   `docs/spec/odk-motion.md`, starting with one driver behind today's private calls.
 

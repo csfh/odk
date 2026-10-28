@@ -45,6 +45,11 @@ const fn sample(name: &'static str, instances: usize, build: fn(usize) -> AnyEle
     }
 }
 
+/// How many rows each table sample has, and how tall it is: a table draws only the rows in
+/// view, so a thousand cost what twenty do (ADR 0070). ODK's own.
+const TABLE_ROWS: u32 = 1000;
+const TABLE_HEIGHT: f32 = 240.0;
+
 /// How tall a resizable sample is: a group fills its parent, which gives it a height of its
 /// own here, as a page's region would. ODK's own.
 const RESIZABLE_HEIGHT: f32 = 160.0;
@@ -109,6 +114,43 @@ pub static SAMPLES: &[Sample] = &[
                 .item(MenuItem::new("Remove").danger())
         })
         .into_any_element()
+    }),
+    sample("DataTable", 4, |n| {
+        let rows: Vec<(u32, String, f64)> = (0..TABLE_ROWS)
+            .map(|i| (i, format!("process-{i}"), (i * 37 % 1000) as f64 / 10.0))
+            .collect();
+        div()
+            .h(px(TABLE_HEIGHT))
+            .w_full()
+            .child(
+                DataTable::new(("table", n), "Processes", rows)
+                    .row_key(|r: &(u32, String, f64)| r.0.to_string().into())
+                    .column(
+                        Column::new("name", "Name", |r: &(u32, String, f64)| r.1.clone().into())
+                            .grow(2.0)
+                            .sort_by(|r: &(u32, String, f64)| r.1.clone()),
+                    )
+                    .column(
+                        Column::new("pid", "PID", |r: &(u32, String, f64)| {
+                            r.0.to_string().into()
+                        })
+                        .chars(7)
+                        .align_end()
+                        .sort_by(|r: &(u32, String, f64)| r.0),
+                    )
+                    .column(
+                        Column::new("cpu", "CPU", |r: &(u32, String, f64)| {
+                            format!("{:.1}%", r.2).into()
+                        })
+                        .chars(7)
+                        .align_end()
+                        .sort_by(|r: &(u32, String, f64)| r.2),
+                    )
+                    .default_sort("cpu", SortDirection::Descending)
+                    .row_menu(|_, menu| menu.item(MenuItem::new("End")))
+                    .on_select(|_, _, _| {}),
+            )
+            .into_any_element()
     }),
     Sample {
         instances: 1,

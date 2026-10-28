@@ -56,6 +56,14 @@ pub enum Role {
     Listbox,
     /// One choice in a list.
     Option,
+    /// Rows of data under column headers (WAI-ARIA `table`).
+    Table,
+    /// One row of a table.
+    Row,
+    /// One cell of a row.
+    Cell,
+    /// A column's name at the head of a table, with its sort as its value.
+    ColumnHeader,
 }
 
 /// How a component reports itself to assistive technology.

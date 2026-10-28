@@ -31,7 +31,7 @@ In a window narrower than `layout::NARROW_BELOW` the sidebar narrows and the too
 | Navigation | Navigation (`navigation`) | Tabs, segmented controls, navigation list, breadcrumbs |
 | Feedback | Feedback (`feedback`) | Badges, status indicators, alerts, progress, spinners, skeletons, separators |
 | Overlays | Overlays (`overlays`), Dialogs and sheets (`dialogs`) | Menus, tooltips, popovers, hover cards, command palette, kbd; dialogs, sheets, toasts |
-| Data | Data (`data`) | Resizable panels in a row and a column, and what a resize reports |
+| Data | Data (`data`) | Resizable panels in a row and a column, and what a resize reports; a data table of two hundred processes that sorts, selects, activates and has a menu per row, with its empty and loading states |
 | Foundation | Colors (`colors`) | The theme's source palette, and the semantic colours resolved from it |
 | | Colour resolver (`resolver`) | Why the resolver chose each colour |
 | | Typography, Spacing, Geometry, Motion (`typography`, `spacing`, `geometry`, `motion`) | The foundation tokens, with real components |

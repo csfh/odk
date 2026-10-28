@@ -10,6 +10,7 @@ mod checkbox;
 #[cfg(test)]
 mod checklist;
 mod command;
+mod data_table;
 mod decoration;
 mod dialog;
 #[cfg(test)]
@@ -73,6 +74,7 @@ pub use breadcrumb::Breadcrumb;
 pub use button::{Button, Size};
 pub use checkbox::Checkbox;
 pub use command::{Command, CommandItem};
+pub use data_table::{Column, DataTable, SortDirection, SortKey};
 pub use decoration::{
     Applied, Autosize, Clamp, EndEllipsis, FixedWidth, FlowKind, MiddleEllipsis, SizeMode, Wrap,
 };
@@ -136,13 +138,13 @@ pub mod prelude {
 
     pub use crate::{
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Checkbox,
-        Clamp, Command, CommandItem, ContextMenu, Density, Dialog, DropdownMenu, Emphasis,
-        EndEllipsis, FileChooser, FixedWidth, FormField, Heading, HoverCard, Input, InputGroup,
-        Kbd, Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover,
-        Progress, RadioGroup, Resizable, ResizablePanel, SearchInput, Select, Separator, Sheet,
-        Side, Size, Skeleton, Space, Spinner, StartFolder, Status, StatusIndicator, StyledExt,
-        Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap,
-        content_column, form, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame, toast,
-        truncate_end, truncate_lines, v_flex,
+        Clamp, Column, Command, CommandItem, ContextMenu, DataTable, Density, Dialog, DropdownMenu,
+        Emphasis, EndEllipsis, FileChooser, FixedWidth, FormField, Heading, HoverCard, Input,
+        InputGroup, Kbd, Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput,
+        Popover, Progress, RadioGroup, Resizable, ResizablePanel, SearchInput, Select, Separator,
+        Sheet, Side, Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
+        StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone,
+        Tooltip, WindowConfig, Wrap, content_column, form, h_flex, middle_ellipsis, root, scroll_y,
+        sidebar_frame, toast, truncate_end, truncate_lines, v_flex,
     };
 }
