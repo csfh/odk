@@ -13,7 +13,7 @@
 #
 # With no command it measures target/release/gallery, which is the number to hold the gallery to:
 # the benchmarks (cargo bench) draw on a stand-in for text, this does not. --page sets
-# GALLERY_PAGE, the page the gallery opens on (overview, buttons, fields, selection, form, navigation, feedback, overlays, dialogs, colors, resolver, typography, spacing, geometry, motion, interaction, playground, compare, diagnostics).
+# GALLERY_PAGE, the page the gallery opens on (overview, buttons, fields, selection, form, navigation, feedback, overlays, dialogs, data, colors, resolver, typography, spacing, geometry, motion, interaction, playground, compare, diagnostics).
 #
 # Prints one line, for example:  buttons: 4.6% cpu (0.23 s in 5 s)
 # A window that draws nothing while idle prints about 0%: the sway and the logging that counts it
@@ -26,7 +26,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 if [[ ${1:-} == --all ]]; then
     status=0
     # Page and its ceiling: the pages with a spinner in view when they open get more.
-    for entry in overview:2 buttons:8 fields:8 selection:2 form:2 navigation:2 feedback:2 overlays:2 dialogs:2 colors:2 resolver:2 typography:2 spacing:2 geometry:2 motion:2 interaction:2 playground:2 compare:2 diagnostics:2; do
+    for entry in overview:2 buttons:8 fields:8 selection:2 form:2 navigation:2 feedback:2 overlays:2 dialogs:2 data:2 colors:2 resolver:2 typography:2 spacing:2 geometry:2 motion:2 interaction:2 playground:2 compare:2 diagnostics:2; do
         "$0" --page "${entry%%:*}" --max "${entry##*:}" || status=1
     done
     exit $status

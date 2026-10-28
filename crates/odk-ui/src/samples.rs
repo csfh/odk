@@ -7,7 +7,7 @@
 //! Kept beside the components so that adding a component without a sample fails a test: the
 //! checklist compares [`SAMPLES`] with its own list of components.
 
-use gpui::{AnyElement, App, IntoElement, ParentElement, Styled, Window, div};
+use gpui::{AnyElement, App, IntoElement, ParentElement, Styled, Window, div, px};
 
 use crate::prelude::*;
 use crate::{CommandItem, MenuItem, Toast, toast};
@@ -44,6 +44,10 @@ const fn sample(name: &'static str, instances: usize, build: fn(usize) -> AnyEle
         animated: false,
     }
 }
+
+/// How tall a resizable sample is: a group fills its parent, which gives it a height of its
+/// own here, as a page's region would. ODK's own.
+const RESIZABLE_HEIGHT: f32 = 160.0;
 
 /// Every component, in the checklist's order.
 pub static SAMPLES: &[Sample] = &[
@@ -206,6 +210,32 @@ pub static SAMPLES: &[Sample] = &[
         Progress::new(("progress", n), "Uploading")
             .value(35.0 + (n % 5) as f64 * 10.0)
             .show_value(true)
+            .into_any_element()
+    }),
+    sample("Resizable", 10, |n| {
+        div()
+            .h(px(RESIZABLE_HEIGHT))
+            .w_full()
+            .child(
+                Resizable::horizontal(("resizable", n), "List and detail")
+                    .panel(
+                        ResizablePanel::new()
+                            .default_size(0.35)
+                            .min_size(0.2)
+                            .child(Text::new("Processes")),
+                    )
+                    .panel(
+                        ResizablePanel::new()
+                            .min_size(0.3)
+                            .child(Text::new("Detail")),
+                    )
+                    .panel(
+                        ResizablePanel::new()
+                            .default_size(0.2)
+                            .child(Text::new("Log")),
+                    )
+                    .on_layout(|_, _, _| {}),
+            )
             .into_any_element()
     }),
     sample("RadioGroup", 20, |n| {

@@ -21,8 +21,8 @@ entry in `COMPONENTS` in `crates/odk-ui/src/checklist/source.rs`.
 Components that need drag or virtualisation are blocked until these have ADRs. Write the ADRs
 before any code.
 
-- [ ] Drag: sliders, resizable panels, scroll bars. `Input` drag-selection already settled part
-  of it.
+- [x] Drag (ADR 0069): a drag holds the window until the button is released, and every drag has
+  keys. `Resizable` is built on it; sliders and scroll bars can follow.
 - [ ] Virtualised lists.
 - [ ] The motion driver of ADR 0059 (accepted 2026-10-27): the steps under "First implementation" in
   `docs/spec/odk-motion.md`, starting with one driver behind today's private calls.

@@ -16,6 +16,7 @@ pub mod buttons;
 pub mod colors;
 pub mod compare;
 pub mod content;
+pub mod data;
 mod diagnostics;
 pub mod dialogs;
 pub mod feedback;
@@ -83,6 +84,7 @@ pub struct Gallery {
     feedback: Entity<feedback::FeedbackPage>,
     overlays: Entity<overlays::OverlaysPage>,
     dialogs: Entity<dialogs::DialogsPage>,
+    data: Entity<data::DataPage>,
     colors: Entity<colors::ColorsPage>,
     resolver: Entity<resolver::ResolverPage>,
     typography: Entity<typography::TypographyPage>,
@@ -113,6 +115,7 @@ impl Gallery {
             feedback: cx.new(|cx| feedback::FeedbackPage::new(&settings, cx)),
             overlays: cx.new(|cx| overlays::OverlaysPage::new(&settings, cx)),
             dialogs: cx.new(|cx| dialogs::DialogsPage::new(&settings, cx)),
+            data: cx.new(|cx| data::DataPage::new(&settings, cx)),
             colors: cx.new(|_| colors::ColorsPage),
             resolver: cx.new(|_| resolver::ResolverPage::new()),
             typography: cx.new(|_| typography::TypographyPage),
@@ -266,6 +269,7 @@ impl Gallery {
             Page::Feedback => observe!(self.feedback),
             Page::Overlays => observe!(self.overlays),
             Page::Dialogs => observe!(self.dialogs),
+            Page::Data => observe!(self.data),
             Page::Colors => observe!(self.colors),
             Page::Resolver => observe!(self.resolver),
             Page::Typography => observe!(self.typography),
@@ -291,6 +295,7 @@ impl Gallery {
             Page::Feedback => self.feedback.clone().into(),
             Page::Overlays => self.overlays.clone().into(),
             Page::Dialogs => self.dialogs.clone().into(),
+            Page::Data => self.data.clone().into(),
             Page::Colors => self.colors.clone().into(),
             Page::Resolver => self.resolver.clone().into(),
             Page::Typography => self.typography.clone().into(),

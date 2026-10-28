@@ -92,6 +92,7 @@ Each group belongs to the components named, which are its only consumers. "Text"
 | `skeleton()` | `Skeleton` | the neutral muted fill: decoration, held to no contrast | a line one line of `body` (20) with a bar the text's size (13); `radius.default`; still |
 | `spinner(density)` | `Spinner` | text secondary standing alone; inside a control, the control's foreground | the icon size; one turn per `motion.cycle`; still under reduced motion |
 | `separator()` | `Separator` | `border.subtle`: decoration, never a control's edge | `border_width` thick; `inset` a control's padding at the application's density |
+| `resize_handle(states)` | `Resizable`'s handles (ADR 0069) | `border.subtle` at rest, as a separator; `border.focus` while hovered or dragged, held to `ui_contrast` as a mark; the ring `border.focus` | takes `border_width` of room; drawn `focus_width` thick while active, over the panels; a pointer target `target_min` across, centred, taking no room |
 | `kbd()` | `Kbd` | `surface.sunken`, text primary, `border.default` | one line of `mono` and its borders, padding 4, `radius.small` |
 | `form_field(states)` | `FormField` | label text primary (disabled when the control is), description text secondary, required mark the danger role's text colour, optional mark text tertiary | label `body_strong`, description and message `small`; `field_gap` (6) between label, description, control and message; `form_gap` (16) between fields |
 | `text(secondary)` | `Text` | text primary, or text secondary for `muted()` text | type `body`; no box |

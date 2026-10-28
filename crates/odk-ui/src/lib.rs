@@ -36,6 +36,7 @@ mod placement;
 mod popover;
 mod progress;
 mod radio;
+mod resizable;
 mod reveal;
 #[cfg(any(test, feature = "test-support"))]
 pub mod samples;
@@ -102,6 +103,7 @@ pub use placement::{Align, Placement};
 pub use popover::Popover;
 pub use progress::Progress;
 pub use radio::RadioGroup;
+pub use resizable::{Resizable, ResizablePanel};
 pub use search_input::SearchInput;
 pub use select::Select;
 pub use separator::Separator;
@@ -137,10 +139,10 @@ pub mod prelude {
         Clamp, Command, CommandItem, ContextMenu, Density, Dialog, DropdownMenu, Emphasis,
         EndEllipsis, FileChooser, FixedWidth, FormField, Heading, HoverCard, Input, InputGroup,
         Kbd, Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover,
-        Progress, RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, Space,
-        Spinner, StartFolder, Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea,
-        Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column, form, h_flex,
-        middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end, truncate_lines,
-        v_flex,
+        Progress, RadioGroup, Resizable, ResizablePanel, SearchInput, Select, Separator, Sheet,
+        Side, Size, Skeleton, Space, Spinner, StartFolder, Status, StatusIndicator, StyledExt,
+        Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap,
+        content_column, form, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame, toast,
+        truncate_end, truncate_lines, v_flex,
     };
 }
