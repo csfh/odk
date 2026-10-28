@@ -22,7 +22,7 @@ pub use container::{Header, Prefix};
 pub use envelope::{SelfSigned, check};
 pub use highwater::{Mark, Verdict};
 pub use id::{Fingerprint, KeyId, PublicKey};
-pub use keys::{OmaKeys, ReleaseKey, SetChange, Signer};
+pub use keys::{OmaKeys, ReleaseKey, SetChange, Signer, VerifiedKeys};
 pub use manifest::{Publisher, SignedManifest};
 pub use sealed::Sealed;
 pub use signature::{Context, Signature, SigningKey};

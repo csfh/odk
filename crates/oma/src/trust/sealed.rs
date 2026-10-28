@@ -133,10 +133,13 @@ impl AsFd for Sealed {
     }
 }
 
-/// The path, opened once: `O_NOFOLLOW` so a symlink is refused, `O_NONBLOCK` so a fifo cannot
-/// make the open wait for a writer, and then it must be a regular file.
+/// The path, opened once, then it must be a regular file:
+/// - `O_NOFOLLOW`, so a symlink is refused;
+/// - `O_NONBLOCK`, so a fifo cannot make the open wait for a writer;
+/// - `O_NOCTTY`, so a terminal named as a Bundle never becomes this process's.
 fn open_source(path: &Path) -> Result<File, Error> {
-    let flags = OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC;
+    let flags =
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::NOCTTY | OFlags::CLOEXEC;
     let fd: OwnedFd = match rustix::fs::open(path, flags, Mode::empty()) {
         Ok(fd) => fd,
         Err(rustix::io::Errno::LOOP) => return Err(Error::Symlink),

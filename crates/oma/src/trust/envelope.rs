@@ -19,13 +19,33 @@ use super::{Error, Header, Sealed, SignedManifest};
 /// This is not trust. Nothing here says who that key belongs to: whether the pinned root's
 /// current set authorizes it is for the pin and the key set, which only the consent and install
 /// phases decide.
+///
+/// Only [`check`] makes one: the fields are private.
 #[derive(Debug, Clone)]
 pub struct SelfSigned {
-    pub header: Header,
-    pub manifest: SignedManifest,
+    header: Header,
+    manifest: SignedManifest,
+    manifest_bytes: Vec<u8>,
+    signature: Signature,
+}
+
+impl SelfSigned {
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    pub fn manifest(&self) -> &SignedManifest {
+        &self.manifest
+    }
+
     /// The manifest's canonical bytes, exactly as signed.
-    pub manifest_bytes: Vec<u8>,
-    pub signature: Signature,
+    pub fn manifest_bytes(&self) -> &[u8] {
+        &self.manifest_bytes
+    }
+
+    pub fn signature(&self) -> &Signature {
+        &self.signature
+    }
 }
 
 /// Checks a sealed Bundle file against itself, cheapest check first: the payload is hashed only
@@ -136,9 +156,13 @@ pub(crate) mod tests {
         let payload = vec![7u8; 200_000];
         let file = bundle(&payload, &release_key(), |_| {});
         let checked = check(&sealed(dir.path(), &file)).unwrap();
-        assert_eq!(checked.header.release_key, release_key().public_key());
-        assert_eq!(checked.manifest.app_id.as_str(), "dev.csfh.notes");
-        assert_eq!(checked.header.payload_len, 200_000);
+        assert_eq!(checked.header().release_key, release_key().public_key());
+        assert_eq!(checked.manifest().app_id.as_str(), "dev.csfh.notes");
+        assert_eq!(checked.header().payload_len, 200_000);
+        assert_eq!(
+            checked.manifest_bytes(),
+            checked.manifest().to_canonical().unwrap()
+        );
     }
 
     #[test]

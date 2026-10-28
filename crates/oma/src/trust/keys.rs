@@ -68,8 +68,25 @@ impl SetChange {
     }
 }
 
+/// A set that [`verify`] checked under the root its [`Signer`] named. Only [`verify`] makes one:
+/// a set from [`OmaKeys::parse`] alone is unverified.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedKeys(OmaKeys);
+
+impl VerifiedKeys {
+    pub fn set(&self) -> &OmaKeys {
+        &self.0
+    }
+
+    /// The root that signed it.
+    pub fn root(&self) -> &PublicKey {
+        &self.0.root_public_key
+    }
+}
+
 impl OmaKeys {
-    /// The canonical body, and only that, with every rule of section 3 checked. An empty set,
+    /// Reads a body and checks every rule of section 3, but not its signature: see [`verify`]
+    /// for a set that can be trusted. An empty set,
     /// a duplicate id, an id that is not its key's and a set out of order are each a failed
     /// document, never a set that lists nothing.
     pub fn parse(body: &[u8]) -> Result<Self, Error> {
@@ -186,7 +203,7 @@ impl OmaKeys {
 }
 
 /// A body and its raw 64-byte signature (`oma-keys.sig`), checked under the root `signer` says.
-pub fn verify(body: &[u8], signature: &[u8], signer: Signer<'_>) -> Result<OmaKeys, Error> {
+pub fn verify(body: &[u8], signature: &[u8], signer: Signer<'_>) -> Result<VerifiedKeys, Error> {
     let keys = OmaKeys::parse(body)?;
     let signature = Signature::from_slice(signature)?;
     let root = match signer {
@@ -202,7 +219,7 @@ pub fn verify(body: &[u8], signature: &[u8], signer: Signer<'_>) -> Result<OmaKe
         }
     };
     signature::verify(&root, Context::KEYS, body, &signature)?;
-    Ok(keys)
+    Ok(VerifiedKeys(keys))
 }
 
 fn field(field: &'static str, reason: String) -> Error {
@@ -322,6 +339,27 @@ mod tests {
     }
 
     #[test]
+    fn a_body_in_any_but_the_canonical_form_is_a_failed_document() {
+        let good = body(&set(2));
+        let entry_end = good.find("\"},{").unwrap() + 1;
+        let unknown_in_entry = format!("{},\"extra\":1{}", &good[..entry_end], &good[entry_end..]);
+        for doc in [
+            format!("{good}\n"),
+            format!("{good} "),
+            format!("{good}{{}}"),
+            good.replacen(r#"{"algorithm""#, r#"{"extra":1,"algorithm""#, 1),
+            good.replacen("]}", r#"],"extra":1}"#, 1),
+            unknown_in_entry,
+            good.replacen(r#""keys":["#, r#""keys": ["#, 1),
+            good.replacen(r#","version""#, r#", "version""#, 1),
+            good.replacen("[{", "[ {", 1),
+        ] {
+            assert_ne!(doc, good);
+            assert!(OmaKeys::parse(doc.as_bytes()).is_err(), "{doc}");
+        }
+    }
+
+    #[test]
     fn a_body_over_16_kib_is_not_read() {
         let mut big = body(&set(1)).into_bytes();
         big.resize(MAX_BODY + 1, b' ');
@@ -336,14 +374,11 @@ mod tests {
         let doc = body(&set(2));
         let signed = root().sign(Context::KEYS, doc.as_bytes());
         let pinned = root().public_key();
-        assert_eq!(
-            verify(doc.as_bytes(), &signed.0, Signer::FirstContact).unwrap(),
-            set(2)
-        );
-        assert_eq!(
-            verify(doc.as_bytes(), &signed.0, Signer::Pinned(&pinned)).unwrap(),
-            set(2)
-        );
+        let first = verify(doc.as_bytes(), &signed.0, Signer::FirstContact).unwrap();
+        assert_eq!(first.set(), &set(2));
+        assert_eq!(first.root(), &pinned);
+        let again = verify(doc.as_bytes(), &signed.0, Signer::Pinned(&pinned)).unwrap();
+        assert_eq!(again.set(), &set(2));
 
         let as_manifest = root().sign(Context::MANIFEST, doc.as_bytes());
         assert!(verify(doc.as_bytes(), &as_manifest.0, Signer::FirstContact).is_err());
