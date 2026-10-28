@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0067
 ---
 
 # A Bundle's publisher is the pinned root key, and the file does not run itself
