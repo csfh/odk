@@ -172,12 +172,13 @@ fn skip_as_root() -> bool {
     String::from_utf8_lossy(&id.stdout).trim() == "0"
 }
 
-const FILES: [&str; 7] = [
+const FILES: [&str; 8] = [
     ".local/bin/odk",
     ".local/lib/odk/odk-oma",
     ".local/lib/odk/oma-consent",
     ".local/lib/odk/odkd",
     ".config/systemd/user/odkd.socket",
+    ".config/systemd/user/odkd-files.socket",
     ".config/systemd/user/odkd.service",
     ".local/share/mime/packages/oma.xml",
 ];
@@ -248,7 +249,7 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
             &log[1..],
             [
                 "--user daemon-reload",
-                "--user enable --now odkd.socket",
+                "--user enable --now odkd.socket odkd-files.socket",
                 "--user try-restart odkd.service"
             ],
             "{log:?}"
@@ -595,7 +596,7 @@ fn uninstall_removes_what_was_installed_and_nothing_else() {
     assert!(
         w.log()
             .iter()
-            .any(|l| l == "--user disable --now odkd.socket odkd.service"),
+            .any(|l| l == "--user disable --now odkd.socket odkd-files.socket odkd.service"),
         "{:?}",
         w.log()
     );

@@ -3,10 +3,14 @@
 //! every sandbox, and is private: `/usr/lib/odk/odkd`, or `~/.local/lib/odk/odkd` for one user.
 //! It is started by `odkd.socket` when an application first connects.
 //!
-//! It never reads from a client. It writes one line of JSON on connect and one on every change,
-//! and it waits on watchers and on the compositor's event socket, never on a clock.
+//! It never reads from a client of `odkd.sock`. It writes one line of JSON on connect and one on
+//! every change, and it waits on watchers and on the compositor's event socket, never on a clock.
+//! Beside it, `files.sock` opens the desktop's file chooser for an application and answers with
+//! the paths the user chose (ADR 0068).
 
+mod files;
 mod hub;
+mod portal;
 mod read;
 mod serve;
 
@@ -26,7 +30,7 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let listener = serve::listener(socket_path())?;
+    let listeners = serve::listeners(socket_path())?;
     let sources = read::Sources::from_environment();
     let hub = Arc::new(hub::Hub::default());
 
@@ -53,7 +57,15 @@ fn run() -> Result<(), String> {
 
     let mut state = sources.read();
     hub.publish(state.to_line());
-    serve::accept_in_background(listener, hub.clone());
+    serve::accept_in_background(listeners.host, hub.clone());
+    match listeners.files {
+        Some(files) => files::serve_in_background(
+            files,
+            Arc::new(portal::Portal),
+            files::Folders::from_environment(),
+        ),
+        None => eprintln!("odkd: no file chooser: there is nowhere to make its socket"),
+    }
 
     // The watchers live as long as this loop does.
     let _watchers = (theme_watcher, compositor_watcher);

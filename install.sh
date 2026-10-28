@@ -16,7 +16,7 @@
 #
 # Where things go:  ~/.local/bin/odk
 #                   ~/.local/lib/odk/{odk-oma,oma-consent,odkd}
-#                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd.service}
+#                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd-files.socket,odkd.service}
 #                   ${XDG_DATA_HOME:-~/.local/share}/mime/packages/oma.xml
 #
 # Running it again upgrades. `ODK_BASE_URL` names another place to download from, for tests.
@@ -79,10 +79,11 @@ path_note() {
 # --- uninstall ----------------------------------------------------------------------------
 if [ "$action" = uninstall ]; then
     if have_user_manager; then
-        systemctl --user disable --now odkd.socket odkd.service >/dev/null 2>&1 || true
+        systemctl --user disable --now odkd.socket odkd-files.socket odkd.service >/dev/null 2>&1 || true
     fi
     for file in "$bin/odk" "$lib/odk-oma" "$lib/oma-consent" "$lib/odkd" \
-        "$units/odkd.socket" "$units/odkd.service" "$mime/packages/oma.xml"; do
+        "$units/odkd.socket" "$units/odkd-files.socket" "$units/odkd.service" \
+        "$mime/packages/oma.xml"; do
         if [ -e "$file" ]; then
             rm -f "$file"
             say "removed $file"
@@ -176,6 +177,12 @@ put 755 "$src/lib/odk/odk-oma" "$lib/odk-oma"
 put 755 "$src/lib/odk/oma-consent" "$lib/oma-consent"
 put 755 "$src/lib/odk/odkd" "$lib/odkd"
 put 644 "$src/share/systemd/user/odkd.socket" "$units/odkd.socket"
+# The file chooser's socket (ADR 0068); a release before it has none, and odkd makes its own.
+sockets=odkd.socket
+if [ -f "$src/share/systemd/user/odkd-files.socket" ] && [ ! -L "$src/share/systemd/user/odkd-files.socket" ]; then
+    put 644 "$src/share/systemd/user/odkd-files.socket" "$units/odkd-files.socket"
+    sockets="odkd.socket odkd-files.socket"
+fi
 put 644 "$src/share/systemd/user/odkd.service" "$units/odkd.service"
 put 644 "$src/share/mime/packages/oma.xml" "$mime/packages/oma.xml"
 refresh_types
@@ -183,20 +190,21 @@ refresh_types
 # --- start --------------------------------------------------------------------------------
 if have_user_manager; then
     systemctl --user daemon-reload
-    systemctl --user enable --now odkd.socket
+    # $sockets is one or two unit names, split on purpose.
+    systemctl --user enable --now $sockets
     # An upgrade runs the new program; a service that is not running stays off until asked.
     systemctl --user try-restart odkd.service
     started=yes
 else
     started=no
     say "note: there is no systemd user session here, so odkd was not started;"
-    say "      log in to a session and run: systemctl --user enable --now odkd.socket"
+    say "      log in to a session and run: systemctl --user enable --now $sockets"
 fi
 
 path_note
 say "installed odk $version"
 say "  command:  $bin/odk"
 say "  private:  $lib/ (odk-oma, oma-consent, odkd)"
-say "  units:    $units/ (odkd.socket, odkd.service); started: $started"
+say "  units:    $units/ ($sockets, odkd.service); started: $started"
 say "  type:     $mime/packages/oma.xml (a .oma file opens as a disk image)"
 say "  remove:   sh install.sh --uninstall"

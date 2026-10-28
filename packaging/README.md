@@ -9,11 +9,13 @@ from the repository except `tools/package-release`.
 |---|---|
 | `~/.local/bin/odk` | the `odk` program (`crates/odk-cli`) |
 | `~/.local/lib/odk/odk-oma`, `oma-consent`, `odkd` | the programs behind it |
-| `~/.config/systemd/user/odkd.socket`, `odkd.service` | `systemd/user/` |
+| `~/.config/systemd/user/odkd.socket`, `odkd-files.socket`, `odkd.service` | `systemd/user/` |
 | `~/.local/share/mime/packages/oma.xml` | `mime/oma.xml` |
 
-It then enables `odkd.socket` for the user's session; the first connection starts `odkd`, and an
-upgrade restarts a running one. It runs `update-mime-database` on the user's MIME directory, so a
+It then enables `odkd.socket` and `odkd-files.socket` for the user's session; the first
+connection to either starts `odkd`, which tells the two apart by their names (`host` and
+`files`, ADR 0068), and an upgrade restarts a running one. A release from before the file
+chooser has no `odkd-files.socket`, and the script then enables `odkd.socket` alone. It runs `update-mime-database` on the user's MIME directory, so a
 file manager knows a `.oma` file as a kind of disk image (ADR 0065). The units follow
 `XDG_CONFIG_HOME` and the type follows `XDG_DATA_HOME`. `odkd.service` names the program with `%h`, so the units hold
 no user name. `sh install.sh --uninstall` removes exactly these files.

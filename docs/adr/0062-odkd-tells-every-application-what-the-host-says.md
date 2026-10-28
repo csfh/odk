@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0068
 ---
 
 # `odkd` tells every application what the host says

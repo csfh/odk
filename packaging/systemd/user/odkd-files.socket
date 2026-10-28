@@ -1,0 +1,12 @@
+[Unit]
+Description=ODK file chooser socket (ADR 0068)
+
+[Socket]
+ListenStream=%t/odk/files.sock
+SocketMode=0600
+DirectoryMode=0700
+FileDescriptorName=files
+Service=odkd.service
+
+[Install]
+WantedBy=sockets.target

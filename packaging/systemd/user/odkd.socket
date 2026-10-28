@@ -5,6 +5,7 @@ Description=ODK host settings socket (ADR 0062)
 ListenStream=%t/odk/odkd.sock
 SocketMode=0600
 DirectoryMode=0700
+FileDescriptorName=host
 
 [Install]
 WantedBy=sockets.target
