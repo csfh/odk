@@ -21,6 +21,7 @@ mod files;
 mod focus;
 mod form_field;
 mod hover_card;
+mod image;
 mod input;
 mod input_group;
 mod interaction;
@@ -85,6 +86,7 @@ pub use files::{FileChooser, FileChooserError, StartFolder};
 pub use focus::{FocusNext, FocusPrevious, focused_component};
 pub use form_field::{FieldControl, Fielded, FormField, form};
 pub use hover_card::HoverCard;
+pub use image::{Image, ImageFit};
 pub use input::Input;
 pub use input_group::InputGroup;
 pub use kbd::Kbd;
@@ -142,12 +144,12 @@ pub mod prelude {
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Chart,
         ChartPath, Checkbox, Clamp, Column, Command, CommandItem, ContextMenu, DataTable, Density,
         Dialog, DropdownMenu, Emphasis, EndEllipsis, FileChooser, FixedWidth, FormField, Heading,
-        HoverCard, Ink, Input, InputGroup, Kbd, Menu, MenuItem, MiddleEllipsis, NavList,
-        NumberInput, PasswordInput, Popover, Progress, RadioGroup, Resizable, ResizablePanel,
-        Scene, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, SortDirection, SortKey,
-        Space, Spinner, StartFolder, Status, StatusIndicator, StrokeWidth, StyledExt, Switch, Tabs,
-        Text, TextAnchor, TextBaseline, Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig,
-        Wrap, content_column, form, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame, toast,
-        truncate_end, truncate_lines, v_flex,
+        HoverCard, Image, ImageFit, Ink, Input, InputGroup, Kbd, Menu, MenuItem, MiddleEllipsis,
+        NavList, NumberInput, PasswordInput, Popover, Progress, RadioGroup, Resizable,
+        ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton,
+        SortDirection, SortKey, Space, Spinner, StartFolder, Status, StatusIndicator, StrokeWidth,
+        StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline, Textarea, Toast, ToggleGroup,
+        Tone, Tooltip, WindowConfig, Wrap, content_column, form, h_flex, middle_ellipsis, root,
+        scroll_y, sidebar_frame, toast, truncate_end, truncate_lines, v_flex,
     };
 }

@@ -3,7 +3,8 @@
 //! (ADR 0069), and what it reports when a resize ends; a data table of a few hundred processes
 //! that draws only the rows in view (ADR 0070), sorts, selects and has a menu per row; and
 //! charts drawn on ODK's canvas in named inks (ADR 0071): series that move between samples, a
-//! heat grid, a donut with labels, and a view that pans and zooms.
+//! heat grid, a donut with labels, and a view that pans and zooms; and images drawn from bytes
+//! (ADR 0072): an avatar, a preview cropped and shown whole, one still waiting and one broken.
 
 use std::f32::consts::TAU;
 use std::rc::Rc;
@@ -142,6 +143,8 @@ pub fn section(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div
         .child(table(g, c, cx))
         .child(group("Charts"))
         .child(charts(g, cx))
+        .child(group("Images"))
+        .child(images())
 }
 
 /// A panel's content: a title over a paragraph, which wraps and is cut at the panel's edge.
@@ -506,4 +509,49 @@ fn charts(g: &mut DataPage, cx: &mut Context<DataPage>) -> Div {
             "Drag, Shift and the wheel, or the arrow keys pan; the wheel or + and - zoom; Enter presses the middle. Pressed {pressed}."
         )))
         .child(chart_box(view))
+}
+
+/// Two pictures made for the gallery: a landscape and a portrait.
+const LANDSCAPE: &[u8] = include_bytes!("../assets/landscape.png");
+const PORTRAIT: &[u8] = include_bytes!("../assets/portrait.png");
+
+/// How large each image's box is here.
+const PREVIEW: (f32, f32) = (240.0, 135.0);
+
+fn images() -> Div {
+    let preview = |name: &'static str, image: Image| {
+        v_flex()
+            .gap(Space::Xs)
+            .child(v_flex().w(px(PREVIEW.0)).h(px(PREVIEW.1)).child(image))
+            .child(caption(name))
+    };
+    v_flex()
+        .gap(Space::Sm)
+        .child(caption(
+            "Drawn from bytes the application holds, never from a path, so a sandboxed window shows what its daemon read. An avatar is a circle the foundation's s12 across.",
+        ))
+        .child(
+            h_flex()
+                .gap(Space::Lg)
+                .items_start()
+                .child(Image::avatar("data-avatar", "Your avatar").source(PORTRAIT.to_vec()))
+                .child(preview(
+                    "Cropped to fill",
+                    Image::new("data-cover", "Current background").source(LANDSCAPE.to_vec()),
+                ))
+                .child(preview(
+                    "Shown whole",
+                    Image::new("data-contain", "Current background")
+                        .fit(ImageFit::Contain)
+                        .source(PORTRAIT.to_vec()),
+                ))
+                .child(preview(
+                    "Waiting for its bytes",
+                    Image::new("data-waiting", "Current background"),
+                ))
+                .child(preview(
+                    "Bytes that are not an image",
+                    Image::new("data-broken", "Current background").source(b"not an image".to_vec()),
+                )),
+        )
 }

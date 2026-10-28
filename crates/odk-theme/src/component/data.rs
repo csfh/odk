@@ -1,5 +1,5 @@
-//! Data and layout: a resizable group's handle (ADR 0069), a data table (ADR 0070) and a
-//! chart's inks (ADR 0071).
+//! Data and layout: a resizable group's handle (ADR 0069), a data table (ADR 0070), a chart's
+//! inks (ADR 0071) and an image (ADR 0072).
 
 use super::catalogue::{Entry, Measure, Summary, Template};
 use super::geometry::{self, ControlGeometry, FocusRing, Shape};
@@ -255,6 +255,43 @@ const HEAT: [C; HEAT_STEPS] = [
     C::Focus(Role::Accent),
 ];
 
+/// An image (`Image`, ADR 0072): the application's corners, an avatar's size and shape, and the
+/// placeholder it draws before its bytes arrive or when they are not an image.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ImageStyle {
+    pub radius: f32,
+    /// An avatar's width and height: the foundation's `s12`, which grows with the text size.
+    pub avatar: f32,
+    pub avatar_shape: Shape,
+    /// A skeleton's quiet fill.
+    pub placeholder: Color,
+    /// The mark on a placeholder for bytes that are not an image: tertiary text.
+    pub mark: Color,
+    pub type_role: TypeRole,
+}
+
+impl ComponentTokens {
+    pub fn image(&self) -> ImageStyle {
+        let f = &self.foundation;
+        ImageStyle {
+            radius: f.geometry.radius.default,
+            avatar: f.spacing.s12,
+            avatar_shape: Shape::Circle,
+            placeholder: self.colour(IMAGE_PLACEHOLDER),
+            mark: self.colour(C::Text(T::Tertiary)),
+            type_role: TypeRole::Small,
+        }
+    }
+}
+
+/// An image's placeholder: the skeleton's fill, the neutral muted tint.
+const IMAGE_PLACEHOLDER: C = C::Treatment(
+    Role::Neutral,
+    Emphasis::Muted,
+    State::Default,
+    Part::Background,
+);
+
 pub(super) fn catalogue(out: &mut Vec<Entry>) {
     let t = Template::new("resize handle", "", |f, _| Summary {
         height: Some(f.geometry.border_width),
@@ -352,4 +389,18 @@ pub(super) fn catalogue(out: &mut Vec<Entry>) {
         let state: &'static str = ["heat 0", "heat 1", "heat 2", "heat 3", "heat 4"][n];
         text.entry(out, state, &[], TreatmentRef::new(*heat, C::None, C::None));
     }
+    let image = Template::new("image", "", |f, _| Summary {
+        height: None,
+        shape: Shape::Rect {
+            radius: f.geometry.radius.default,
+        },
+        type_role: Some(TypeRole::Small),
+    })
+    .fixed_size();
+    image.entry(
+        out,
+        "placeholder",
+        &[Measure::Text],
+        TreatmentRef::new(IMAGE_PLACEHOLDER, C::Text(T::Tertiary), C::None),
+    );
 }

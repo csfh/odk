@@ -20,6 +20,7 @@ mod dialog;
 mod form_field;
 mod forms;
 mod hover_card;
+mod image;
 mod input;
 mod input_group;
 mod interaction;
