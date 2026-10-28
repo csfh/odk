@@ -27,9 +27,9 @@ impl Render for Hello {
 
 fn main() {
     odk::ui::run(|cx| {
-        odk::ui::open_window(cx, WindowOptions::default(), |_, cx| {
-            cx.new(|_| Hello { clicks: 0 })
-        })
-        .unwrap();
+        let window = WindowConfig::new("com.example.hello")
+            .title("Hello")
+            .size(360.0, 240.0);
+        odk::ui::open_window(cx, window, |_, cx| cx.new(|_| Hello { clicks: 0 })).unwrap();
     });
 }

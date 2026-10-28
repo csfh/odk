@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use gpui::{
     AnyView, App, AppContext, Application, Context, Entity, Global, IntoElement, KeyBinding,
-    ParentElement, Render, Styled, Window, WindowHandle, WindowId, WindowOptions,
+    ParentElement, Render, Styled, Window, WindowHandle, WindowId,
 };
 use odk_theme::ThemeManager;
 use odk_theme::foundation::FontFamily;
@@ -12,6 +12,7 @@ use crate::layout::v_flex;
 use crate::overlay::RaisedHost;
 use crate::theme::{self, colour};
 use crate::toast::ToastHost;
+use crate::window::IntoWindowOptions;
 
 /// Starts the application: loads Omarchy's current theme, follows it as it changes, runs
 /// `start` to open the windows, and quits when the last window closes.
@@ -73,11 +74,15 @@ fn with_active_window(cx: &mut App, f: impl FnOnce(&mut Window) + 'static) {
 /// a modal (ADR 0039). Open every window with this, not with GPUI's `open_window`, which is the
 /// raw escape hatch: such a window has none of that, and a toast or a popover inside a dialog
 /// asked of it panics, saying so. Start the view with [`crate::root`].
+///
+/// `options` is a [`crate::WindowConfig`] (the application's id, title and sizes), or GPUI's
+/// `WindowOptions` for what a config does not cover.
 pub fn open_window<V: Render + 'static>(
     cx: &mut App,
-    options: WindowOptions,
+    options: impl IntoWindowOptions,
     build: impl FnOnce(&mut Window, &mut App) -> Entity<V>,
 ) -> gpui::Result<WindowHandle<Shell>> {
+    let options = options.into_window_options(cx);
     cx.open_window(options, |window, cx| {
         // Before the view is built, which may already raise a toast.
         register(window, cx);

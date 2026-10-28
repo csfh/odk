@@ -59,6 +59,7 @@ mod toggle;
 mod toggle_group;
 mod tone;
 mod tooltip;
+mod window;
 
 /// The pinned GPUI itself, for code the components do not cover (ADR 0004).
 pub use gpui;
@@ -121,6 +122,7 @@ pub use toast::{
 pub use toggle_group::ToggleGroup;
 pub use tone::Tone;
 pub use tooltip::Tooltip;
+pub use window::{IntoWindowOptions, WindowConfig};
 
 /// Everything a view usually needs: GPUI's own prelude, a few core GPUI types, and ODK's
 /// components.
@@ -135,7 +137,7 @@ pub mod prelude {
         MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
         RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, Space, Spinner,
         Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone,
-        Tooltip, Wrap, content_column, form, h_flex, middle_ellipsis, root, scroll_y,
+        Tooltip, WindowConfig, Wrap, content_column, form, h_flex, middle_ellipsis, root, scroll_y,
         sidebar_frame, toast, truncate_end, truncate_lines, v_flex,
     };
 }

@@ -25,12 +25,12 @@ Everything an application did not set itself. A theme that the user switches to 
 
 ```rust,ignore
 odk::ui::run(|cx| {
-    odk::ui::open_window(cx, WindowOptions::default(), |_, cx| cx.new(|_| MyApp))
-        .unwrap();
+    let window = WindowConfig::new("dev.example.app").title("My app").size(960.0, 680.0);
+    odk::ui::open_window(cx, window, |_, cx| cx.new(|_| MyApp)).unwrap();
 });
 ```
 
-Open windows with `odk::ui::open_window`, not GPUI's: it draws the `Shell` that hosts overlays, toasts and the text size.
+Open windows with `odk::ui::open_window`, not GPUI's: it draws the `Shell` that hosts overlays, toasts and the text size. A `WindowConfig` gives the window its application id, title, the size it opens at (at the 12 px text size, grown with the user's) and the smallest it can be made; GPUI's `WindowOptions` is still accepted for anything else.
 
 ## Density, corners and motion
 

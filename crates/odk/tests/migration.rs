@@ -13,7 +13,10 @@ use odk::ui::{Density, Emphasis};
 #[allow(dead_code)]
 fn starting() {
     odk::ui::run(|cx| {
-        odk::ui::open_window(cx, WindowOptions::default(), |_, cx| cx.new(|_| Empty)).unwrap();
+        let window = WindowConfig::new("dev.example.app")
+            .title("My app")
+            .size(960.0, 680.0);
+        odk::ui::open_window(cx, window, |_, cx| cx.new(|_| Empty)).unwrap();
     });
 }
 
