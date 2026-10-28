@@ -75,6 +75,61 @@ fn they_draw_their_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
     assert_ne!(dark, light, "a theme change recolours the text");
 }
 
+/// Items 2, 34: monospace text is the same text in the `mono` role, in the colour of its kind.
+#[gpui::test]
+fn mono_text_draws_the_mono_role_in_the_colour_of_its_kind(cx: &mut TestAppContext) {
+    use odk_theme::foundation::TypeRole;
+    let cx = open(cx, |_, _| {
+        v_flex()
+            .child(Text::new("plain"))
+            .child(Text::new("code").mono())
+            .child(Text::new("quiet").muted())
+            .child(Text::new("quiet code").muted().mono())
+    });
+    redraw(cx);
+    let c = crate::components();
+    assert_eq!(drawn::last("code"), c.text_mono(false));
+    assert_eq!(drawn::last("quiet code"), c.text_mono(true));
+    assert_eq!(drawn::last("code").role, TypeRole::Mono);
+    assert_eq!(drawn::last("plain").role, TypeRole::Body);
+    assert_eq!(drawn::last("code").colour, drawn::last("plain").colour);
+    assert_eq!(
+        drawn::last("quiet code").colour,
+        drawn::last("quiet").colour
+    );
+}
+
+/// Items 2, 34: a text that stays on one line is as tall as one line of its role however long it
+/// is and however narrow its parent, where the same text wraps; and it does not push a sibling
+/// out of a row.
+#[gpui::test]
+fn single_line_text_keeps_one_line_where_plain_text_wraps(cx: &mut TestAppContext) {
+    fn line(name: &'static str, child: impl IntoElement) -> gpui::Div {
+        div().debug_selector(move || name.into()).child(child)
+    }
+    let long = "/usr/lib/some/very/long/path/to/a/program --with --many --arguments --and more";
+    let cx = open(cx, move |_, _| {
+        v_flex()
+            .w(px(160.0))
+            .child(line("wraps", Text::new(long)))
+            .child(line("one", Text::new(long).single_line()))
+            .child(line("one-mono", Text::new(long).mono().single_line()))
+            .child(line("wraps-mono", Text::new(long).mono()))
+    });
+    let mut height = |part: &str| {
+        let part: &'static str = Box::leak(part.to_owned().into_boxed_str());
+        f32::from(cx.debug_bounds(part).unwrap().size.height)
+    };
+    assert_eq!(height("one"), 20.0, "one body line");
+    assert_eq!(height("one-mono"), 18.0, "one mono line");
+    assert!(
+        height("wraps") > 20.0,
+        "the same text wraps: {}",
+        height("wraps")
+    );
+    assert!(height("wraps-mono") > 18.0);
+}
+
 /// Items 2, 34: each draws its type role, seen in its line's height: body text 20, a level-1
 /// heading 30, level 2 26, and level 3 and below 22, the subtitle's.
 #[gpui::test]

@@ -1,6 +1,6 @@
 [package]
 name = "odk"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -9,10 +9,13 @@ description = "The Omarchy Development Kit: the one crate applications depend on
 [features]
 # `odk::ui::test_support`, for benchmarks and tests of programs built on ODK. Not for applications.
 test-support = ["odk-ui/test-support"]
+# `odk::db` (ADR 0049). Off by default, so an application that does not keep a database does not
+# build the bundled SQLite.
+db = ["dep:odk-db"]
 
 [dependencies]
 deps.workspace = true
 odk-a11y.workspace = true
-odk-db.workspace = true
+odk-db = { workspace = true, optional = true }
 odk-theme.workspace = true
 odk-ui.workspace = true

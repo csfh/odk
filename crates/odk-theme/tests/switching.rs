@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use odk_theme::semantic::{ResolveError, ResolveOptions, Strategy, resolve};
 use odk_theme::{
-    Error, Fallback, Hyprland, Mode, Palette, Reload, ThemeManager, ThemeSnapshot, ThemeSource,
-    foundation,
+    Error, Fallback, Host, HostState, Mode, Palette, Reload, ThemeManager, ThemeSnapshot,
+    ThemeSource, foundation,
 };
 
 fn fixture(name: &str) -> String {
@@ -327,47 +327,6 @@ fn switching_themes_changes_no_size_or_duration() {
     assert_eq!(f.geometry.border_width, 1.0);
 }
 
-/// The text size alone reaches the sizes (ADR 0043): the user's own file over the theme's, a
-/// change to it alone is a change that is published, and neither a border nor a duration moves.
-#[test]
-fn the_text_size_is_followed_and_nothing_else_moves() {
-    let c = Current::new();
-    let user = c.current.join("user-shell.toml");
-    let mut m = ThemeManager::new(c.source()).with_user_shell(user.clone());
-    c.switch("tokyo-night", &fixture("tokyo-night"));
-    let plain = changed(m.reload());
-    assert_eq!(plain.text.base_size(), 12.0);
-
-    // The theme's own size.
-    fs::write(
-        c.current.join("theme/shell.toml"),
-        "[font]\nbase-size = 15\n",
-    )
-    .unwrap();
-    let themed = changed(m.reload());
-    assert_eq!(themed.text.base_size(), 15.0);
-
-    // The user's wins, and its arrival alone is a change.
-    fs::write(&user, "[font]\nbase-size = 18\n").unwrap();
-    let mine = changed(m.reload());
-    assert_eq!(mine.text.base_size(), 18.0);
-    let config = foundation::FoundationConfig::default();
-    let (at_12, at_18) = (
-        foundation::FoundationTokens::scaled(&config, plain.text),
-        foundation::FoundationTokens::scaled(&config, mine.text),
-    );
-    assert_eq!((at_12.spacing.s3, at_18.spacing.s3), (12.0, 18.0));
-    assert_eq!(at_12.geometry, at_18.geometry);
-    assert_eq!(at_12.motion, at_18.motion);
-    assert_eq!(mine.palette, plain.palette);
-    assert!(matches!(m.reload(), Reload::Unchanged));
-
-    // Taking it away goes back to the theme's, and a file that is not TOML never fails a reload.
-    fs::write(&user, "[font").unwrap();
-    assert_eq!(changed(m.reload()).text.base_size(), 15.0);
-    assert!(m.diagnostics().to_string().contains("text size 15 px"));
-}
-
 fn options(change: impl FnOnce(&mut ResolveOptions)) -> ResolveOptions {
     let mut options = ResolveOptions::default();
     change(&mut options);
@@ -561,140 +520,199 @@ fn reloading_the_same_content_gives_the_same_colours() {
     assert_eq!(a.resolution, b.resolution);
 }
 
-/// A compositor of the test's own: `hypr/test/.socket.sock` in a private runtime directory,
-/// answering every question with whatever `animated` says now. The machine's compositor is never
-/// asked.
-struct Compositor {
-    _runtime: tempfile::TempDir,
-    hyprland: Hyprland,
-    animated: Arc<std::sync::atomic::AtomicBool>,
+/// An `odkd` of the test's own: a socket in a private directory that says what the test tells
+/// it. The machine's own `odkd` is never asked.
+struct FakeHost {
+    _dir: tempfile::TempDir,
+    path: PathBuf,
+    stream: Arc<std::sync::Mutex<Option<std::os::unix::net::UnixStream>>>,
 }
 
-impl Compositor {
-    fn new(animated: bool) -> Self {
-        let runtime = tempfile::tempdir().unwrap();
-        let flag = Self::serve_in(runtime.path(), "test", animated);
+impl FakeHost {
+    /// Says `first` to whoever connects first.
+    fn new(first: &HostState) -> Self {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("odkd.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        let stream = Arc::new(std::sync::Mutex::new(None));
+        let (kept, line) = (stream.clone(), first.to_line());
+        std::thread::spawn(move || {
+            if let Ok((mut accepted, _)) = listener.accept() {
+                let _ = writeln!(accepted, "{line}");
+                *kept.lock().unwrap() = Some(accepted);
+            }
+        });
         Self {
-            hyprland: Hyprland::at(runtime.path(), Some("test".into())),
-            _runtime: runtime,
-            animated: flag,
+            _dir: dir,
+            path,
+            stream,
         }
     }
 
-    /// A compositor of instance `signature` under `runtime`, answering with what the flag it
-    /// returns says now.
-    fn serve_in(
-        runtime: &Path,
-        signature: &str,
-        animated: bool,
-    ) -> Arc<std::sync::atomic::AtomicBool> {
-        use std::io::{Read, Write};
-        use std::os::unix::net::UnixListener;
-        use std::sync::atomic::{AtomicBool, Ordering};
-        let dir = runtime.join("hypr").join(signature);
-        fs::create_dir_all(&dir).unwrap();
-        let listener = UnixListener::bind(dir.join(".socket.sock")).unwrap();
-        let animated = Arc::new(AtomicBool::new(animated));
-        let now = animated.clone();
-        std::thread::spawn(move || {
-            for stream in listener.incoming().flatten() {
-                let mut stream = stream;
-                let mut question = [0u8; 128];
-                let _ = stream.read(&mut question);
-                let reply = format!(
-                    "{{\"option\": \"animations:enabled\", \"bool\": {}, \"set\": true }}",
-                    now.load(Ordering::SeqCst)
-                );
-                let _ = stream.write_all(reply.as_bytes());
-            }
-        });
-        animated
+    fn host(&self) -> Host {
+        Host::connect(&self.path, std::time::Duration::from_secs(10)).unwrap()
     }
 
-    fn animate(&self, on: bool) {
-        self.animated.store(on, std::sync::atomic::Ordering::SeqCst);
+    fn say(&self, state: &HostState) {
+        use std::io::Write;
+        let mut stream = self.stream.lock().unwrap();
+        writeln!(stream.as_mut().unwrap(), "{}", state.to_line()).unwrap();
     }
 }
 
-/// ADR 0048: the compositor's animation setting is the user's request for reduced motion, it
-/// outranks the key in the user's `shell.toml` while it answers, and the key counts when it does
-/// not.
+/// Waits until the manager's host has taken `state`.
+fn heard(m: &ThemeManager, state: &HostState) {
+    let start = std::time::Instant::now();
+    while m.host().and_then(Host::state).as_ref() != Some(state) {
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(10),
+            "not heard"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+fn said(colors: Option<&str>) -> HostState {
+    HostState {
+        colors: colors.map(|text| {
+            let table: toml::Table = text.parse().unwrap();
+            table
+                .into_iter()
+                .filter_map(|(k, v)| Some((k, v.as_str()?.to_owned())))
+                .collect()
+        }),
+        ..HostState::default()
+    }
+}
+
+/// ADR 0062: a manager that follows the host takes its whole theme from what `odkd` says, reads
+/// no file, and takes a change as it takes a reload.
 #[test]
-fn the_compositors_animations_are_the_users_request_for_reduced_motion() {
+fn a_manager_that_follows_the_host_takes_the_palette_from_it() {
+    let fake = FakeHost::new(&said(Some(&fixture("nord"))));
+    let mut m = ThemeManager::from_host(Some(fake.host()));
+    let nord = changed(m.reload());
+    assert_eq!(
+        nord.palette,
+        Palette::parse(&fixture("nord")).unwrap().into()
+    );
+    assert!(m.source().is_none());
+    assert!(matches!(m.reload(), Reload::Unchanged));
+
+    let tokyo = said(Some(&fixture("tokyo-night")));
+    fake.say(&tokyo);
+    heard(&m, &tokyo);
+    let next = changed(m.reload());
+    assert_eq!(
+        next.palette,
+        Palette::parse(&fixture("tokyo-night")).unwrap().into()
+    );
+    assert_eq!(next.generation, nord.generation + 1);
+}
+
+#[test]
+fn with_no_host_or_a_host_with_no_colours_the_emergency_palette_is_drawn_and_says_why() {
+    let mut alone = ThemeManager::from_host(None);
+    assert!(matches!(&*failed(alone.reload()), Error::NoHost));
+    assert_eq!(alone.diagnostics().fallback, Some(Fallback::Emergency));
+
+    let fake = FakeHost::new(&said(None));
+    let mut m = ThemeManager::from_host(Some(fake.host()));
+    assert!(matches!(&*failed(m.reload()), Error::HostWithoutColors));
+    assert!(m.snapshot().emergency);
+
+    // It keeps the last theme that loaded when a later line has none (ADR 0041).
+    let good = said(Some(&fixture("nord")));
+    fake.say(&good);
+    heard(&m, &good);
+    let loaded = changed(m.reload());
+    let empty = said(None);
+    fake.say(&empty);
+    heard(&m, &empty);
+    failed(m.reload());
+    assert!(Arc::ptr_eq(&m.snapshot(), &loaded));
+    assert_eq!(m.diagnostics().fallback, Some(Fallback::LastGood));
+}
+
+/// ADR 0048: what the host says about animations is the user's request for reduced motion, and
+/// when it says nothing, or there is no host, the user has not asked.
+#[test]
+fn the_hosts_word_on_motion_is_the_users_request_for_reduced_motion() {
     let c = Current::new();
     c.switch("nord", &fixture("nord"));
-    let user = c.current.join("user-shell.toml");
-    let compositor = Compositor::new(true);
-    let mut m = ThemeManager::new(c.source())
-        .with_user_shell(user.clone())
-        .with_compositor(compositor.hyprland.clone());
+    let mut state = HostState {
+        reduced_motion: Some(false),
+        ..HostState::default()
+    };
+    let fake = FakeHost::new(&state);
+    let mut m = ThemeManager::new(c.source()).with_host(Some(fake.host()));
     let first = changed(m.reload());
     assert!(!first.reduced_motion, "animations on: no request");
     assert_eq!(m.diagnostics().compositor_animations, Some(true));
 
-    // Animations turned off: a change, and the request, with the theme as it was.
-    compositor.animate(false);
+    state.reduced_motion = Some(true);
+    fake.say(&state);
+    heard(&m, &state);
     let off = changed(m.reload());
     assert!(off.reduced_motion);
-    assert_eq!(off.semantic, first.semantic);
+    assert_eq!(off.semantic, first.semantic, "the theme as it was");
     assert_eq!(m.diagnostics().compositor_animations, Some(false));
     assert!(
         matches!(m.reload(), Reload::Unchanged),
         "same answer, no change"
     );
 
-    // The user's key does not turn it off while the compositor says animations are on, and
-    // does not turn it on when it says they are off.
-    fs::write(&user, "[motion]\nreduced = true\n").unwrap();
-    compositor.animate(true);
+    state.reduced_motion = None;
+    fake.say(&state);
+    heard(&m, &state);
     assert!(
         !changed(m.reload()).reduced_motion,
-        "the compositor outranks the key"
+        "unknown is not a request"
     );
-    fs::write(&user, "[motion]\nreduced = false\n").unwrap();
-    compositor.animate(false);
-    assert!(changed(m.reload()).reduced_motion);
+    assert_eq!(m.diagnostics().compositor_animations, None);
 
-    // A manager with no compositor, or one that does not answer, keeps what the key says.
-    let mut alone = ThemeManager::new(c.source()).with_user_shell(user.clone());
+    // No host: a sandboxed application with no odkd is told nothing (ADR 0048).
+    let mut alone = ThemeManager::new(c.source());
     assert!(!changed(alone.reload()).reduced_motion);
-    fs::write(&user, "[motion]\nreduced = true\n").unwrap();
-    assert!(changed(alone.reload()).reduced_motion);
-    let nowhere = tempfile::tempdir().unwrap();
-    let mut silent = ThemeManager::new(c.source())
-        .with_user_shell(user)
-        .with_compositor(Hyprland::at(nowhere.path(), None));
-    assert!(
-        changed(silent.reload()).reduced_motion,
-        "unknown falls back to the key"
-    );
-    assert_eq!(silent.diagnostics().compositor_animations, None);
 }
 
-/// ADR 0048: a compositor that is restarted is silent for a moment and then answers from a new
-/// instance. The silence changes nothing the user sees; the new answer is taken.
+/// ADR 0043: the host's text size is the user's, over the theme's, and a change to it alone is
+/// published; a size from outside the range is kept to it, and neither a border nor a duration
+/// moves.
 #[test]
-fn a_restarting_compositor_keeps_its_last_answer_and_its_next_one_is_taken() {
+fn the_hosts_text_size_is_followed_and_nothing_else_moves() {
     let c = Current::new();
-    c.switch("nord", &fixture("nord"));
-    let compositor = Compositor::new(false);
-    let runtime = compositor._runtime.path().to_path_buf();
-    // The environment still names the instance that was there when the application started.
-    let mut m =
-        ThemeManager::new(c.source()).with_compositor(Hyprland::at(&runtime, Some("test".into())));
-    assert!(changed(m.reload()).reduced_motion, "animations off");
+    c.switch("tokyo-night", &fixture("tokyo-night"));
+    fs::write(
+        c.current.join("theme/shell.toml"),
+        "[font]\nbase-size = 15\n",
+    )
+    .unwrap();
+    let mut state = HostState::default();
+    let fake = FakeHost::new(&state);
+    let mut m = ThemeManager::new(c.source()).with_host(Some(fake.host()));
+    let themed = changed(m.reload());
+    assert_eq!(themed.text.base_size(), 15.0, "the host said nothing of it");
 
-    // Gone: its directory and everything in it, as when Hyprland exits.
-    fs::remove_dir_all(runtime.join("hypr")).unwrap();
-    assert!(
-        matches!(m.reload(), Reload::Unchanged),
-        "silence changes nothing"
+    state.base_size = Some(18.0);
+    fake.say(&state);
+    heard(&m, &state);
+    let mine = changed(m.reload());
+    assert_eq!(mine.text.base_size(), 18.0);
+    let config = foundation::FoundationConfig::default();
+    let (at_15, at_18) = (
+        foundation::FoundationTokens::scaled(&config, themed.text),
+        foundation::FoundationTokens::scaled(&config, mine.text),
     );
-    assert_eq!(m.diagnostics().compositor_animations, Some(false));
+    assert_eq!(at_15.geometry, at_18.geometry);
+    assert_eq!(at_15.motion, at_18.motion);
+    assert_eq!(mine.palette, themed.palette);
+    assert!(matches!(m.reload(), Reload::Unchanged));
 
-    // Back as another instance, with animations on this time.
-    let again = Compositor::serve_in(&runtime, "after", true);
-    assert!(!changed(m.reload()).reduced_motion);
-    assert_eq!(m.diagnostics().compositor_animations, Some(true));
-    drop(again);
+    state.base_size = Some(40.0);
+    fake.say(&state);
+    heard(&m, &state);
+    assert_eq!(changed(m.reload()).text.base_size(), 20.0);
+    assert!(m.diagnostics().to_string().contains("text size 20 px"));
 }

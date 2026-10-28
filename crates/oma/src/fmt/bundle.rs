@@ -19,6 +19,7 @@ pub struct Bundle {
     root: PathBuf,
     manifest: Manifest,
     executable: PathBuf,
+    daemon_executable: Option<PathBuf>,
 }
 
 impl Bundle {
@@ -41,7 +42,7 @@ impl Bundle {
                 "does not have the executable bit set",
             ));
         }
-        check_x86_64_elf(&executable, &manifest.executable)?;
+        check_x86_64_elf(&executable, "executable", &manifest.executable)?;
 
         if let Some(icon) = &manifest.icon {
             let resolved = contained_file(&root, "icon", icon)?;
@@ -54,11 +55,40 @@ impl Bundle {
             }
         }
 
+        // The daemon runs outside the sandbox, so its program is held to more than the
+        // application's: no symlink anywhere on its path (ADR 0050).
+        let daemon_executable = match &manifest.permissions.daemon {
+            Some(daemon) => {
+                let path = plain_file(&root, "daemon.executable", &daemon.executable)?;
+                let mode = fs::metadata(&path)
+                    .map_err(|e| io(&path, e))?
+                    .permissions()
+                    .mode();
+                if mode & 0o111 == 0 {
+                    return Err(path_error(
+                        "daemon.executable",
+                        &daemon.executable,
+                        "does not have the executable bit set",
+                    ));
+                }
+                check_x86_64_elf(&path, "daemon.executable", &daemon.executable)?;
+                Some(path)
+            }
+            None => None,
+        };
+
         Ok(Self {
             root,
             manifest,
             executable,
+            daemon_executable,
         })
+    }
+
+    /// The real path of the daemon's executable, a regular file inside the Bundle that no
+    /// symlink leads to, when the Manifest declares a daemon.
+    pub fn daemon_executable(&self) -> Option<&Path> {
+        self.daemon_executable.as_deref()
     }
 
     /// The Bundle directory, with symlinks resolved.
@@ -106,19 +136,41 @@ fn contained_file(root: &Path, field: &'static str, relative: &str) -> Result<Pa
     Ok(resolved)
 }
 
+/// `relative` under the already resolved `root`, as a regular file with no symlink on the way:
+/// each component is looked at without following it.
+fn plain_file(root: &Path, field: &'static str, relative: &str) -> Result<PathBuf, Error> {
+    let mut path = root.to_owned();
+    for component in Path::new(relative).components() {
+        let std::path::Component::Normal(name) = component else {
+            // `.` is harmless, and the Manifest's own check has refused the rest.
+            continue;
+        };
+        path.push(name);
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|_| path_error(field, relative, "does not exist"))?;
+        if metadata.file_type().is_symlink() {
+            return Err(path_error(field, relative, "goes through a symlink"));
+        }
+    }
+    if !fs::symlink_metadata(&path).is_ok_and(|m| m.is_file()) {
+        return Err(path_error(field, relative, "is not a regular file"));
+    }
+    Ok(path)
+}
+
 /// Checks the ELF header of a 64-bit little-endian x86-64 executable or position-independent
 /// executable (ADR 0002). Nothing else about the file is inspected.
-fn check_x86_64_elf(path: &Path, relative: &str) -> Result<(), Error> {
+fn check_x86_64_elf(path: &Path, field: &'static str, relative: &str) -> Result<(), Error> {
     let mut header = [0u8; 20];
     File::open(path)
         .and_then(|mut f| f.read_exact(&mut header))
-        .map_err(|_| path_error("executable", relative, "is not an ELF file"))?;
+        .map_err(|_| path_error(field, relative, "is not an ELF file"))?;
     if header[..4] != ELF_MAGIC {
-        return Err(path_error("executable", relative, "is not an ELF file"));
+        return Err(path_error(field, relative, "is not an ELF file"));
     }
     if header[4] != ELFCLASS64 || header[5] != ELFDATA2LSB {
         return Err(path_error(
-            "executable",
+            field,
             relative,
             "is not a 64-bit little-endian ELF file",
         ));
@@ -126,18 +178,10 @@ fn check_x86_64_elf(path: &Path, relative: &str) -> Result<(), Error> {
     let file_type = u16::from_le_bytes([header[16], header[17]]);
     let machine = u16::from_le_bytes([header[18], header[19]]);
     if machine != EM_X86_64 {
-        return Err(path_error(
-            "executable",
-            relative,
-            "is not built for x86_64",
-        ));
+        return Err(path_error(field, relative, "is not built for x86_64"));
     }
     if file_type != ET_EXEC && file_type != ET_DYN {
-        return Err(path_error(
-            "executable",
-            relative,
-            "is not an executable ELF file",
-        ));
+        return Err(path_error(field, relative, "is not an executable ELF file"));
     }
     Ok(())
 }
@@ -284,6 +328,70 @@ mod tests {
         fs::rename(dir.path().join("bin/t"), dir.path().join("bin/real")).unwrap();
         symlink("real", dir.path().join("bin/t")).unwrap();
         assert!(Bundle::open(dir.path()).is_ok());
+    }
+
+    const DAEMON: &str =
+        "[daemon]\nexecutable = \"bin/d\"\nargs = [\"daemon\"]\nsocket = \"a/d.sock\"\n";
+
+    /// A valid Bundle that declares a daemon at `bin/d`.
+    fn with_daemon() -> TempDir {
+        let dir = valid();
+        fs::write(dir.path().join(MANIFEST_FILE), manifest(DAEMON)).unwrap();
+        write_exe(&dir.path().join("bin/d"), &elf(EM_X86_64), 0o755);
+        dir
+    }
+
+    #[test]
+    fn a_daemon_is_a_plain_executable_elf_inside_the_bundle() {
+        let dir = with_daemon();
+        let bundle = Bundle::open(dir.path()).unwrap();
+        assert!(bundle.daemon_executable().unwrap().ends_with("bin/d"));
+        assert_eq!(
+            Bundle::open(valid().path()).unwrap().daemon_executable(),
+            None
+        );
+
+        let d = dir.path().join("bin/d");
+        fs::set_permissions(&d, fs::Permissions::from_mode(0o644)).unwrap();
+        rejects(&dir, "executable bit");
+        write_exe(&d, &elf(183), 0o755);
+        rejects(&dir, "x86_64");
+        write_exe(&d, b"#!/bin/sh\n", 0o755);
+        rejects(&dir, "ELF");
+        fs::remove_file(&d).unwrap();
+        rejects(&dir, "does not exist");
+        fs::create_dir(&d).unwrap();
+        rejects(&dir, "regular file");
+    }
+
+    /// The daemon runs outside the sandbox, so what runs must be what the Bundle holds: a
+    /// symlink on its path could lead anywhere the application can write, so none is accepted,
+    /// not even one that stays inside the Bundle, which the application's own executable may be.
+    #[test]
+    fn a_daemon_never_goes_through_a_symlink() {
+        let dir = with_daemon();
+        fs::rename(dir.path().join("bin/d"), dir.path().join("bin/real")).unwrap();
+        symlink("real", dir.path().join("bin/d")).unwrap();
+        rejects(&dir, "symlink");
+
+        let dir = with_daemon();
+        fs::create_dir(dir.path().join("real-bin")).unwrap();
+        fs::rename(dir.path().join("bin/d"), dir.path().join("real-bin/d")).unwrap();
+        fs::write(dir.path().join(MANIFEST_FILE), manifest("")).unwrap();
+        fs::write(
+            dir.path().join(MANIFEST_FILE),
+            manifest("[daemon]\nexecutable = \"linked/d\"\nsocket = \"a/d.sock\"\n"),
+        )
+        .unwrap();
+        symlink("real-bin", dir.path().join("linked")).unwrap();
+        rejects(&dir, "symlink");
+
+        let dir = with_daemon();
+        let outside = TempDir::new().unwrap();
+        write_exe(&outside.path().join("d"), &elf(EM_X86_64), 0o755);
+        fs::remove_file(dir.path().join("bin/d")).unwrap();
+        symlink(outside.path().join("d"), dir.path().join("bin/d")).unwrap();
+        rejects(&dir, "symlink");
     }
 
     #[test]

@@ -53,6 +53,7 @@ Each line states the consequence in plain language, not the permission's name.
 | filesystem `read` | Can read files in your {Documents} folder |
 | filesystem `write` | Can read and change files in your {Documents} folder |
 | `dbus` | Can talk to these desktop services: {names} |
+| `[daemon]` | Runs its own program ({executable}) OUTSIDE the sandbox with full access to your account, and keeps it running after it closes (ADR 0050). Listed first, since it is the one that takes the sandbox away |
 
 A named directory that is unavailable (ADR 0012) is listed as "{Desktop}: you have no such folder, so this will not be available".
 

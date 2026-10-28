@@ -48,6 +48,12 @@ pub enum Error {
     },
     #[error("neither $XDG_STATE_HOME nor $HOME is set")]
     NoStateDir,
+    /// The application follows the host (ADR 0062) and no `odkd` answers on its socket.
+    #[error("no odkd answers on its socket, so there is no theme to follow (ADR 0062)")]
+    NoHost,
+    /// `odkd` answered and sent no colours.
+    #[error("odkd sent no colours")]
+    HostWithoutColors,
     /// A theme name that is empty, starts with `.` or holds `/`, which Omarchy refuses too.
     #[error("{0:?} is not a theme name")]
     BadThemeName(String),

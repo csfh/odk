@@ -3,22 +3,22 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::discovery::ThemeFiles;
-use crate::{Error, Palette, TextScale, user_reduces_motion};
+use crate::{Error, Palette, TextScale};
 
-/// What one reading of a theme's files gives: the palette, the user's text size and whether the
-/// user's own `shell.toml` asks for reduced motion.
+/// What one reading of a theme's files gives: the palette and the user's text size.
 pub(crate) struct Loaded {
     pub palette: Palette,
     pub text: TextScale,
-    pub reduced_motion: bool,
 }
 
-/// Reads a theme's two files, and the user's own `shell.toml` when there is one, and builds
-/// its palette and its text scale from the same text, so they never disagree. `colors.toml`
-/// must exist; a missing `shell.toml` says nothing. A theme's `shell.toml` that is not TOML is
-/// an error, as it always was (ADR 0047); the user's file is never one: unreadable, it says
-/// nothing.
-pub(crate) fn load(files: &ThemeFiles, user_shell: Option<&Path>) -> Result<Loaded, Error> {
+/// Reads a theme's two files, and a `shell.toml` when there is one, and builds its palette and
+/// its text scale from the same text, so they never disagree. `colors.toml` must exist; a
+/// missing `shell.toml` says nothing. A theme's `shell.toml` that is not TOML is an error, as
+/// it always was (ADR 0047); the other file is never one: unreadable, it says nothing.
+///
+/// The user's own `shell.toml` is not read here: the text size and the request for reduced
+/// motion of the user come from `odkd` (ADR 0062).
+pub(crate) fn load(files: &ThemeFiles) -> Result<Loaded, Error> {
     let colors = read(&files.colors)?.ok_or_else(|| Error::Io {
         path: files.colors.clone(),
         source: ErrorKind::NotFound.into(),
@@ -26,11 +26,9 @@ pub(crate) fn load(files: &ThemeFiles, user_shell: Option<&Path>) -> Result<Load
     let palette = Palette::parse(&colors)?;
     let shell = read(&files.shell)?;
     check_shell(shell.as_deref())?;
-    let user = user_shell.and_then(|path| read(path).ok().flatten());
     Ok(Loaded {
         palette,
-        text: TextScale::from_shell(shell.as_deref(), user.as_deref()),
-        reduced_motion: user_reduces_motion(user.as_deref()),
+        text: TextScale::from_shell(shell.as_deref(), None),
     })
 }
 
@@ -82,35 +80,12 @@ blue = "#4A86C4"
 "##;
 
     #[test]
-    fn the_users_shell_toml_asks_for_reduced_motion_and_a_themes_cannot() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
-        fs::write(dir.path().join("shell.toml"), "[motion]\nreduced = true\n").unwrap();
-        let files = ThemeFiles::in_dir(dir.path(), None);
-        let user = dir.path().join("user.toml");
-        let reduced = |user: Option<&Path>| load(&files, user).unwrap().reduced_motion;
-        assert!(!reduced(None), "a theme is not the user's setting");
-        assert!(!reduced(Some(&user)), "no such file");
-        fs::write(&user, "[motion]\nreduced = true\n").unwrap();
-        assert!(reduced(Some(&user)));
-        fs::write(&user, "[motion").unwrap();
-        assert!(!reduced(Some(&user)), "a user file that does not parse");
-    }
-
-    #[test]
-    fn the_users_own_shell_toml_wins_over_the_themes_and_is_never_an_error() {
+    fn a_themes_base_size_is_its_text_size_and_the_users_own_file_is_not_read() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
         fs::write(dir.path().join("shell.toml"), "[font]\nbase-size = 13\n").unwrap();
         let files = ThemeFiles::in_dir(dir.path(), None);
-        let user = dir.path().join("user.toml");
-        let size = |user: Option<&Path>| load(&files, user).unwrap().text.base_size();
-        assert_eq!(size(None), 13.0);
-        assert_eq!(size(Some(&user)), 13.0, "no such file");
-        fs::write(&user, "[font]\nbase-size = 16\n").unwrap();
-        assert_eq!(size(Some(&user)), 16.0);
-        fs::write(&user, "[font").unwrap();
-        assert_eq!(size(Some(&user)), 13.0, "a user file that does not parse");
+        assert_eq!(load(&files).unwrap().text.base_size(), 13.0);
     }
 
     #[test]
@@ -123,18 +98,17 @@ blue = "#4A86C4"
             "[spacing]\nscale = 2.0\n[font]\nbody = 30\n[controls]\nnormal-color = \"#112233\"\n",
         )
         .unwrap();
-        let loaded = load(&ThemeFiles::in_dir(dir.path(), None), None).unwrap();
+        let loaded = load(&ThemeFiles::in_dir(dir.path(), None)).unwrap();
         assert!(loaded.text.is_default());
-        assert!(!loaded.reduced_motion);
     }
 
     #[test]
     fn a_missing_shell_toml_says_nothing_and_a_malformed_one_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let files = ThemeFiles::in_dir(dir.path(), None);
-        assert!(matches!(load(&files, None), Err(Error::Io { .. })));
+        assert!(matches!(load(&files), Err(Error::Io { .. })));
         fs::write(dir.path().join("colors.toml"), COLORS).unwrap();
-        let loaded = load(&files, None).unwrap();
+        let loaded = load(&files).unwrap();
         assert_eq!(
             loaded.palette.accent,
             Palette::parse(COLORS).unwrap().accent
@@ -142,7 +116,7 @@ blue = "#4A86C4"
         assert!(loaded.text.is_default());
         fs::write(dir.path().join("shell.toml"), "[").unwrap();
         assert!(matches!(
-            load(&files, None),
+            load(&files),
             Err(Error::Toml {
                 file: "shell.toml",
                 ..

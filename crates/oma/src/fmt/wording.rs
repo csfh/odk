@@ -5,6 +5,13 @@ use crate::fmt::{Access, Permissions, UserDir};
 /// One line per requested permission, stating the consequence rather than the name.
 pub fn permission_lines(p: &Permissions) -> Vec<String> {
     let mut lines = Vec::new();
+    // First, since it is the one that takes the sandbox away (ADR 0050).
+    if let Some(daemon) = &p.daemon {
+        lines.push(format!(
+            "Runs its own program ({}) OUTSIDE the sandbox with full access to your account, and keeps it running after it closes",
+            daemon.executable
+        ));
+    }
     if p.network {
         lines.push("Can use the network, including services running on this computer".into());
     }
@@ -73,10 +80,16 @@ mod tests {
                 },
             ],
             dbus_talk: vec!["org.a".into(), "org.b".into()],
+            daemon: Some(crate::fmt::Daemon {
+                executable: "bin/d".into(),
+                args: vec!["daemon".into()],
+                socket: "app/d.sock".into(),
+            }),
         };
         assert_eq!(
             permission_lines(&p),
             [
+                "Runs its own program (bin/d) OUTSIDE the sandbox with full access to your account, and keeps it running after it closes",
                 "Can use the network, including services running on this computer",
                 "Can use the graphics card directly",
                 "Can play and record sound",

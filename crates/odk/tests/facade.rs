@@ -14,6 +14,8 @@ fn the_facade_exposes_the_theme() {
 }
 
 /// Applications reach the database through the facade too (ADR 0049), and its raw binding.
+/// The `db` feature is off by default; CI builds this crate with `--all-features`.
+#[cfg(feature = "db")]
 #[test]
 fn the_facade_exposes_the_database() {
     use odk::db::{Database, Migrations, values};
