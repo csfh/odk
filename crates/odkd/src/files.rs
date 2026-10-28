@@ -148,11 +148,10 @@ struct Slot<'a>(&'a AtomicUsize);
 
 impl<'a> Slot<'a> {
     fn take(open: &'a AtomicUsize) -> Option<Self> {
-        open.fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-            (n < MAX_OPEN).then_some(n + 1)
-        })
-        .ok()
-        .map(|_| Self(open))
+        // Taken, then given back at once when there was no room: the count may pass the limit
+        // for that moment, but no fifth dialog is ever shown.
+        let slot = Self(open);
+        (open.fetch_add(1, Ordering::AcqRel) < MAX_OPEN).then_some(slot)
     }
 }
 
