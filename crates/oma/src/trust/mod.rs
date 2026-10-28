@@ -19,7 +19,7 @@ pub mod signature;
 pub mod time;
 
 pub use container::{Header, Prefix};
-pub use envelope::{SelfSigned, check};
+pub use envelope::{SelfSigned, check, stamp};
 pub use highwater::{Mark, Verdict};
 pub use id::{Fingerprint, KeyId, PublicKey};
 pub use keys::{OmaKeys, ReleaseKey, SetChange, Signer, VerifiedKeys};
