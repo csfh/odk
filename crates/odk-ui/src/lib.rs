@@ -81,7 +81,8 @@ pub use input::Input;
 pub use input_group::InputGroup;
 pub use kbd::Kbd;
 pub use layout::{
-    Space, StyledExt, h_flex, middle_ellipsis, root, truncate_end, truncate_lines, v_flex,
+    Space, StyledExt, content_column, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame,
+    truncate_end, truncate_lines, v_flex,
 };
 pub use menu::{ContextMenu, DropdownMenu, Menu, MenuItem};
 pub use nav_list::NavList;
@@ -134,7 +135,7 @@ pub mod prelude {
         MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
         RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, Space, Spinner,
         Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone,
-        Tooltip, Wrap, form, h_flex, middle_ellipsis, root, toast, truncate_end, truncate_lines,
-        v_flex,
+        Tooltip, Wrap, content_column, form, h_flex, middle_ellipsis, root, scroll_y,
+        sidebar_frame, toast, truncate_end, truncate_lines, v_flex,
     };
 }

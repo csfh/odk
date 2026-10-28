@@ -21,6 +21,47 @@ pub enum Error {
     Exists(PathBuf),
     #[error("the manifest names the icon {0:?}, but there is no such file beside it")]
     MissingIcon(String),
+    #[error("cannot include {0}")]
+    BadInclude(String),
+}
+
+/// A file to put in the Bundle besides the executable, the manifest and the icon (ADR 0050).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Include {
+    pub source: PathBuf,
+    /// Where it goes, relative to the Bundle.
+    pub destination: PathBuf,
+}
+
+impl Include {
+    /// `SOURCE` or `SOURCE=DESTINATION`. Without a destination the file goes to the Bundle's root
+    /// under its own name.
+    pub fn parse(text: &str) -> Result<Self, Error> {
+        let (source, destination) = match text.split_once('=') {
+            Some((source, destination)) => (PathBuf::from(source), PathBuf::from(destination)),
+            None => {
+                let source = PathBuf::from(text);
+                let name = source
+                    .file_name()
+                    .ok_or_else(|| Error::BadInclude(format!("{text:?}: it names no file")))?;
+                let destination = PathBuf::from(name);
+                (source, destination)
+            }
+        };
+        let relative_and_plain = !destination.as_os_str().is_empty()
+            && destination
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)));
+        if !relative_and_plain {
+            return Err(Error::BadInclude(format!(
+                "{text:?}: the destination must be a path inside the Bundle, with no `..`"
+            )));
+        }
+        Ok(Self {
+            source,
+            destination,
+        })
+    }
 }
 
 fn io(path: &Path, source: std::io::Error) -> Error {
@@ -38,6 +79,18 @@ fn io(path: &Path, source: std::io::Error) -> Error {
 /// temporary name and moved into place only once valid, so a failure leaves nothing behind.
 /// An existing `<Name>.oma` is never replaced.
 pub fn assemble(executable: &Path, manifest_path: &Path, out_dir: &Path) -> Result<PathBuf, Error> {
+    assemble_with(executable, manifest_path, out_dir, &[])
+}
+
+/// [`assemble`], with files to include besides (ADR 0050): each a regular file, not a symlink,
+/// copied to its destination with the executable bit kept, never over the manifest, the
+/// executable, the icon or another include.
+pub fn assemble_with(
+    executable: &Path,
+    manifest_path: &Path,
+    out_dir: &Path,
+    includes: &[Include],
+) -> Result<PathBuf, Error> {
     let manifest_text = fs::read_to_string(manifest_path).map_err(|e| io(manifest_path, e))?;
     let manifest = Manifest::parse(&manifest_text)?;
 
@@ -58,6 +111,7 @@ pub fn assemble(executable: &Path, manifest_path: &Path, out_dir: &Path) -> Resu
         manifest_path,
         &manifest_text,
         &manifest,
+        includes,
     )
     .and_then(|()| fmt::Bundle::open(&staging).map(drop).map_err(Error::from))
     .and_then(|()| fs::rename(&staging, &target).map_err(|e| io(&target, e)));
@@ -74,6 +128,7 @@ fn fill(
     manifest_path: &Path,
     manifest_text: &str,
     manifest: &Manifest,
+    includes: &[Include],
 ) -> Result<(), Error> {
     let manifest_out = staging.join("manifest.toml");
     fs::write(&manifest_out, manifest_text).map_err(|e| io(&manifest_out, e))?;
@@ -89,6 +144,30 @@ fn fill(
             return Err(Error::MissingIcon(icon.clone()));
         }
         copy_into(&source, &staging.join(icon))?;
+    }
+
+    for include in includes {
+        let name = include.destination.display();
+        let meta = fs::symlink_metadata(&include.source).map_err(|e| io(&include.source, e))?;
+        if !meta.is_file() {
+            return Err(Error::BadInclude(format!(
+                "{}: it is not a regular file (a symlink or a directory is not copied)",
+                include.source.display()
+            )));
+        }
+        let out = staging.join(&include.destination);
+        if out.symlink_metadata().is_ok() {
+            return Err(Error::BadInclude(format!(
+                "{name}: the Bundle already has a file there"
+            )));
+        }
+        copy_into(&include.source, &out)?;
+        let mode = if meta.permissions().mode() & 0o111 != 0 {
+            0o755
+        } else {
+            0o644
+        };
+        fs::set_permissions(&out, fs::Permissions::from_mode(mode)).map_err(|e| io(&out, e))?;
     }
     Ok(())
 }
@@ -226,6 +305,110 @@ mod tests {
             0,
             "{:?}",
             fs::read_dir(out.path()).unwrap().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_include_parses_with_or_without_a_destination() {
+        assert_eq!(
+            Include::parse("target/release/ratmos=bin/ratmos").unwrap(),
+            Include {
+                source: "target/release/ratmos".into(),
+                destination: "bin/ratmos".into()
+            }
+        );
+        assert_eq!(
+            Include::parse("a/b/tool").unwrap().destination,
+            PathBuf::from("tool")
+        );
+        for bad in ["x=../up", "x=/abs", "x=", "x=a/../b", "/"] {
+            assert!(
+                matches!(Include::parse(bad), Err(Error::BadInclude(_))),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn included_files_keep_their_executable_bit_and_nothing_else() {
+        let project = Project::new("", "bin/tee");
+        let helper = project.dir.path().join("helper");
+        fs::write(&helper, elf()).unwrap();
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o700)).unwrap();
+        let data = project.dir.path().join("data.txt");
+        fs::write(&data, "x").unwrap();
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o666)).unwrap();
+        let out = TempDir::new().unwrap();
+        let bundle = assemble_with(
+            &project.dir.path().join("built"),
+            &project.dir.path().join("manifest.toml"),
+            out.path(),
+            &[
+                Include {
+                    source: helper,
+                    destination: "bin/helper".into(),
+                },
+                Include {
+                    source: data,
+                    destination: "share/data.txt".into(),
+                },
+            ],
+        )
+        .unwrap();
+        let mode = |p: &str| fs::metadata(bundle.join(p)).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode("bin/helper"), 0o755);
+        assert_eq!(mode("share/data.txt"), 0o644);
+    }
+
+    #[test]
+    fn an_include_never_replaces_a_file_the_bundle_has_and_is_never_a_symlink() {
+        let project = Project::new("", "bin/tee");
+        let out = TempDir::new().unwrap();
+        let build = |includes: &[Include]| {
+            assemble_with(
+                &project.dir.path().join("built"),
+                &project.dir.path().join("manifest.toml"),
+                out.path(),
+                includes,
+            )
+        };
+        let file = project.dir.path().join("f");
+        fs::write(&file, "x").unwrap();
+        let at = |destination: &str| Include {
+            source: file.clone(),
+            destination: destination.into(),
+        };
+        for taken in ["manifest.toml", "bin/tee"] {
+            assert!(
+                matches!(build(&[at(taken)]), Err(Error::BadInclude(_))),
+                "{taken}"
+            );
+        }
+        assert!(matches!(
+            build(&[at("same"), at("same")]),
+            Err(Error::BadInclude(_))
+        ));
+
+        let link = project.dir.path().join("link");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        assert!(matches!(
+            build(&[Include {
+                source: link,
+                destination: "l".into()
+            }]),
+            Err(Error::BadInclude(_))
+        ));
+        assert!(matches!(
+            build(&[Include {
+                source: project.dir.path().to_owned(),
+                destination: "d".into()
+            }]),
+            Err(Error::BadInclude(_))
+        ));
+        assert_eq!(
+            fs::read_dir(out.path()).unwrap().count(),
+            0,
+            "a refused include leaves nothing behind"
         );
     }
 

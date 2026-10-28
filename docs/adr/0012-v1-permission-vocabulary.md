@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0050
+---
+
 # v1 permissions: a fixed baseline plus six declared capabilities, deny by default
 
 Every sandboxed application gets a fixed baseline: its own data directory, its own Bundle contents read-only, the host's `/usr` and the needed parts of `/etc` read-only (a dynamically linked ELF cannot run without the host's glibc and loader), the Wayland display socket, and Omarchy's current theme read-only (ADR 0019). The exact `/etc` subset is in `docs/spec/sandbox-baseline.md`. Everything else must be declared in the Manifest, and only these capabilities exist in v1; anything else is added later through a new ADR.

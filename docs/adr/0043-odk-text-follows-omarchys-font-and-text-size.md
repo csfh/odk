@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0046 and ADR 0058
+status: amended by ADR 0058 and ADR 0062
 ---
 
 # ODK text follows Omarchy's font and text size

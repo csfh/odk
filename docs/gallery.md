@@ -60,7 +60,7 @@ A previewed theme is loaded once, when chosen, with the application's colour opt
 ## Density, corners and motion
 
 - **Density** (Compact, Default, Comfortable) and **Corners** (Square, Subtle) are the application's foundation settings (`odk::ui::configure`). They apply to every control on every page immediately, without resetting what a person typed or chose. Their values are the foundation's, not the gallery's: control heights come from the density, and the radius from `CornerRadius::px()`. Subtle is **2 px** (ADR 0042): a 0.8 px corner was drawn and could not be seen. The status bar always shows the value in force.
-- **Motion** is Full or Reduced. Reduced makes every transition run for zero time. It can add to the user's own request, which is the compositor's (Hyprland's animations off, ADR 0048; or `[motion] reduced` in `shell.toml` when the compositor does not answer), and never take it back: when the user has asked, the toolbar says "Reduced by the system" instead of offering the choice.
+- **Motion** is Full or Reduced. Reduced makes every transition run for zero time. It can add to the user's own request, which is the compositor's (Hyprland's animations off, ADR 0048; a sandboxed application cannot ask it), and never take it back: when the user has asked, the toolbar says "Reduced by the system" instead of offering the choice. The user's own `[motion] reduced` key is ignored.
 - Nothing is persisted: the gallery starts with the theme followed, default density, subtle corners and full motion, and **Reset** returns to that.
 - A page's own state (the playground's properties, a form's values, the comparison's themes, the search text, the Content setting) survives every change of theme, density, corners, motion and window size.
 

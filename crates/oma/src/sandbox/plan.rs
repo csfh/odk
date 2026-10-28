@@ -3,9 +3,10 @@
 //! namespaces, and [`super::mounts`] and [`super::init`] carry it out.
 
 use std::fs;
+use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 
-use crate::fmt::{Access, Permissions, UserDir};
+use crate::fmt::{Access, Daemon, Permissions, UserDir};
 use crate::sandbox::landlock::Rights;
 use crate::userdirs::{Resolved, Unavailable};
 
@@ -42,6 +43,9 @@ pub struct Plan {
     pub network: bool,
     /// Named directories that were asked for but cannot be given (ADR 0012).
     pub unavailable: Vec<(UserDir, Unavailable)>,
+    /// The Bundle declares a daemon whose socket is not in the runtime directory, so the
+    /// application starts without it (ADR 0050).
+    pub daemon_socket_missing: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -56,6 +60,8 @@ pub enum Error {
         "the `dbus` permission is not supported yet: a raw session-bus socket would reach every service, and there is no filtering proxy"
     )]
     DbusUnsupported,
+    #[error("the daemon's {0}")]
+    BadDaemonSocket(String),
     #[error("cannot read {}: {source}", path.display())]
     Io {
         path: PathBuf,
@@ -79,11 +85,6 @@ pub struct Inputs<'a> {
     pub runtime_dir: Option<&'a Path>,
     pub wayland_display: Option<&'a str>,
     pub named_dirs: &'a Resolved,
-    /// `~/.local/state/omarchy/current`, which holds the theme (`sandbox-baseline.md`).
-    pub theme_dir: &'a Path,
-    /// oma's mirror of the user's text size and font, with `omarchy/` and `fontconfig/` in it
-    /// (ADR 0044). A part that is not there is not mounted.
-    pub settings_dir: &'a Path,
     pub host_etc: &'a Path,
     pub host_root: &'a Path,
     /// Variables copied from the host when set.
@@ -226,6 +227,19 @@ impl Plan {
             readonly: false,
             device: false,
         });
+        // What the host says (ADR 0062): the directory of `odkd`'s socket, read-only, for every
+        // application and with no permission to ask for. The directory and not the socket, so a
+        // socket made again is the one the application sees. Without `odkd` there is no
+        // directory, and the application draws its defaults.
+        let odkd = runtime.join("odk");
+        if odkd.is_dir() {
+            ops.push(Op::Bind {
+                src: odkd,
+                dst: run_user.join("odk"),
+                readonly: true,
+                device: false,
+            });
+        }
         if p.audio {
             let socket = runtime.join("pipewire-0");
             if socket.exists() {
@@ -235,6 +249,29 @@ impl Plan {
                     readonly: false,
                     device: false,
                 });
+            }
+        }
+
+        // The Bundle's daemon runs outside the sandbox (ADR 0050); the application is given the
+        // one file it listens on, bound where it is on the host. Its parent directories exist
+        // only in this tmpfs. A socket that is not there leaves the application without it.
+        let mut daemon_socket_missing = false;
+        if let Some(daemon) = &p.daemon {
+            Daemon::check_socket(&daemon.socket).map_err(Error::BadDaemonSocket)?;
+            let relative = Path::new(&daemon.socket);
+            let src = runtime.join(relative);
+            if fs::metadata(&src).is_ok_and(|m| m.file_type().is_socket()) {
+                if let Some(parent) = relative.parent().filter(|d| !d.as_os_str().is_empty()) {
+                    ops.push(Op::Dir(run_user.join(parent)));
+                }
+                ops.push(Op::Bind {
+                    src,
+                    dst: run_user.join(relative),
+                    readonly: false,
+                    device: false,
+                });
+            } else {
+                daemon_socket_missing = true;
             }
         }
 
@@ -276,37 +313,6 @@ impl Plan {
             None => ops.push(Op::Tmpfs(i.home.to_owned())),
         }
         landlock.push((i.home.to_owned(), Rights::All));
-
-        // Omarchy's theme: the parent directory, because Omarchy replaces `theme/` itself.
-        if i.theme_dir.exists() {
-            let theme_dst = i.home.join(".local/state/omarchy/current");
-            ops.push(Op::Dir(theme_dst.clone()));
-            ops.push(Op::Bind {
-                src: i.theme_dir.to_owned(),
-                dst: theme_dst.clone(),
-                readonly: true,
-                device: false,
-            });
-            landlock.push((theme_dst, Rights::Read));
-        }
-
-        // The user's text size and font, from oma's copy of them: Omarchy replaces the real
-        // files by renaming, so a mount of one would go stale, and their directory holds more
-        // than an application should read (ADR 0044). Each part appears where the real one is.
-        for name in ["omarchy", "fontconfig"] {
-            let src = i.settings_dir.join(name);
-            if src.is_dir() {
-                let dst = i.home.join(".config").join(name);
-                ops.push(Op::Dir(dst.clone()));
-                ops.push(Op::Bind {
-                    src,
-                    dst: dst.clone(),
-                    readonly: true,
-                    device: false,
-                });
-                landlock.push((dst, Rights::Read));
-            }
-        }
 
         // Named user directories.
         let mut unavailable = Vec::new();
@@ -365,6 +371,7 @@ impl Plan {
             cwd: i.home.to_owned(),
             network: p.network,
             unavailable,
+            daemon_socket_missing,
         })
     }
 }
@@ -527,8 +534,6 @@ mod tests {
         let data = w.dir.path().join("data");
         let inbox = w.dir.path().join("inbox");
         let bundle = w.dir.path().join("Tee.oma");
-        let theme = w.dir.path().join("theme");
-        let settings = w.dir.path().join("settings");
         let env = |name: &str| (name == "LANG").then(|| "en_US.UTF-8".to_owned());
         Plan::new(&Inputs {
             bundle_root: &bundle,
@@ -541,8 +546,6 @@ mod tests {
             runtime_dir: Some(&w.runtime),
             wayland_display: Some("wayland-1"),
             named_dirs: &named,
-            theme_dir: &theme,
-            settings_dir: &settings,
             host_etc: &w.etc,
             host_root: Path::new("/"),
             host_env: &env,
@@ -596,38 +599,35 @@ mod tests {
         assert_eq!(p.cwd, w.home);
     }
 
-    /// The user's text size and font (ADR 0044): oma's copy, not the real files, appears where
-    /// the real ones are, read-only, and only the parts that exist.
+    /// What the host says (ADR 0062): `odkd`'s directory appears read-only in the sandbox's
+    /// runtime directory when there is one, and nothing of Omarchy's own files does.
     #[test]
-    fn oma_s_copy_of_the_text_size_and_font_is_mounted_read_only_where_the_real_ones_are() {
+    fn odkds_directory_is_mounted_read_only_when_there_is_one_and_nothing_of_omarchys_files() {
         let w = world();
-        let settings = w.dir.path().join("settings");
-        let config = w.home.join(".config");
         let p = plan(&w, &Permissions::default()).unwrap();
-        for name in ["omarchy", "fontconfig"] {
-            assert!(!has_dst(&p, config.join(name).to_str().unwrap()), "{name}");
-        }
+        assert!(!has_dst(&p, "/run/user/1000/odk"), "no odkd, no mount");
 
-        fs::create_dir_all(settings.join("omarchy")).unwrap();
+        fs::create_dir_all(w.runtime.join("odk")).unwrap();
+        fs::write(w.runtime.join("odk/odkd.sock"), "").unwrap();
         let p = plan(&w, &Permissions::default()).unwrap();
-        assert!(has_dst(&p, config.join("omarchy").to_str().unwrap()));
+        let (src, dst) = (w.runtime.join("odk"), Path::new("/run/user/1000/odk"));
+        assert!(binds(&p).contains(&(src.as_path(), dst, true)));
+        // Not the socket alone, and not the runtime directory as a whole.
         assert!(
-            !has_dst(&p, config.join("fontconfig").to_str().unwrap()),
-            "a part that is not there is not mounted"
+            binds(&p)
+                .iter()
+                .all(|(s, ..)| *s != w.runtime.join("odk/odkd.sock"))
         );
-
-        fs::create_dir_all(settings.join("fontconfig")).unwrap();
-        let p = plan(&w, &Permissions::default()).unwrap();
-        for name in ["omarchy", "fontconfig"] {
-            let (src, dst) = (settings.join(name), config.join(name));
-            assert!(
-                binds(&p).contains(&(src.as_path(), dst.as_path(), true)),
-                "{name}"
-            );
-            assert!(p.landlock.contains(&(dst, Rights::Read)), "{name}");
-        }
-        // Nothing of the real `~/.config` is a source.
-        assert!(binds(&p).iter().all(|(src, ..)| !src.starts_with(&config)));
+        assert!(binds(&p).iter().all(|(s, ..)| *s != w.runtime.as_path()));
+        // The user's own settings are shown to nobody (ADR 0043's copy is gone).
+        let config = w.home.join(".config");
+        assert!(
+            binds(&p)
+                .iter()
+                .all(|(_, d, _)| !d.starts_with(&config) || *d == w.home)
+        );
+        assert!(!has_dst(&p, config.join("omarchy").to_str().unwrap()));
+        assert!(!has_dst(&p, config.join("fontconfig").to_str().unwrap()));
     }
 
     /// Hyprland's socket accepts commands (ADR 0048), so an application that could open it would
@@ -647,6 +647,7 @@ mod tests {
             updates: true,
             filesystem: Vec::new(),
             dbus_talk: Vec::new(),
+            daemon: None,
         };
         for permissions in [Permissions::default(), everything] {
             let p = plan(&w, &permissions).unwrap();
@@ -673,6 +674,91 @@ mod tests {
                     .iter()
                     .all(|(src, ..)| *src != w.runtime.as_path()),
                 "the host's runtime directory as a whole"
+            );
+        }
+    }
+
+    fn with_daemon(socket: &str) -> Permissions {
+        Permissions {
+            daemon: Some(Daemon {
+                executable: "bin/d".into(),
+                args: vec![],
+                socket: socket.into(),
+            }),
+            ..Default::default()
+        }
+    }
+
+    /// The application is given the daemon's socket and nothing else of the runtime directory
+    /// around it (ADR 0050).
+    #[test]
+    fn the_daemons_socket_is_bound_alone_at_the_same_relative_path() {
+        let w = world();
+        let dir = w.runtime.join("app");
+        fs::create_dir_all(&dir).unwrap();
+        let _listener = std::os::unix::net::UnixListener::bind(dir.join("d.sock")).unwrap();
+        fs::write(dir.join("cache.json"), "{}").unwrap();
+
+        let p = plan(&w, &with_daemon("app/d.sock")).unwrap();
+        assert!(!p.daemon_socket_missing);
+        let dst = Path::new("/run/user/1000/app/d.sock");
+        assert!(
+            binds(&p).contains(&(dir.join("d.sock").as_path(), dst, false)),
+            "{:?}",
+            binds(&p)
+        );
+        assert!(
+            p.ops.contains(&Op::Dir("/run/user/1000/app".into())),
+            "its directory exists in the private runtime directory"
+        );
+        for (src, ..) in binds(&p) {
+            assert_ne!(src, dir.as_path(), "never the directory");
+            assert!(
+                !src.ends_with("cache.json"),
+                "nothing beside the socket is given"
+            );
+        }
+        // No Landlock rule of its own: the private /run already covers it, as the Wayland
+        // socket's is.
+        assert!(p.landlock.iter().all(|(path, _)| !path.ends_with("d.sock")));
+    }
+
+    #[test]
+    fn a_daemons_socket_that_is_not_there_or_not_a_socket_is_not_bound() {
+        let w = world();
+        let p = plan(&w, &with_daemon("app/none.sock")).unwrap();
+        assert!(p.daemon_socket_missing, "nothing is there");
+        assert!(!has_dst(&p, "/run/user/1000/app/none.sock"));
+
+        fs::create_dir_all(w.runtime.join("app")).unwrap();
+        fs::write(w.runtime.join("app/file.sock"), "not a socket").unwrap();
+        let p = plan(&w, &with_daemon("app/file.sock")).unwrap();
+        assert!(p.daemon_socket_missing, "a plain file is never bound");
+        assert!(!has_dst(&p, "/run/user/1000/app/file.sock"));
+
+        assert!(
+            !plan(&w, &Permissions::default())
+                .unwrap()
+                .daemon_socket_missing
+        );
+    }
+
+    /// The Manifest's parser refuses these, and so does the plan, for a [`Permissions`] built
+    /// some other way: the compositor's command socket is never granted.
+    #[test]
+    fn a_daemon_socket_in_the_compositors_directory_is_refused_by_the_plan_too() {
+        let w = world();
+        let instance = w.runtime.join("hypr/abc");
+        fs::create_dir_all(&instance).unwrap();
+        let _listener =
+            std::os::unix::net::UnixListener::bind(instance.join(".socket.sock")).unwrap();
+        for socket in ["hypr/abc/.socket.sock", "../escape", "/etc/passwd", ""] {
+            assert!(
+                matches!(
+                    plan(&w, &with_daemon(socket)),
+                    Err(Error::BadDaemonSocket(_))
+                ),
+                "{socket:?}"
             );
         }
     }

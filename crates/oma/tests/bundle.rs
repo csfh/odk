@@ -4,7 +4,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn oma(args: &[&std::ffi::OsStr]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_oma"))
+    Command::new(env!("CARGO_BIN_EXE_odk-oma"))
         .args(args)
         .output()
         .unwrap()

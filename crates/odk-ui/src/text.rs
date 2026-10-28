@@ -20,6 +20,7 @@ use crate::theme::colour;
 pub struct Text {
     content: SharedString,
     muted: bool,
+    mono: bool,
     role: Option<TypeRole>,
     applied: Applied,
 }
@@ -29,6 +30,7 @@ impl Text {
         Self {
             content: content.into(),
             muted: false,
+            mono: false,
             role: None,
             applied: Applied::default(),
         }
@@ -40,10 +42,25 @@ impl Text {
         self
     }
 
+    /// In the monospace type role, for what is read as characters: a command line, a path, an
+    /// identifier. The colours are the text's own.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
+    }
+
     /// Draws in `role` instead of body. The colour stays the text colour.
     pub fn role(mut self, role: TypeRole) -> Self {
         self.role = Some(role);
         self
+    }
+
+    /// Stays on one line and ends in `…` when it does not fit: the same as
+    /// `decorate(EndEllipsis)`. A parent that lays children out in a row must let this one
+    /// shrink (`flex_1` and `min_w_0` on the element around it), or the text takes the width it
+    /// wants.
+    pub fn single_line(self) -> Self {
+        self.decorate(crate::EndEllipsis)
     }
 
     /// Attaches a text decoration. Body text wraps; [`crate::EndEllipsis`] keeps one line and
@@ -63,7 +80,12 @@ impl Describe for Text {
 
 impl RenderOnce for Text {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let style = components().text(self.muted);
+        let tokens = components();
+        let style = if self.mono {
+            tokens.text_mono(self.muted)
+        } else {
+            tokens.text(self.muted)
+        };
         let role = self.role.unwrap_or(style.role);
         prose(
             style,

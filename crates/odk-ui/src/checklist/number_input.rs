@@ -226,3 +226,140 @@ fn nothing_moves_when_it_steps(cx: &mut TestAppContext) {
         ],
     );
 }
+
+type Committed = Rc<RefCell<Vec<f64>>>;
+
+/// `on_commit` hears the number a field settles on and not the keystrokes on the way to it:
+/// typing `80` passes through `8`, which `on_change` hears and a setting must not be written
+/// from. Enter settles on a number, clamped, and a second Enter on the same number is not a
+/// commit.
+#[gpui::test]
+fn a_commit_is_the_number_the_field_settles_on(cx: &mut TestAppContext) {
+    let (committed, changed) = (Committed::default(), Seen::default());
+    let (c, s) = (committed.clone(), changed.clone());
+    let cx = open(cx, move |_, _| {
+        let (c, s) = (c.clone(), s.clone());
+        quantity()
+            .default_value(2.0)
+            .on_change(move |v, _, _| s.borrow_mut().push(v))
+            .on_commit(move |v, _, _| c.borrow_mut().push(v))
+    });
+    press(cx, "tab");
+    cx.simulate_input("7");
+    assert_eq!(
+        *changed.borrow(),
+        [Some(7.0)],
+        "the edit is heard as it is made"
+    );
+    assert!(committed.borrow().is_empty(), "and is no commit");
+    press(cx, "enter");
+    assert_eq!(*committed.borrow(), [7.0]);
+    press(cx, "enter");
+    assert_eq!(
+        *committed.borrow(),
+        [7.0],
+        "the same number again is not a commit"
+    );
+
+    press(cx, "ctrl-a");
+    cx.simulate_input("99");
+    press(cx, "enter");
+    assert_eq!(
+        *committed.borrow(),
+        [7.0, 10.0],
+        "a number out of bounds commits clamped"
+    );
+}
+
+/// A step is a commit, by Up and Down and by the buttons, and a step that holds at a bound
+/// leaves the number where it was, so it is none.
+#[gpui::test]
+fn a_step_commits_unless_it_holds_at_a_bound(cx: &mut TestAppContext) {
+    let committed = Committed::default();
+    let c = committed.clone();
+    let cx = open(cx, move |_, _| {
+        let c = c.clone();
+        quantity()
+            .default_value(9.0)
+            .on_commit(move |v, _, _| c.borrow_mut().push(v))
+    });
+    press(cx, "tab up");
+    assert_eq!(*committed.borrow(), [10.0]);
+    press(cx, "up");
+    assert_eq!(*committed.borrow(), [10.0], "held at the top: still 10");
+    press(cx, "down");
+    assert_eq!(*committed.borrow(), [10.0, 9.0]);
+    let up = cx.debug_bounds("n/increment/button").unwrap();
+    cx.simulate_click(up.center(), Modifiers::default());
+    redraw(cx);
+    assert_eq!(
+        *committed.borrow(),
+        [10.0, 9.0, 10.0],
+        "the button steps too"
+    );
+}
+
+/// Leaving a field commits what was typed, and leaving one untouched, or holding text that is
+/// no number, commits nothing: tabbing through a form must not write a setting.
+#[gpui::test]
+fn leaving_commits_a_changed_number_and_nothing_else(cx: &mut TestAppContext) {
+    let committed = Committed::default();
+    let c = committed.clone();
+    let cx = open(cx, move |_, _| {
+        let c = c.clone();
+        v_flex()
+            .child(
+                quantity()
+                    .default_value(2.0)
+                    .on_commit(move |v, _, _| c.borrow_mut().push(v)),
+            )
+            .child(Button::new("after").label("After"))
+    });
+    press(cx, "tab tab shift-tab");
+    press(cx, "tab");
+    assert!(
+        committed.borrow().is_empty(),
+        "passed through untouched: {:?}",
+        committed.borrow()
+    );
+
+    press(cx, "shift-tab ctrl-a");
+    cx.simulate_input("abc");
+    press(cx, "tab");
+    assert!(
+        committed.borrow().is_empty(),
+        "text that is no number is no commit"
+    );
+
+    press(cx, "shift-tab ctrl-a");
+    cx.simulate_input("4");
+    press(cx, "tab");
+    assert_eq!(
+        *committed.borrow(),
+        [4.0],
+        "a changed number commits when the field is left"
+    );
+}
+
+/// A number the application gives is where a commit is measured from: the field is not told it
+/// committed what it was handed, and a commit of another number after it is one.
+#[gpui::test]
+fn a_given_number_is_not_a_commit(cx: &mut TestAppContext) {
+    let committed = Committed::default();
+    let c = committed.clone();
+    let cx = open(cx, move |_, _| {
+        let c = c.clone();
+        quantity()
+            .value(6.0)
+            .on_commit(move |v, _, _| c.borrow_mut().push(v))
+    });
+    press(cx, "tab enter");
+    assert!(
+        committed.borrow().is_empty(),
+        "Enter on the number it was given"
+    );
+    press(cx, "ctrl-a");
+    cx.simulate_input("3");
+    press(cx, "enter");
+    assert_eq!(*committed.borrow(), [3.0]);
+}

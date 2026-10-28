@@ -119,11 +119,14 @@ impl Render for TypographyPage {
                             ),
                         )
                         .child(group("Technical values"))
+                        .child(Text::new("0x7fff_ffff · #1e1e2e · 12.5px/18px · ~/.config/omarchy/shell.toml").mono())
                         .child(
-                            Text::new(
-                                "0x7fff_ffff · #1e1e2e · 12.5px/18px · ~/.config/omarchy/shell.toml",
-                            )
-                            .role(TypeRole::Mono),
+                            div().w(px(220.0)).child(
+                                Text::new("/usr/lib/systemd/systemd --user --deserialize=42")
+                                    .mono()
+                                    .muted()
+                                    .decorate(EndEllipsis),
+                            ),
                         )
                         .child(kv("Monospace family", t.family(FontFamily::Mono).unwrap_or("Omarchy's monospace font").to_owned())),
                 ),

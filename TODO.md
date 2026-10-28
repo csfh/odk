@@ -42,6 +42,11 @@ Not built: `.desktop` registration, upgrades, `rollback`, `purge` and the path u
 depends on ODK, so this can run in parallel with the ODK work. `.desktop` registration is the one
 users would notice, because installed applications would show up in launchers.
 
+ADR 0052 to 0055 (accepted) replace the directory Bundle this list assumed with one `.oma`
+file, and describe the MIME type, the path units, the install of `oma` (a domain script, later
+Omarchy's repository) and the signature. The code still installs a directory (ADR 0022). The
+work below follows the accepted ADRs.
+
 - [ ] `.desktop` registration
 - [ ] Upgrades
 - [ ] `rollback`
@@ -52,5 +57,9 @@ users would notice, because installed applications would show up in launchers.
 
 - [x] `main` is pushed. The commits an earlier draft of this list named (`53797ff`, `b6a4561`)
   are not in the history.
+- [x] ADR 0046 is superseded by ADR 0048: the user's own `shell.toml` is not a reduced-motion
+  source, even when Hyprland does not answer. `odkd` tells every application, a sandboxed one too (ADR 0062).
+  ADR 0047 and ADR 0048 are accepted. ADR 0049 is accepted with `odk::db` behind the `db`
+  feature of `odk`, off by default, and the bundled SQLite kept.
 - [ ] Update `docs/checks.md` with whatever the `Select` and overlay work settled, if anything
   is still marked unverified.

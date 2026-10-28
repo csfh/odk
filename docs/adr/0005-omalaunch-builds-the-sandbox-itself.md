@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0050
+---
+
 # omalaunch builds the sandbox itself from the manifest
 
 omalaunch isolates each launched application using Linux mount, user, PID, IPC and network namespaces combined with Landlock and seccomp, configured from the permissions declared in the Bundle's manifest on top of the baseline in ADR 0012. It does this directly rather than shelling out to `bwrap` or delegating to Flatpak and portals. Permissions are deny-by-default and shown to the user for consent (ADR 0023). We chose this over Landlock alone (weaker isolation, no network namespace) and over Flatpak (brings its own packaging and runtime model, which conflicts with `.oma`).

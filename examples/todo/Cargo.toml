@@ -7,9 +7,10 @@ rust-version.workspace = true
 
 [dependencies]
 deps.workspace = true
-odk.workspace = true
+odk = { workspace = true, features = ["db"] }
 
 [dev-dependencies]
 # The view's tests run on GPUI's test platform; nothing opens a window.
-odk = { workspace = true, features = ["test-support"] }
+# `db` is repeated so a test build keeps the database the library uses.
+odk = { workspace = true, features = ["db", "test-support"] }
 tempfile = "3"

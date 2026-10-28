@@ -82,6 +82,8 @@ Spacing by purpose. A component asks for a purpose, not a step, when one fits.
 | `form_gap` | 16 | `s4` |
 | `field_gap` | 6 | its own value: an optical exception to the grid, between a field's label and its control, and between the other parts of a form field (description, message) |
 | `menu_item_gap` | 8 | `s2` |
+| `sidebar_width` | 220 | its own value: the width of an application's sidebar (`sidebar_frame`) |
+| `content_width` | 1000 | its own value: the widest a page's column grows (`content_column`); a wider window centres it |
 
 ### Text size (`f.text_scale`)
 
@@ -165,7 +167,7 @@ odk::ui::configure(cx, |c| {
 
 `odk::ui::foundation_config(cx)` returns the application's settings, which stay separate from the tokens built from them.
 
-- **Reduced motion** is on when the application asks for it or the user does (ADR 0046, ADR 0048). The user asks when the compositor's animations are off (Hyprland's `animations:enabled`, asked over its socket and followed on `configreloaded`); when it does not answer, by `[motion] reduced = true` in the user's own `~/.config/omarchy/shell.toml`, which is watched live and is what `oma` writes into a sandbox's copy. Either the application or the user reduces motion; an application's `false` never overrides the user's `true`, and the user's absence never turns the application's off. Precedence is therefore "either", with no ordering to get wrong. `odk::ui::theme_snapshot().reduced_motion` says whether the user asked, and the theme diagnostics say what the compositor said.
+- **Reduced motion** is on when the application asks for it or the user does (ADR 0048). The user asks when the compositor's animations are off (Hyprland's `animations:enabled`, asked over its socket and followed on `configreloaded`). When the compositor does not answer, motion is not reduced. The `[motion] reduced` key in the user's own `~/.config/omarchy/shell.toml` is ignored. A sandboxed application cannot ask Hyprland; `odkd` asks, and tells it as it tells any application (ADR 0062). Either the application or the user reduces motion; an application's `false` never overrides the user's `true`, and the user's absence never turns the application's off. Precedence is therefore "either", with no ordering to get wrong. `odk::ui::theme_snapshot().reduced_motion` says whether the user asked, and the theme diagnostics say what the compositor said.
 - **Density** can be overridden by one control: a component with its own `Option<Density>` reads `f.controls.resolve(own)`. Corner radius cannot be overridden locally.
 - **Fonts.** Today the monospace choice reaches every existing component that sets text in monospace: `Kbd`, `Spinner`, the mark of a `Checkbox`, the marks in `Alert`, `Badge`, `Toast` and menus, and the icons of buttons, tabs, segments and sidebar rows. The UI choice, or Omarchy's font when there is none, reaches text styled with `text_role`; existing components follow it as they migrate.
 

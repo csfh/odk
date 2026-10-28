@@ -2,8 +2,8 @@
 use odk::prelude::*;
 use odk::theme::foundation::MotionDuration;
 
-// An application that offers its users a choice adds to the user's own request in
-// `shell.toml`; it cannot turn that request off.
+// An application that offers its users a choice adds to the system's request
+// (Hyprland's animations off); it cannot turn that request off.
 fn reduce_motion(cx: &mut App) {
     odk::ui::set_reduced_motion(cx, true);
 }
