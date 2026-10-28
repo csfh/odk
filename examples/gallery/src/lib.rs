@@ -37,7 +37,7 @@ mod theme_page;
 pub mod themes;
 pub mod typography;
 
-use odk::gpui::{AnyView, StyleRefinement, WindowOptions, px, rgba};
+use odk::gpui::{AnyView, StyleRefinement, px, rgba};
 use odk::prelude::*;
 use odk::theme::foundation::CornerRadius;
 
@@ -648,7 +648,11 @@ pub fn open(cx: &mut App) {
         .and_then(|id| Page::from_id(&id));
     let theme = std::env::var("GALLERY_THEME").ok();
     appearance_from_environment(cx);
-    odk::ui::open_window(cx, WindowOptions::default(), |_, cx| {
+    let window = WindowConfig::new("com.example.gallery")
+        .title("ODK Gallery")
+        .size(1200.0, 800.0)
+        .min_size(640.0, 480.0);
+    odk::ui::open_window(cx, window, |_, cx| {
         cx.new(|cx| {
             let mut gallery = Gallery::new(cx);
             if let Some(page) = first {
