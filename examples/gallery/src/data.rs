@@ -8,6 +8,7 @@
 
 use std::f32::consts::TAU;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use odk::gpui::{Div, px};
 use odk::prelude::*;
@@ -69,6 +70,9 @@ pub struct DataPage {
     /// The pannable view: its offset and scale, and the last press in it.
     view: (f32, f32, f32),
     pressed: Option<(f32, f32)>,
+    /// The pictures' bytes, kept so each is made into an image once (ADR 0072).
+    landscape: Arc<[u8]>,
+    portrait: Arc<[u8]>,
 }
 
 /// How many series the line chart has, and how many points each.
@@ -117,6 +121,8 @@ impl DataPage {
             to: Rc::new(sample(0)),
             view: (0.0, 0.0, 1.0),
             pressed: None,
+            landscape: LANDSCAPE.into(),
+            portrait: PORTRAIT.into(),
         }
     }
 }
@@ -144,7 +150,7 @@ pub fn section(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div
         .child(group("Charts"))
         .child(charts(g, cx))
         .child(group("Images"))
-        .child(images())
+        .child(images(g))
 }
 
 /// A panel's content: a title over a paragraph, which wraps and is cut at the panel's edge.
@@ -518,7 +524,7 @@ const PORTRAIT: &[u8] = include_bytes!("../assets/portrait.png");
 /// How large each image's box is here.
 const PREVIEW: (f32, f32) = (240.0, 135.0);
 
-fn images() -> Div {
+fn images(g: &DataPage) -> Div {
     let preview = |name: &'static str, image: Image| {
         v_flex()
             .gap(Space::Xs)
@@ -534,16 +540,16 @@ fn images() -> Div {
             h_flex()
                 .gap(Space::Lg)
                 .items_start()
-                .child(Image::avatar("data-avatar", "Your avatar").source(PORTRAIT.to_vec()))
+                .child(Image::avatar("data-avatar", "Your avatar").source(g.portrait.clone()))
                 .child(preview(
                     "Cropped to fill",
-                    Image::new("data-cover", "Current background").source(LANDSCAPE.to_vec()),
+                    Image::new("data-cover", "Current background").source(g.landscape.clone()),
                 ))
                 .child(preview(
                     "Shown whole",
                     Image::new("data-contain", "Current background")
                         .fit(ImageFit::Contain)
-                        .source(PORTRAIT.to_vec()),
+                        .source(g.portrait.clone()),
                 ))
                 .child(preview(
                     "Waiting for its bytes",
