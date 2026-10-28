@@ -215,3 +215,27 @@ fn reports_an_image() {
     assert_eq!((a.role, a.name.as_str()), (Role::Image, "Memory"));
     assert_eq!(a.description.as_deref(), Some("8 of 16 GB"));
 }
+
+/// Item 10; ADR 0071: Escape during a drag pans back by what the drag moved, and ends it.
+#[gpui::test]
+fn escape_pans_a_drag_back(cx: &mut TestAppContext) {
+    let (events, painted) = (Events::default(), Rc::default());
+    let build = chart(Rc::new(Cell::new(1)), &events, &painted);
+    let cx = open(cx, move |_, _| build());
+    let b = cx.debug_bounds("c/chart").unwrap();
+    let at = point(b.origin.x + px(30.0), b.origin.y + px(20.0));
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    let mid = point(at.x + px(10.0), at.y);
+    cx.simulate_mouse_move(mid, Some(MouseButton::Left), Modifiers::none());
+    let to = point(mid.x + px(5.0), mid.y + px(4.0));
+    cx.simulate_mouse_move(to, Some(MouseButton::Left), Modifiers::none());
+    press(cx, "escape");
+    let further = point(to.x + px(20.0), to.y);
+    cx.simulate_mouse_move(further, Some(MouseButton::Left), Modifiers::none());
+    cx.simulate_mouse_up(further, MouseButton::Left, Modifiers::none());
+    assert_eq!(
+        *events.borrow(),
+        ["press 30 20", "pan 10 0", "pan 5 4", "pan -15 -4"],
+        "back by the whole drag, and nothing after it"
+    );
+}

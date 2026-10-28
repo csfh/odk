@@ -373,8 +373,9 @@ type OnZoom = Rc<dyn Fn(f32, f32, f32, &mut Window, &mut App)>;
 ///
 /// Keyboard: a chart with `on_press`, `on_pan` or `on_zoom` is a tab stop; the arrow keys pan
 /// by a twentieth of the box, `+` and `-` zoom about its middle, and Enter or Space presses its
-/// middle. The pointer presses, drags to pan and zooms with the wheel (Shift and the wheel
-/// pan), all in the box's coordinates.
+/// middle; Escape during a drag pans back by what it moved. The pointer presses, drags to pan
+/// and zooms with the wheel (Shift and the wheel pan), all in the box's coordinates. A drag
+/// reports each move, since the application redraws its view as it pans (ADR 0071).
 ///
 /// ```ignore
 /// Chart::new("cpu", "CPU over the last minute")
@@ -469,11 +470,12 @@ struct Motion {
     since: Option<Instant>,
 }
 
-/// Where a chart is, and where a drag on it was last.
+/// Where a chart is, where a drag on it was last, and how far that drag has panned.
 #[derive(Default)]
 struct Pointer {
     bounds: Option<Bounds<Pixels>>,
     drag: Option<Point<Pixels>>,
+    panned: (f32, f32),
 }
 
 /// How far a transition begun at `since` has got at `now`, eased, over `length`.
@@ -571,6 +573,7 @@ impl RenderOnce for Chart {
                     if pans {
                         state.update(cx, |p, cx| {
                             p.drag = Some(e.position);
+                            p.panned = (0.0, 0.0);
                             cx.notify();
                         });
                     }
@@ -612,6 +615,19 @@ impl RenderOnce for Chart {
                     });
                     let (mx, my) = (w / 2.0, h / 2.0);
                     let key = e.keystroke.key.as_str();
+                    // Escape during a drag pans back by what the drag moved, and ends it.
+                    if key == "escape" {
+                        let back = state.update(cx, |p, cx| {
+                            p.drag.take()?;
+                            cx.notify();
+                            Some(std::mem::take(&mut p.panned))
+                        });
+                        if let (Some((dx, dy)), Some(f)) = (back, &on_pan) {
+                            f(-dx, -dy, window, cx);
+                            cx.stop_propagation();
+                        }
+                        return;
+                    }
                     let pan = match key {
                         "left" => Some((-w * KEY_PAN, 0.0)),
                         "right" => Some((w * KEY_PAN, 0.0)),
@@ -660,10 +676,18 @@ impl RenderOnce for Chart {
                             if phase != DispatchPhase::Bubble {
                                 return;
                             }
-                            let last = moves.update(cx, |p, _| p.drag.replace(e.position));
-                            if let Some(last) = last {
-                                let (dx, dy) = (e.position.x - last.x, e.position.y - last.y);
-                                on_pan(f32::from(dx), f32::from(dy), window, cx);
+                            let moved = moves.update(cx, |p, _| {
+                                let last = p.drag?;
+                                p.drag = Some(e.position);
+                                let (dx, dy) = (
+                                    f32::from(e.position.x - last.x),
+                                    f32::from(e.position.y - last.y),
+                                );
+                                p.panned = (p.panned.0 + dx, p.panned.1 + dy);
+                                Some((dx, dy))
+                            });
+                            if let Some((dx, dy)) = moved {
+                                on_pan(dx, dy, window, cx);
                             }
                         });
                         window.on_mouse_event(move |e: &MouseUpEvent, phase, _, cx| {
