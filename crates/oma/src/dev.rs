@@ -1,5 +1,6 @@
-//! `odk oma dev`'s project file (ADR 0051): how to build one application and what goes into its
-//! Bundle. It is read from `dev.toml` beside the Manifest and is never put in the Bundle.
+//! `odk oma dev`'s project file (ADR 0051, named `oma.toml` by ADR 0073): how to build one
+//! application and what goes into its Bundle. It is read from `oma.toml` beside the Manifest and is
+//! never put in the Bundle; the Manifest, `manifest.toml`, is what ships.
 //!
 //! `oma` still compiles nothing of its own (ADR 0010, ADR 0032): the commands in `build` are the
 //! project's, run as the user, exactly as `make` or `cargo build` would be.
@@ -13,12 +14,30 @@ use serde::Deserialize;
 use crate::bundle::{self, Include};
 
 /// The project file's name.
-pub const FILE: &str = "dev.toml";
+pub const FILE: &str = "oma.toml";
+
+/// Its name before ADR 0073.
+pub const OLD_FILE: &str = "dev.toml";
+
+/// Keys of the Manifest, which ships in the Bundle, and so are never the project file's.
+const MANIFEST_KEYS: &[&str] = &[
+    "identifier",
+    "name",
+    "version",
+    "description",
+    "icon",
+    "categories",
+    "publisher",
+    "permissions",
+    "daemon",
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{} not found: `odk oma dev` needs a {FILE} beside the manifest to know how to build", .0.display())]
     NoFile(PathBuf),
+    #[error("{}: the project file is {FILE} now (ADR 0073); rename it", .0.display())]
+    OldName(PathBuf),
     #[error("cannot access {}: {source}", path.display())]
     Io {
         path: PathBuf,
@@ -63,19 +82,35 @@ pub struct Project {
 }
 
 impl Project {
-    /// Reads `<dir>/dev.toml`. Every path in it is taken from `dir`, never from where `oma` was
+    /// Reads `<dir>/oma.toml`. Every path in it is taken from `dir`, never from where `oma` was
     /// started.
     pub fn load(dir: &Path) -> Result<Self, Error> {
         let file = dir.join(FILE);
         let text = match fs::read_to_string(&file) {
             Ok(text) => text,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(Error::NoFile(file)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let old = dir.join(OLD_FILE);
+                return Err(if old.is_file() {
+                    Error::OldName(old)
+                } else {
+                    Error::NoFile(file)
+                });
+            }
             Err(source) => return Err(Error::Io { path: file, source }),
         };
         let invalid = |message: String| Error::Invalid {
             path: file.clone(),
             message,
         };
+        // A Manifest's key here is the Manifest in the wrong file: say where it belongs, not
+        // only that it is unknown.
+        if let Ok(table) = toml::from_str::<toml::Table>(&text)
+            && let Some(key) = MANIFEST_KEYS.iter().find(|k| table.contains_key(**k))
+        {
+            return Err(invalid(format!(
+                "`{key}` belongs in the manifest, which goes into the Bundle; {FILE} says how to build it and is never put there"
+            )));
+        }
         let raw: Raw = toml::from_str(&text).map_err(|e| invalid(e.to_string()))?;
         if let Some(at) = raw
             .build
@@ -154,7 +189,30 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let e = Project::load(dir.path()).unwrap_err();
         assert!(matches!(e, Error::NoFile(_)));
-        assert!(e.to_string().contains("dev.toml"), "{e}");
+        assert!(e.to_string().contains("oma.toml"), "{e}");
+    }
+
+    #[test]
+    fn a_project_with_the_old_name_is_told_to_rename_it() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(OLD_FILE), "executable = \"app\"\n").unwrap();
+        let e = Project::load(dir.path()).unwrap_err();
+        assert!(matches!(e, Error::OldName(_)), "{e}");
+        let said = e.to_string();
+        assert!(
+            said.contains("dev.toml") && said.contains("oma.toml"),
+            "{said}"
+        );
+    }
+
+    #[test]
+    fn a_manifest_key_is_sent_to_the_manifest() {
+        let (_dir, loaded) = project("executable = \"app\"\nidentifier = \"dev.example.app\"\n");
+        let said = loaded.unwrap_err().to_string();
+        assert!(
+            said.contains("`identifier` belongs in the manifest"),
+            "{said}"
+        );
     }
 
     #[test]
