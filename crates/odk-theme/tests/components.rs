@@ -1856,3 +1856,17 @@ fn a_charts_series_are_six_roles_and_its_ramp_climbs() {
         );
     }
 }
+
+// An image (ADR 0072).
+
+#[test]
+fn an_avatar_is_s12_across_and_a_placeholder_is_the_skeletons_fill() {
+    for name in ["tokyo-night", "catppuccin-latte"] {
+        let c = tokens(name);
+        let s = c.image();
+        assert_eq!(s.avatar, c.foundation().spacing.s12, "{name}");
+        assert_eq!(s.avatar_shape, Shape::Circle);
+        assert_eq!(s.placeholder, c.skeleton().fill, "{name}");
+        assert_eq!(s.radius, c.foundation().geometry.radius.default);
+    }
+}
