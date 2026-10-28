@@ -45,6 +45,10 @@ const fn sample(name: &'static str, instances: usize, build: fn(usize) -> AnyEle
     }
 }
 
+/// How tall a chart sample is and how many points its line has: a sparkline. ODK's own.
+const CHART_HEIGHT: f32 = 48.0;
+const CHART_POINTS: usize = 60;
+
 /// How many rows each table sample has, and how tall it is: a table draws only the rows in
 /// view, so a thousand cost what twenty do (ADR 0070). ODK's own.
 const TABLE_ROWS: u32 = 1000;
@@ -82,6 +86,39 @@ pub static SAMPLES: &[Sample] = &[
             .label("Save changes")
             .variant(ButtonVariant::Primary)
             .leading_icon("✓")
+            .into_any_element()
+    }),
+    sample("Chart", 20, |n| {
+        div()
+            .h(px(CHART_HEIGHT))
+            .w_full()
+            .child(
+                Chart::new(("chart", n), "CPU over the last minute")
+                    .description("Between 0 and 100%")
+                    .paint(|scene, _| {
+                        let (w, h) = (scene.width(), scene.height());
+                        let mut path = ChartPath::new();
+                        for i in 0..CHART_POINTS {
+                            let x = w * i as f32 / (CHART_POINTS - 1) as f32;
+                            let y = h * (0.5 + 0.4 * (i as f32 * 0.3).sin());
+                            path = if i == 0 {
+                                path.move_to(x, y)
+                            } else {
+                                path.line_to(x, y)
+                            };
+                        }
+                        scene.stroke(&path, Ink::Series(0), StrokeWidth::Regular);
+                        scene.text(
+                            0.0,
+                            0.0,
+                            "100%",
+                            Ink::TextMuted,
+                            TextAnchor::Start,
+                            TextBaseline::Top,
+                            true,
+                        );
+                    }),
+            )
             .into_any_element()
     }),
     sample("Checkbox", 40, |n| {

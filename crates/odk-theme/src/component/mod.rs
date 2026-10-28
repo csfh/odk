@@ -43,7 +43,9 @@ pub use controls::{
     ButtonAppearance, ButtonLayout, ButtonStyle, ButtonVariant, CheckboxStyle, FIELD_INVALID_MARK,
     FieldStyle, FormFieldStyle, RadioStyle, SelectStyle, SwitchStyle,
 };
-pub use data::{ResizeHandleStyle, TableCellStyle, TableStyle};
+pub use data::{
+    ChartStyle, HEAT_STEPS, ResizeHandleStyle, SERIES_ROLES, TableCellStyle, TableStyle,
+};
 pub use feedback::{
     AlertStyle, BadgeAppearance, BadgeStyle, KbdStyle, ProgressStyle, ProseStyle, SeparatorStyle,
     SkeletonStyle, SpinnerStyle, StatusDotStyle, StatusStyle, heading_role, status_mark,

@@ -10,6 +10,7 @@ mod alert;
 mod badge;
 mod breadcrumb;
 mod button;
+mod chart;
 mod checkbox;
 mod command;
 mod content;
