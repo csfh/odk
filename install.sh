@@ -190,10 +190,13 @@ refresh_types
 # --- start --------------------------------------------------------------------------------
 if have_user_manager; then
     systemctl --user daemon-reload
+    # systemd refuses to start a socket for a service that is already running, and a running
+    # odkd has only the sockets it started with, so it is stopped first (ADR 0074). The next
+    # connection starts the new program with every socket; odkd.service wants them all, so a
+    # connection between these two lines does too.
+    systemctl --user stop odkd.service
     # $sockets is one or two unit names, split on purpose.
     systemctl --user enable --now $sockets
-    # An upgrade runs the new program; a service that is not running stays off until asked.
-    systemctl --user try-restart odkd.service
     started=yes
 else
     started=no
