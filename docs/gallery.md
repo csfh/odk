@@ -26,7 +26,7 @@ In a window narrower than `layout::NARROW_BELOW` the sidebar narrows and the too
 | Group | Page (id) | What it shows |
 |---|---|---|
 | | Overview (`overview`) | How to use the gallery, what it covers, what is not built and why |
-| Actions | Buttons (`buttons`) | Eight variants, three densities, content, states, emphasis, and the tokens of one button by state |
+| Actions | Buttons (`buttons`) | Eight variants, three densities, content, states (a listening button that records a chord among them), emphasis, and the tokens of one button by state |
 | Forms | Text fields (`fields`), Selection (`selection`), Form (`form`) | Input, search, password, number, textarea, input group; select, command list, check box, radio group, switch; every state and a complete form |
 | Navigation | Navigation (`navigation`) | Tabs, segmented controls, navigation list, breadcrumbs |
 | Feedback | Feedback (`feedback`) | Badges, status indicators, alerts, progress, spinners, skeletons, separators |

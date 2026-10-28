@@ -11,7 +11,7 @@ use odk_theme::semantic;
 
 use super::{FIXTURES, open, press, publish_fixture, redraw, reduce_motion};
 use crate::interaction::take_frame_requests;
-use crate::{Button, Chart, ChartPath, Ink, StrokeWidth, drawn, v_flex};
+use crate::{Button, Chart, ChartHeight, ChartPath, Ink, StrokeWidth, components, drawn, v_flex};
 
 type Events = Rc<RefCell<Vec<String>>>;
 
@@ -130,6 +130,33 @@ fn the_scene_is_the_box(cx: &mut TestAppContext) {
     let build = chart(Rc::new(Cell::new(1)), &events, &painted);
     let _cx = open(cx, move |_, _| build());
     assert_eq!(painted.get(), (200.0, 100.0));
+}
+
+/// ADR 0075: a chart that asks for a height is that tall and as wide as its parent, in a parent
+/// that gives it no height; one that asks for none fills its parent.
+#[gpui::test]
+fn a_height_is_the_charts_and_the_width_its_parents(cx: &mut TestAppContext) {
+    let painted: Rc<RefCell<Vec<(f32, f32)>>> = Rc::default();
+    let seen = painted.clone();
+    let _cx = open(cx, move |_, _| {
+        let row = |h: ChartHeight, seen: Rc<RefCell<Vec<(f32, f32)>>>| {
+            Chart::new(gpui::SharedString::from(format!("h{h:?}")), "Sized")
+                .height(h)
+                .paint(move |scene, _| {
+                    seen.borrow_mut().push((scene.width(), scene.height()));
+                })
+        };
+        v_flex()
+            .w(px(300.0))
+            .child(row(ChartHeight::Compact, seen.clone()))
+            .child(row(ChartHeight::Regular, seen.clone()))
+            .child(row(ChartHeight::Tall, seen.clone()))
+            .into_any_element()
+    });
+    let h = components().chart().heights;
+    let drawn: Vec<(f32, f32)> = painted.borrow().iter().take(3).copied().collect();
+    assert_eq!(drawn, vec![(300.0, h[0]), (300.0, h[1]), (300.0, h[2])]);
+    assert!(h[0] < h[1] && h[1] < h[2]);
 }
 
 /// Items 8, 9, 10; ADR 0071: a chart that hears the pointer is a tab stop; the arrows pan by a

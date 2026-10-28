@@ -191,6 +191,9 @@ pub struct ChartStyle {
     pub thin: f32,
     pub regular: f32,
     pub thick: f32,
+    /// The heights a chart can ask for (ADR 0075): compact (`s8`), regular (twice `s12`) and
+    /// tall (four times `s12`), so they grow with the text size as the spacing does.
+    pub heights: [f32; 3],
     pub type_role: TypeRole,
     pub focus: FocusRing,
 }
@@ -198,6 +201,7 @@ pub struct ChartStyle {
 impl ComponentTokens {
     pub fn chart(&self) -> ChartStyle {
         let g = &self.foundation.geometry;
+        let s = &self.foundation.spacing;
         ChartStyle {
             series: SERIES_ROLES.map(|r| self.colour(series_line(r))),
             series_fill: SERIES_ROLES.map(|r| self.colour(series_fill(r))),
@@ -210,6 +214,7 @@ impl ComponentTokens {
             thin: g.border_width,
             regular: g.focus_width,
             thick: g.focus_width * 2.0,
+            heights: [s.s8, s.s12 * 2.0, s.s12 * 4.0],
             type_role: TypeRole::Small,
             focus: self.ring(C::Border(B::Focus)),
         }

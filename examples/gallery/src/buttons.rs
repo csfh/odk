@@ -38,6 +38,9 @@ impl Default for Inspector {
 pub struct ButtonsPage {
     worst_case: bool,
     saving: bool,
+    /// The recorder example: whether it listens, and the last chord it heard.
+    listening: bool,
+    heard: SharedString,
     inspector: Inspector,
 }
 
@@ -51,6 +54,8 @@ impl ButtonsPage {
         Self {
             worst_case: settings.read(cx).worst_case,
             saving: false,
+            listening: false,
+            heard: SharedString::default(),
             inspector: Inspector::default(),
         }
     }
@@ -106,6 +111,23 @@ pub(crate) fn choice_labelled<T: Copy + PartialEq + 'static, V: 'static>(
                 }
             })),
         )
+}
+
+/// A chord as the gallery writes it: its modifiers, then its key, joined by `+`.
+fn chord_text(c: &Chord) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for (on, name) in [
+        (c.platform, "Super"),
+        (c.control, "Ctrl"),
+        (c.alt, "Alt"),
+        (c.shift, "Shift"),
+    ] {
+        if on {
+            parts.push(name.into());
+        }
+    }
+    parts.push(c.key.to_string());
+    parts.join("+")
 }
 
 pub(crate) fn row() -> Div {
@@ -275,6 +297,33 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
                             cx.notify();
                         })),
                 ),
+        )
+        .child(caption("Listening: Record shortcut takes the next key press and the modifiers held with it; Escape cancels."))
+        .child(
+            row()
+                .child(
+                    Button::new("s-record")
+                        .label(if g.listening { "Listening…" } else { "Record shortcut" })
+                        .variant(ButtonVariant::Outline)
+                        .listening(g.listening)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.listening = true;
+                            cx.notify();
+                        }))
+                        .on_chord({
+                            let page = cx.entity();
+                            move |chord, _, cx| {
+                                page.update(cx, |this, cx| {
+                                    this.listening = false;
+                                    if let Some(c) = chord {
+                                        this.heard = chord_text(c).into();
+                                    }
+                                    cx.notify();
+                                })
+                            }
+                        }),
+                )
+                .children((!g.heard.is_empty()).then(|| Kbd::new(&g.heard))),
         )
         .child(caption("Content: text, leading icon, trailing icon, icon alone, a larger target, and a long label in a narrow width."))
         .child(

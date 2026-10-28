@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 use gpui::{
-    App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent,
+    ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 
 use odk_theme::component::{
@@ -42,6 +44,21 @@ impl Size {
 }
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type ChordHandler = Rc<dyn Fn(Option<&Chord>, &mut Window, &mut App) + 'static>;
+
+/// A key and the modifiers held with it, as a listening button hears it (`Button::listening`,
+/// ADR 0076). `key` is the key's name as the platform gives it: a letter or digit (`a`, `5`),
+/// a symbol (`,`, `.`), or a name (`enter`, `space`, `backspace`, `delete`, `left`, `up`, `f1`
+/// to `f24`). `platform` is the Super key. An application turns it into its own words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Chord {
+    pub key: SharedString,
+    pub control: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub platform: bool,
+    pub function: bool,
+}
 
 /// The GPUI group a larger pointer target gives its button's face.
 const TARGET_GROUP: &str = "odk-button-target";
@@ -53,6 +70,12 @@ const TARGET_GROUP: &str = "odk-button-target";
 /// presses it when the button goes down and comes up on it; released elsewhere, nothing
 /// happens. While `loading` it stays in the Tab order and keeps its focus but ignores presses;
 /// while `disabled` it ignores the pointer and the keyboard and is skipped by Tab.
+///
+/// While `listening` (ADR 0076) and focused, it takes the next key press, with the modifiers
+/// held, as a `Chord` for `on_chord` instead of pressing: a key held down reports once, Escape
+/// reports `None` (a cancel), Tab still moves focus, and focus leaving reports `None` once. A key
+/// it took does not press it when released. The application says that it listens, in the label
+/// ("Listening…"), and stops listening when it has the chord it wants.
 ///
 /// It draws only component tokens: the colours of its variant and emphasis by state, and the
 /// height, padding, icon size and corner radius of its density. Hover and press change colour at
@@ -70,6 +93,8 @@ pub struct Button {
     full_width: bool,
     target: Option<f32>,
     on_click: Option<ClickHandler>,
+    listening: bool,
+    on_chord: Option<ChordHandler>,
     loading: bool,
     disabled: bool,
     name: Option<SharedString>,
@@ -98,6 +123,8 @@ impl Button {
             full_width: false,
             target: None,
             on_click: None,
+            listening: false,
+            on_chord: None,
             loading: false,
             disabled: false,
             name: None,
@@ -235,6 +262,21 @@ impl Button {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_click = Some(Box::new(handler));
+        self
+    }
+
+    /// Takes the next key press as a chord rather than a press, while focused (ADR 0076).
+    pub fn listening(mut self, listening: bool) -> Self {
+        self.listening = listening;
+        self
+    }
+
+    /// Hears the chord a listening button took, or `None` when Escape or focus leaving cancels.
+    pub fn on_chord(
+        mut self,
+        handler: impl Fn(Option<&Chord>, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_chord = Some(Rc::new(handler));
         self
     }
 
@@ -448,6 +490,17 @@ impl RenderOnce for Button {
         if let Some(focus) = &focus {
             button = button.track_focus(focus);
         }
+        if let Some(handler) = self.on_chord.clone().filter(|_| !self.disabled) {
+            button = listen(
+                button,
+                &self.id,
+                self.listening,
+                focused,
+                handler,
+                window,
+                cx,
+            );
+        }
         if self.keeps_focus {
             // GPUI runs an element's own press listeners after it has marked the element pressed
             // and before it moves focus to it, and moves focus only if the press was not
@@ -477,6 +530,71 @@ impl RenderOnce for Button {
             button,
         )
     }
+}
+
+/// A listening button's keys (ADR 0076): the next press is a chord, Escape a cancel, and the
+/// release of a key it took presses nothing. Focus leaving while it listens cancels, once.
+fn listen<E: InteractiveElement>(
+    button: E,
+    id: &ElementId,
+    listening: bool,
+    focused: bool,
+    handler: ChordHandler,
+    window: &mut Window,
+    cx: &mut App,
+) -> E {
+    // The key it took, until that key is released.
+    let taken = window.use_keyed_state(child_id(id, "chord-taken"), cx, |_, _| None::<String>);
+    // Whether it has said that focus left, so it says so once.
+    let left = window.use_keyed_state(child_id(id, "chord-left"), cx, |_, _| false);
+    let said = *left.read(cx);
+    match (listening, focused) {
+        (true, false) if !said => {
+            left.update(cx, |l, _| *l = true);
+            let handler = handler.clone();
+            window.defer(cx, move |window, cx| handler(None, window, cx));
+        }
+        (true, false) => {}
+        _ if said => left.update(cx, |l, _| *l = false),
+        _ => {}
+    }
+    let released = taken.clone();
+    let button = button.capture_key_up(move |e: &KeyUpEvent, window, cx| {
+        let was = released.update(cx, |t, _| t.take_if(|k| *k == e.keystroke.key));
+        if was.is_some() {
+            window.prevent_default();
+            cx.stop_propagation();
+        }
+    });
+    if !listening {
+        return button;
+    }
+    button.on_key_down(move |e: &KeyDownEvent, window, cx| {
+        let k = &e.keystroke;
+        if k.key == "tab" {
+            return;
+        }
+        cx.stop_propagation();
+        window.prevent_default();
+        if e.is_held {
+            return;
+        }
+        taken.update(cx, |t, _| *t = Some(k.key.clone()));
+        if k.key == "escape" && !k.modifiers.modified() {
+            handler(None, window, cx);
+            return;
+        }
+        let m = k.modifiers;
+        let chord = Chord {
+            key: SharedString::from(k.key.clone()),
+            control: m.control,
+            alt: m.alt,
+            shift: m.shift,
+            platform: m.platform,
+            function: m.function,
+        };
+        handler(Some(&chord), window, cx);
+    })
 }
 
 /// What each button drew on its last frame, for tests (`checklist/button.rs`): the style it

@@ -1,10 +1,10 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::fs;
 use std::rc::Rc;
 
 use gpui::{
-    Bounds, KeyUpEvent, Keystroke, Modifiers, MouseButton, ParentElement, Pixels, Styled,
-    TestAppContext, VisualTestContext, div, point, px,
+    Bounds, IntoElement, KeyUpEvent, Keystroke, Modifiers, MouseButton, ParentElement, Pixels,
+    Styled, TestAppContext, VisualTestContext, div, point, px,
 };
 use odk_a11y::{Describe, Role};
 use odk_theme::component::{ButtonLayout, ButtonVariant, States};
@@ -14,7 +14,7 @@ use odk_theme::{JND, ThemeManager, ThemeSource};
 
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw, reduce_motion};
 use crate::button::probe;
-use crate::{Button, Size, h_flex, v_flex};
+use crate::{Button, Chord, Size, h_flex, v_flex};
 
 fn bounds(cx: &mut VisualTestContext, part: &'static str) -> Bounds<Pixels> {
     cx.debug_bounds(part)
@@ -717,4 +717,145 @@ fn a_theme_change_recolours_buttons_and_keeps_their_size(cx: &mut TestAppContext
             States::NONE
         )
     );
+}
+
+type Heard = Rc<RefCell<Vec<Option<Chord>>>>;
+
+/// A button that starts listening when pressed and stops at whatever it hears, and a button after
+/// it.
+fn recorder(
+    listening: &Rc<Cell<bool>>,
+    heard: &Heard,
+    clicks: &Count,
+) -> impl Fn() -> gpui::AnyElement + 'static {
+    let (listening, heard, clicks) = (listening.clone(), heard.clone(), clicks.clone());
+    move || {
+        let (on, stop, h, c) = (
+            listening.clone(),
+            listening.clone(),
+            heard.clone(),
+            clicks.clone(),
+        );
+        v_flex()
+            .child(
+                Button::new("rec")
+                    .label(if listening.get() {
+                        "Listening…"
+                    } else {
+                        "Record"
+                    })
+                    .listening(listening.get())
+                    .on_click(move |_, _, _| {
+                        c.bump();
+                        on.set(true);
+                    })
+                    .on_chord(move |chord, _, _| {
+                        h.borrow_mut().push(chord.cloned());
+                        stop.set(false);
+                    }),
+            )
+            .child(Button::new("after").label("After"))
+            .into_any_element()
+    }
+}
+
+fn chord(key: &'static str, control: bool, shift: bool, platform: bool) -> Option<Chord> {
+    Some(Chord {
+        key: key.into(),
+        control,
+        alt: false,
+        shift,
+        platform,
+        function: false,
+    })
+}
+
+/// ADR 0076; items 8, 10, 38: a listening button takes the next key press, with its modifiers,
+/// as a chord instead of pressing; the release of a key it took presses nothing, so Enter can be
+/// recorded; Escape cancels; Tab still leaves, and focus leaving while it listens cancels once.
+#[gpui::test]
+fn a_listening_button_takes_the_next_chord(cx: &mut TestAppContext) {
+    let (listening, heard, clicks) = (
+        Rc::new(Cell::new(false)),
+        Heard::default(),
+        Count::default(),
+    );
+    let build = recorder(&listening, &heard, &clicks);
+    let cx = open(cx, move |_, _| build());
+    press(cx, "tab enter");
+    redraw(cx);
+    assert!(listening.get(), "a press starts it listening");
+    assert_eq!(clicks.get(), 1);
+
+    press(cx, "ctrl-shift-k");
+    redraw(cx);
+    assert_eq!(heard.borrow().last(), Some(&chord("k", true, true, false)));
+    assert!(!listening.get());
+
+    press(cx, "space");
+    redraw(cx);
+    assert!(listening.get());
+    press(cx, "enter");
+    redraw(cx);
+    assert_eq!(
+        heard.borrow().last(),
+        Some(&chord("enter", false, false, false))
+    );
+    assert_eq!(
+        clicks.get(),
+        2,
+        "the Enter it took does not press it when released"
+    );
+    assert!(!listening.get());
+
+    press(cx, "enter");
+    redraw(cx);
+    press(cx, "super-f1");
+    redraw(cx);
+    assert_eq!(
+        heard.borrow().last(),
+        Some(&chord("f1", false, false, true))
+    );
+
+    press(cx, "enter");
+    redraw(cx);
+    press(cx, "escape");
+    redraw(cx);
+    assert_eq!(heard.borrow().last(), Some(&None), "Escape cancels");
+    listening.set(false);
+    redraw(cx);
+
+    press(cx, "enter");
+    redraw(cx);
+    let before = heard.borrow().len();
+    press(cx, "tab");
+    redraw(cx);
+    redraw(cx);
+    assert_eq!(
+        heard.borrow().len(),
+        before + 1,
+        "focus leaving cancels once"
+    );
+    assert_eq!(heard.borrow().last(), Some(&None));
+    press(cx, "enter");
+    assert_eq!(
+        clicks.get(),
+        5,
+        "Tab moved on to the next button, which presses nothing here"
+    );
+}
+
+/// ADR 0076: a button that is not listening presses on Enter and reports no chord.
+#[gpui::test]
+fn a_button_not_listening_hears_no_chord(cx: &mut TestAppContext) {
+    let heard = Heard::default();
+    let h = heard.clone();
+    let cx = open(cx, move |_, _| {
+        let h = h.clone();
+        Button::new("b")
+            .label("Go")
+            .on_chord(move |c, _, _| h.borrow_mut().push(c.cloned()))
+    });
+    press(cx, "tab a enter escape");
+    assert!(heard.borrow().is_empty());
 }

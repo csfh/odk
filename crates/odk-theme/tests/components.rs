@@ -1854,6 +1854,8 @@ fn a_charts_series_are_six_roles_and_its_ramp_climbs() {
             (s.thin, s.regular, s.thick),
             (g.border_width, g.focus_width, g.focus_width * 2.0)
         );
+        let sp = c.foundation().spacing.clone();
+        assert_eq!(s.heights, [sp.s8, sp.s12 * 2.0, sp.s12 * 4.0], "{name}");
     }
 }
 

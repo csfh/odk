@@ -232,6 +232,26 @@ fn arc_pieces(from: f32, to: f32) -> Vec<(f32, bool)> {
     }
 }
 
+/// How tall a chart is when it asks rather than filling its parent (ADR 0075): `Compact` for a
+/// sparkline, `Regular` for a chart, `Tall` for one that needs room, such as a code to scan.
+/// Each is the foundation's spacing, so it grows with the text size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChartHeight {
+    Compact,
+    Regular,
+    Tall,
+}
+
+impl ChartHeight {
+    fn px(self, s: &ChartStyle) -> f32 {
+        match self {
+            ChartHeight::Compact => s.heights[0],
+            ChartHeight::Regular => s.heights[1],
+            ChartHeight::Tall => s.heights[2],
+        }
+    }
+}
+
 /// What a chart's `paint` draws with, in the chart's own coordinates.
 pub struct Scene<'a> {
     bounds: Bounds<Pixels>,
@@ -392,6 +412,7 @@ pub struct Chart {
     name: SharedString,
     description: Option<SharedString>,
     generation: u64,
+    height: Option<ChartHeight>,
     paint: Option<Paint>,
     on_press: Option<OnPoint>,
     on_pan: Option<OnPan>,
@@ -406,6 +427,7 @@ impl Chart {
             name: name.into(),
             description: None,
             generation: 0,
+            height: None,
             paint: None,
             on_press: None,
             on_pan: None,
@@ -416,6 +438,13 @@ impl Chart {
     /// What the chart shows, in words: what assistive technology reads in its place.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
+        self
+    }
+
+    /// Its height, as wide as its parent: a chart that asks for one does not fill its parent's
+    /// height, which is how a chart stands in a column of rows.
+    pub fn height(mut self, height: ChartHeight) -> Self {
+        self.height = Some(height);
         self
     }
 
@@ -543,14 +572,15 @@ impl RenderOnce for Chart {
         )
         .size_full();
 
-        let mut chart = div()
+        let chart = div()
             .id(self.id.clone())
             .debug_selector(|| part_name(&self.id, "chart"))
-            .relative()
-            .size_full()
-            .min_w_0()
-            .min_h_0()
-            .child(surface);
+            .relative();
+        let chart = match self.height {
+            Some(h) => chart.w_full().h(px(h.px(&style))).flex_none(),
+            None => chart.size_full(),
+        };
+        let mut chart = chart.min_w_0().min_h_0().child(surface);
         if !self.interactive() {
             return chart;
         }
