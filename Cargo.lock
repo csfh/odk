@@ -1393,7 +1393,7 @@ checksum = "ac6b926516df9c60bfa16e107b21086399f8285a44ca9711344b9e553c5146e2"
 
 [[package]]
 name = "deps"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "concurrent-queue",
  "crossbeam-utils",
@@ -3936,7 +3936,7 @@ dependencies = [
 
 [[package]]
 name = "odk"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "deps",
  "odk-a11y",
@@ -3947,14 +3947,14 @@ dependencies = [
 
 [[package]]
 name = "odk-a11y"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "deps",
 ]
 
 [[package]]
 name = "odk-cli"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "deps",
  "tempfile",
@@ -3962,7 +3962,7 @@ dependencies = [
 
 [[package]]
 name = "odk-db"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "async-channel 2.5.0",
  "deps",
@@ -3973,7 +3973,7 @@ dependencies = [
 
 [[package]]
 name = "odk-theme"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "deps",
  "log",
@@ -3986,7 +3986,7 @@ dependencies = [
 
 [[package]]
 name = "odk-ui"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "async-channel 2.5.0",
  "deps",
@@ -4003,7 +4003,7 @@ dependencies = [
 
 [[package]]
 name = "odkd"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "deps",
  "libc",
@@ -4014,7 +4014,7 @@ dependencies = [
 
 [[package]]
 name = "oma"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "clap",
  "deps",
@@ -4028,7 +4028,7 @@ dependencies = [
 
 [[package]]
 name = "oma-consent"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "deps",
  "gpui",

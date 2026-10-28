@@ -1,6 +1,6 @@
 # Changelog
 
-Every crate has the workspace's version (ADR 0064). The pre-releases `v0.1.0-rc.1` and `v0.1.0-rc.2` were cut from this section, which stays "Unreleased" and becomes the notes of 0.1.0. The decisions behind each line are the ADRs it names.
+Every crate has the workspace's version (ADR 0064). The pre-releases `v0.1.0-rc.1` to `v0.1.0-rc.4` were cut from this section, which stays "Unreleased" and becomes the notes of 0.1.0. The decisions behind each line are the ADRs it names.
 
 ## Unreleased
 
