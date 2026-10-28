@@ -1828,3 +1828,31 @@ fn a_table_row_is_a_control_high_and_its_selection_survives_the_pointer() {
         assert_eq!(fixed.current, c.table_header(false, States::NONE).current);
     }
 }
+
+// A chart's inks (ADR 0071).
+
+#[test]
+fn a_charts_series_are_six_roles_and_its_ramp_climbs() {
+    use odk_theme::component::{HEAT_STEPS, SERIES_ROLES};
+    for name in ["tokyo-night", "catppuccin-latte", "nord"] {
+        let c = tokens(name);
+        let s = c.chart();
+        for (n, role) in SERIES_ROLES.iter().enumerate() {
+            assert_eq!(
+                s.series[n],
+                c.semantic().colour(ColourRef::Focus(*role)),
+                "{name}"
+            );
+        }
+        let distinct: std::collections::HashSet<_> =
+            s.series[..5].iter().map(|c| c.to_rgba_u32()).collect();
+        assert_eq!(distinct.len(), 5, "{name}: the coloured series differ");
+        assert_eq!(s.heat.len(), HEAT_STEPS);
+        assert_ne!(s.heat[0], s.heat[HEAT_STEPS - 1], "{name}");
+        let g = c.foundation().geometry.clone();
+        assert_eq!(
+            (s.thin, s.regular, s.thick),
+            (g.border_width, g.focus_width, g.focus_width * 2.0)
+        );
+    }
+}

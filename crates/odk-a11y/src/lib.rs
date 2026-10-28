@@ -64,6 +64,8 @@ pub enum Role {
     Cell,
     /// A column's name at the head of a table, with its sort as its value.
     ColumnHeader,
+    /// A picture or a chart, named for what it shows (WAI-ARIA `img`).
+    Image,
 }
 
 /// How a component reports itself to assistive technology.

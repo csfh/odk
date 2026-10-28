@@ -13,6 +13,7 @@ pub(super) const COMPONENTS: &[(&str, &str, bool)] = &[
     ("Badge", "badge.rs", false),
     ("Breadcrumb", "breadcrumb.rs", true),
     ("Button", "button.rs", true),
+    ("Chart", "chart.rs", true),
     ("Checkbox", "checkbox.rs", true),
     ("Command", "command.rs", true),
     ("DataTable", "data_table.rs", true),
@@ -57,6 +58,7 @@ const ON_COMPONENT_TOKENS: &[&str] = &[
     "badge.rs",
     "breadcrumb.rs",
     "button.rs",
+    "chart.rs",
     "checkbox.rs",
     "command.rs",
     "data_table.rs",
@@ -705,6 +707,21 @@ fn every_component_is_in_the_prelude() {
         Badge::new("3"),
         Breadcrumb::new("b"),
         Button::new("c"),
+        Chart::new("ch", "CPU").paint(|scene: &mut Scene, _| {
+            let path = ChartPath::new()
+                .move_to(0.0, 0.0)
+                .line_to(scene.width(), 0.0);
+            scene.stroke(&path, Ink::Series(0), StrokeWidth::Regular);
+            scene.text(
+                0.0,
+                0.0,
+                "0%",
+                Ink::Text,
+                TextAnchor::Start,
+                TextBaseline::Top,
+                true,
+            );
+        }),
         Checkbox::new("cb", "Wrap lines"),
         Command::new("cmd", "Commands").item(CommandItem::new("Open")),
         ContextMenu::new("d", "Row actions", Text::new("t")),

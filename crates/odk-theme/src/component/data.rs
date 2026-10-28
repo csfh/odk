@@ -1,10 +1,15 @@
-//! Data and layout: a resizable group's handle (ADR 0069) and a data table (ADR 0070).
+//! Data and layout: a resizable group's handle (ADR 0069), a data table (ADR 0070) and a
+//! chart's inks (ADR 0071).
 
 use super::catalogue::{Entry, Measure, Summary, Template};
 use super::geometry::{self, ControlGeometry, FocusRing, Shape};
 use super::{ComponentTokens, Interactive, States, TreatmentRef, navigation};
+use crate::Color;
 use crate::foundation::{Density, FoundationTokens, TypeRole};
-use crate::semantic::{BorderToken as B, ColourRef as C, State, TextToken as T, Treatment};
+use crate::semantic::{
+    BorderToken as B, ColourRef as C, Emphasis, Part, Role, State, SurfaceToken as S,
+    TextToken as T, Treatment,
+};
 
 /// The handle between two panels of a `Resizable`: a line one border wide, in the separator's
 /// colour at rest and the focus colour, at the focus width, while it is hovered or dragged, with
@@ -148,6 +153,108 @@ fn table_summary(f: &FoundationTokens, d: Density) -> Summary {
     }
 }
 
+/// The Roles a chart's series take, in order: the accent first, then the statuses, then the
+/// neutral grey. A seventh series takes the first's colour again.
+pub const SERIES_ROLES: [Role; 6] = [
+    Role::Accent,
+    Role::Info,
+    Role::Success,
+    Role::Warning,
+    Role::Danger,
+    Role::Neutral,
+];
+
+/// How many steps a chart's sequential ramp has.
+pub const HEAT_STEPS: usize = 5;
+
+/// What a chart draws with (`Chart`, ADR 0071): every colour an application can name, the
+/// widths of its strokes and its text. Resolved once per theme, so drawing a chart does no
+/// colour maths.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChartStyle {
+    /// Each series' line and mark, by [`SERIES_ROLES`]: the Role's focus colour, which reaches
+    /// `ui_contrast` over every surface.
+    pub series: [Color; 6],
+    /// Each series' tint, for an area or a bar: the Role's muted fill.
+    pub series_fill: [Color; 6],
+    /// A sequential ramp, low to high: the neutral muted fill, the accent's muted fill, its
+    /// muted fill under the pointer, its solid fill and its focus colour.
+    pub heat: [Color; HEAT_STEPS],
+    pub text: Color,
+    pub text_muted: Color,
+    /// Grid lines: the subtle border. The axis: the default border.
+    pub grid: Color,
+    pub axis: Color,
+    /// The surface the chart is on, for a gap between marks or a halo behind text.
+    pub canvas: Color,
+    /// Stroke widths: a border, the focus width and twice that.
+    pub thin: f32,
+    pub regular: f32,
+    pub thick: f32,
+    pub type_role: TypeRole,
+    pub focus: FocusRing,
+}
+
+impl ComponentTokens {
+    pub fn chart(&self) -> ChartStyle {
+        let g = &self.foundation.geometry;
+        ChartStyle {
+            series: SERIES_ROLES.map(|r| self.colour(series_line(r))),
+            series_fill: SERIES_ROLES.map(|r| self.colour(series_fill(r))),
+            heat: HEAT.map(|c| self.colour(c)),
+            text: self.colour(C::Text(T::Primary)),
+            text_muted: self.colour(C::Text(T::Secondary)),
+            grid: self.colour(C::Border(B::Subtle)),
+            axis: self.colour(C::Border(B::Default)),
+            canvas: self.colour(C::Surface(S::Canvas)),
+            thin: g.border_width,
+            regular: g.focus_width,
+            thick: g.focus_width * 2.0,
+            type_role: TypeRole::Small,
+            focus: self.ring(C::Border(B::Focus)),
+        }
+    }
+}
+
+/// A series' line: its Role's focus colour.
+const fn series_line(role: Role) -> C {
+    C::Focus(role)
+}
+
+/// A series' tint: its Role's muted fill.
+const fn series_fill(role: Role) -> C {
+    C::Treatment(role, Emphasis::Muted, State::Default, Part::Background)
+}
+
+/// The sequential ramp, low to high.
+const HEAT: [C; HEAT_STEPS] = [
+    C::Treatment(
+        Role::Neutral,
+        Emphasis::Muted,
+        State::Default,
+        Part::Background,
+    ),
+    C::Treatment(
+        Role::Accent,
+        Emphasis::Muted,
+        State::Default,
+        Part::Background,
+    ),
+    C::Treatment(
+        Role::Accent,
+        Emphasis::Muted,
+        State::Hover,
+        Part::Background,
+    ),
+    C::Treatment(
+        Role::Accent,
+        Emphasis::Solid,
+        State::Default,
+        Part::Background,
+    ),
+    C::Focus(Role::Accent),
+];
+
 pub(super) fn catalogue(out: &mut Vec<Entry>) {
     let t = Template::new("resize handle", "", |f, _| Summary {
         height: Some(f.geometry.border_width),
@@ -199,4 +306,50 @@ pub(super) fn catalogue(out: &mut Vec<Entry>) {
         &[Measure::Text],
         TreatmentRef::new(C::None, TABLE_EMPTY, C::None),
     );
+    let series = Template::new("chart", "series", |f, _| Summary {
+        height: None,
+        shape: Shape::Rect {
+            radius: f.geometry.radius.none,
+        },
+        type_role: Some(TypeRole::Small),
+    })
+    .fixed_size();
+    for role in SERIES_ROLES {
+        series.clone().role(role, None).entry(
+            out,
+            "line",
+            &[Measure::Mark],
+            TreatmentRef::new(C::None, series_line(role), C::None),
+        );
+        series.clone().role(role, None).entry(
+            out,
+            "fill",
+            &[],
+            TreatmentRef::new(series_fill(role), C::None, C::None),
+        );
+    }
+    let text = Template::new("chart", "text", |f, _| Summary {
+        height: None,
+        shape: Shape::Rect {
+            radius: f.geometry.radius.none,
+        },
+        type_role: Some(TypeRole::Small),
+    })
+    .fixed_size();
+    text.entry(
+        out,
+        "label",
+        &[Measure::Text],
+        TreatmentRef::new(C::None, C::Text(T::Primary), C::None),
+    );
+    text.entry(
+        out,
+        "muted",
+        &[Measure::Text],
+        TreatmentRef::new(C::None, C::Text(T::Secondary), C::None),
+    );
+    for (n, heat) in HEAT.iter().enumerate() {
+        let state: &'static str = ["heat 0", "heat 1", "heat 2", "heat 3", "heat 4"][n];
+        text.entry(out, state, &[], TreatmentRef::new(*heat, C::None, C::None));
+    }
 }
