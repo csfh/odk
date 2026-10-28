@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0073
+---
+
 # `oma dev` builds, installs over and runs one project
 
 The user asked on 2026-10-25 for `oma dev <target>`: one command that takes a project from source to a running window, in place of building, bundling, installing and running by hand, and which has to "work" from a single target. This record is the choices made on their behalf, and is open to change.

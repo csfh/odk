@@ -42,9 +42,9 @@ enum Command {
         #[arg(long)]
         accept_permissions: bool,
     },
-    /// Build a project, install its Bundle over the installed copy and run it (needs a dev.toml)
+    /// Build a project, install its Bundle over the installed copy and run it (needs an oma.toml)
     Dev {
-        /// The project's directory, which holds manifest.toml and dev.toml
+        /// The project's directory, which holds manifest.toml and oma.toml
         #[arg(default_value = ".")]
         project: PathBuf,
         /// Stay, relay terminal signals and exit with the application's status

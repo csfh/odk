@@ -500,7 +500,7 @@ mod tests {
     }
 
     impl Fixture {
-        /// The project's files at `version`, with `permissions` and `extra` dev.toml lines.
+        /// The project's files at `version`, with `permissions` and `extra` oma.toml lines.
         fn write(&self, version: &str, permissions: &str, extra: &str) {
             fs::write(
                 self.project.join("manifest.toml"),
@@ -591,7 +591,7 @@ mod tests {
         );
         let root = second.installed;
         assert!(root.join("bin/d").exists(), "the include is in");
-        assert!(!root.join(dev::FILE).exists(), "dev.toml is not");
+        assert!(!root.join(dev::FILE).exists(), "oma.toml is not");
     }
 
     #[test]
