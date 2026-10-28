@@ -1,13 +1,17 @@
-//! The entry the kernel uses for a `.oma` file (ADR 0060, section 1, on pull request #9; ADR
-//! 0056): `binfmt_misc` runs the private program with the Bundle's path as its one argument.
+//! The entry the kernel uses for a `.oma` file (ADR 0060, section 1; ADR 0056): `binfmt_misc`
+//! runs the private program with the Bundle's path as its one argument.
 //!
-//! A `.oma` file is inert: the program never executes bytes from it, and until the phases that
-//! verify an envelope and mount its image exist (issue #10 and after) it refuses the path
-//! without opening it. A directory Bundle, and every subcommand, go the way they always did.
+//! A `.oma` file is inert: the program never executes bytes from it. Until the phases that check
+//! its publisher, read its image and ask for consent exist (issues #12 to #14), the entry seals
+//! a copy, checks the envelope against itself (`trust::check`, issue #10) and refuses the file
+//! whatever that check says (issue #11). A directory Bundle, and every subcommand, go the way
+//! they always did.
 
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use crate::trust::Sealed;
 
 /// The path, when the arguments are the entry: exactly one argument, which is not a
 /// subcommand, does not start with `-`, and names a regular file. The file is not opened: its
@@ -30,12 +34,23 @@ pub fn single_file(
     std::fs::metadata(&path).ok()?.is_file().then_some(path)
 }
 
-/// The refusal, after `odk oma: `.
-pub fn refusal(path: &std::path::Path) -> String {
-    format!(
-        "{}: a single-file Bundle is not run yet: nothing here can verify its signature, and a file that cannot be verified is never run",
-        path.display()
-    )
+/// The refusal, after `odk oma: `. The file is sealed and its envelope checked first, so the
+/// line says which refusal it is. Neither runs anything.
+pub fn refusal(path: &Path) -> String {
+    let checked = Sealed::memfd(path).and_then(|sealed| crate::trust::check(&sealed));
+    match checked {
+        Err(e) => format!(
+            "{}: {e}; a file that does not verify is never run",
+            path.display()
+        ),
+        Ok(file) => format!(
+            "{}: {} {} is signed by release key {}, but a single-file Bundle is not run yet: its publisher's root is not checked and its image is not read",
+            path.display(),
+            file.manifest().app_id,
+            file.manifest().version,
+            file.manifest().key_id,
+        ),
+    }
 }
 
 #[cfg(test)]

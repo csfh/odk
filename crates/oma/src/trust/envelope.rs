@@ -10,9 +10,9 @@
 
 use sha2::{Digest, Sha256};
 
-use super::container::{PREFIX_LEN, Prefix};
+use super::container::{MAX_MANIFEST_LEN, PREFIX_LEN, Prefix};
 use super::signature::{self, Context, Signature};
-use super::{Error, Header, Sealed, SignedManifest};
+use super::{Error, Header, Sealed, SignedManifest, SigningKey};
 
 /// A file that is signed by the release key in its own header, with its digests intact.
 ///
@@ -84,6 +84,43 @@ pub fn check(file: &Sealed) -> Result<SelfSigned, Error> {
         manifest_bytes: prefix.manifest,
         signature: prefix.signature,
     })
+}
+
+/// The bytes of a Bundle file: the prefix for `manifest`, signed by `key`, then `payload`. What
+/// this writes, [`check`] accepts.
+///
+/// `manifest`'s `key_id`, `payload_sha256` and `header_sha256` are filled in here: the key's id,
+/// and the digests of `payload` and of the header. The header records the manifest's length and
+/// the manifest the header's digest, but a digest is always 64 hex digits, so the length is
+/// known before the digest is.
+pub fn stamp(
+    payload: &[u8],
+    mut manifest: SignedManifest,
+    key: &SigningKey,
+) -> Result<Vec<u8>, Error> {
+    manifest.key_id = key.public_key().key_id();
+    manifest.payload_sha256 = Sha256::digest(payload).into();
+    let len = manifest.to_canonical()?.len();
+    if len > MAX_MANIFEST_LEN {
+        return Err(Error::ManifestTooLong {
+            len: u32::try_from(len).unwrap_or(u32::MAX),
+        });
+    }
+    let header = Header {
+        manifest_len: len as u32,
+        payload_len: payload.len() as u64,
+        release_key: key.public_key(),
+    };
+    manifest.header_sha256 = Sha256::digest(header.encode()).into();
+    let bytes = manifest.to_canonical()?;
+    let signature = key.sign(Context::MANIFEST, &bytes);
+    let prefix = Prefix::encode(&header, &bytes, &signature).ok_or(Error::ManifestTooLong {
+        len: bytes.len() as u32,
+    })?;
+    let mut file = Vec::with_capacity(PREFIX_LEN + payload.len());
+    file.extend_from_slice(&prefix);
+    file.extend_from_slice(payload);
+    Ok(file)
 }
 
 /// SHA-256 of every byte from offset 1024 to the end.
@@ -163,6 +200,29 @@ pub(crate) mod tests {
             checked.manifest_bytes(),
             checked.manifest().to_canonical().unwrap()
         );
+    }
+
+    #[test]
+    fn what_stamp_writes_check_accepts() {
+        let dir = tempfile::tempdir().unwrap();
+        let payload = b"an image".repeat(1000);
+        let file = stamp(&payload, sample(), &release_key()).unwrap();
+        assert_eq!(file, bundle(&payload, &release_key(), |_| {}));
+        let checked = check(&sealed(dir.path(), &file)).unwrap();
+        assert_eq!(
+            checked.manifest().key_id,
+            release_key().public_key().key_id()
+        );
+    }
+
+    #[test]
+    fn a_manifest_too_long_for_the_prefix_is_not_stamped() {
+        let mut long = sample();
+        long.entry = "a/".repeat(450);
+        assert!(matches!(
+            stamp(b"x", long, &release_key()),
+            Err(Error::ManifestTooLong { .. })
+        ));
     }
 
     #[test]
