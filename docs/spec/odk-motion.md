@@ -1,12 +1,12 @@
 # ODK motion
 
-Sketch for ADR 0059, which is `proposed`. This file is not normative. Until that ADR is accepted, `odk-interaction.md` and `odk-foundation-tokens.md` win wherever they differ, and a component keeps the motion it has today. An ADR wins over a spec in any case.
+The spec for ADR 0059 (accepted on 2026-10-27). Not built: until the driver lands, a component keeps the motion it has today, which `odk-interaction.md` and `odk-foundation-tokens.md` describe; "First implementation" below is the order of work. An ADR wins over a spec in any case.
 
 The words are the glossary's. **Reduced motion** is the user's or the application's request that every transition show its end state at once. **Motion** is how a control gets from one state it already has to the next.
 
 ## What a caller writes
 
-Attachment is ADR 0057's `decorate`, one method on the component, once that ADR has landed. A motion decoration is a value of one of the types below. It implements the trait the component's `decorate` already accepts, and it writes one slot. A text or size decoration writes none of these slots. Two slots compose. The same slot: the later call wins. `NoMotion` is not cleared by a later call.
+Attachment is ADR 0057's `decorate`, one method on the component. A motion decoration is a value of one of the types below. It implements the trait the component's `decorate` already accepts, and it writes one slot. A text or size decoration writes none of these slots. Two slots compose. The same slot: the later call wins. `NoMotion` is not cleared by a later call.
 
 ```rust
 dialog.decorate(NoMotion)
@@ -37,7 +37,7 @@ An application that attaches nothing gets the component's default. The defaults 
 
 ## Reduced motion
 
-On when the application asks (`odk::ui::set_reduced_motion`) or the user does. The user asks when Hyprland's `animations:enabled` is false (ADR 0048 as accepted on PR #4). No answer is not a request. The sandbox reads oma's copy and only when `OMA_SANDBOX` is set. Either request is enough. `NoMotion` is a third way to reduce one subtree, and it is inherited.
+On when the application asks (`odk::ui::set_reduced_motion`) or the user does. The user asks when Hyprland's `animations:enabled` is false (ADR 0048), which `odkd` tells every application, a sandboxed one too (ADR 0062). No answer is not a request. Either request is enough. `NoMotion` is a third way to reduce one subtree, and it is inherited.
 
 When it is on, the driver reports the target on that frame: geometry, opacity, a spring's target, a stagger's children. The spinner's glyph does not advance. A progress bar shows its value. `hover_open`, `hover_close` and the toast lifetime are not shortened.
 

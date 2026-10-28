@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Motion is declarative, on the foundation's tokens, and a decoration
@@ -8,11 +8,11 @@ ODK already moves a switch thumb, a tab indicator, a progress value, a spinner a
 
 This record adds that, in the spirit of [Motion](https://motion.dev) (formerly Framer Motion): a target, an initial state and an exit, a curve or a spring, a layout change, and a delay between children. It does not add a dependency, a new setting, or a second source for a duration. Durations and curves stay the foundation's (ADR 0035, ADR 0040). The user's request for reduced motion stays Hyprland's `animations:enabled` (ADR 0048). Nothing new is written into `shell.toml`.
 
-The choices below are made on the owner's behalf and stay open until this record is accepted. Each one is repeated under "Questions for the owner" with the recommendation beside it.
+Accepted by the owner on 2026-10-27 with every recommendation it made; they are the decisions at the end of this record. Nothing of it is built yet: until the driver lands, components keep the motion `docs/spec/odk-interaction.md` describes.
 
 ## Number
 
-**0059.** Checked on 2026-10-25 against every published branch: `origin/main` and PR #4 (`cursor/settle-adrs-0046-0049-aaab`) and PR #5 (`cursor/wcag-22-fixes-d504`) stop at 0049; `origin/atmos-v1.0.0-rc` uses 0050 and 0051; PR #3 (`cursor/single-file-oma-adrs-60ba`) uses 0052 to 0055; PR #6 (`cursor/odk-cli-facade-adr-1222`) uses 0056. The owner's decorations record (ADR 0057) and the truncation record that builds on it (ADR 0058) are in progress and have not been pushed: no remote branch matches `truncat` or `decoration`, and no `0057` or `0058` file is on any remote. 0059 is the next free number. This record does not write 0057 or 0058.
+**0059.** Checked on 2026-10-25 against every published branch: `origin/main` and PR #4 (`cursor/settle-adrs-0046-0049-aaab`) and PR #5 (`cursor/wcag-22-fixes-d504`) stop at 0049; `origin/atmos-v1.0.0-rc` uses 0050 and 0051; PR #3 (`cursor/single-file-oma-adrs-60ba`) uses 0052 to 0055; PR #6 (`cursor/odk-cli-facade-adr-1222`) uses 0056. The owner's decorations record (ADR 0057) and the truncation record that builds on it (ADR 0058) were written beside it and landed with pull request #8. This record does not write 0057 or 0058.
 
 ## What is taken from Motion
 
@@ -31,7 +31,7 @@ Motion's React API is a component with `initial`, `animate` and `exit` targets, 
 
 ## Reduced motion
 
-This follows ADR 0048 **as accepted on PR #4**, which supersedes ADR 0046. On `main` today ADR 0048 is still `proposed` and still falls back to the user's own `[motion] reduced`. The accepted text does not. The user's request is Hyprland's `animations:enabled` read as false, over the socket, and followed on `configreloaded`. When Hyprland does not answer, the user has not asked, and motion is not reduced. The key in the user's own `~/.config/omarchy/shell.toml` is never a source. A sandboxed application cannot open the socket and must not; `oma omarchy sync` writes the answer into oma's copy of `shell.toml`, the sandbox mounts that copy and sets `OMA_SANDBOX=1`, and only then does the application read the key. That copy is transport. The application's `odk::ui::set_reduced_motion(true)` still adds. An application's `false` never cancels the user. Unknown is not reduced.
+This follows ADR 0048 (accepted), which supersedes ADR 0046. The user's request is Hyprland's `animations:enabled` read as false, over the socket, and followed on `configreloaded`. When Hyprland does not answer, the user has not asked, and motion is not reduced. The key in the user's own `~/.config/omarchy/shell.toml` is never a source. A sandboxed application cannot open the socket and must not; `odkd` reads the answer outside every sandbox and tells every application, a sandboxed one too (ADR 0062). The application's `odk::ui::set_reduced_motion(true)` still adds. An application's `false` never cancels the user. Unknown is not reduced.
 
 **Reduced means the end state on the frame the state changes.** Every transition duration the driver would have run is zero, and every loop stops. A fade is a transition, so a fade is instant too. There is no crossfade-only mode. Hyprland's own `animations.enabled = false` disables every animation, fades included, and the contract already says the same thing (`MotionTokens::transition` is zero, checklist item 20). A crossfade would still be an animation a closing overlay would hold the frame for, and it would leave focus on a surface that had not yet reached its end.
 
@@ -51,7 +51,7 @@ Nothing in the stock set is essential motion. The end state carries the informat
 
 ## Decorations
 
-ADR 0057, not yet pushed, is the owner's model: a component has a sensible default, and a behaviour changes by attaching a typed decoration, the way a class is attached. Decorations of different concerns compose. Two that name the same concern do not: the later one wins. Absent means the default. Truncation and overlay sizing are the first concern (ADR 0058): text flow (`Wrap`, `EndEllipsis`, `MiddleEllipsis`, `Clamp`) and size (`Autosize`, `FixedWidth`), with dialogs fixed by default and menus and toasts `Autosize` by default. The in-progress code attaches them with one `decorate` method per component, generic over the trait for the concerns that component accepts.
+ADR 0057 is the owner's model: a component has a sensible default, and a behaviour changes by attaching a typed decoration, the way a class is attached. Decorations of different concerns compose. Two that name the same concern do not: the later one wins. Absent means the default. Truncation and overlay sizing are the first concern (ADR 0058): text flow (`Wrap`, `EndEllipsis`, `MiddleEllipsis`, `Clamp`) and size (`Autosize`, `FixedWidth`), with dialogs fixed by default and menus and toasts `Autosize` by default. The code attaches them with one `decorate` method per component, generic over the trait for the concerns that component accepts.
 
 Motion is a further concern, `MotionDecoration`, attached the same way. This record does not invent a second attachment API. If ADR 0057's accepted shape differs, the motion concern follows that shape. A component that already takes a text or size decoration keeps a single `decorate`. Motion decorations implement the umbrella trait that component accepts. A text or size decoration writes no motion slot, and a motion decoration writes no flow and no size.
 
@@ -192,31 +192,33 @@ No application API changes in the first slice. The private drivers become one dr
 
 `Shared` is not used by any of these. A tab indicator is a fade between two underlines, not a shared element.
 
-## Questions for the owner
+## Decisions
 
-1. **Is reduced motion instant for a fade as well as for a move?** Recommendation: yes. One rule, the one `transition()` already implements, and the one Hyprland's switch implements. A crossfade-only mode is a second policy and would keep an exit on screen after the state had changed.
+Settled by the owner on 2026-10-27, each as this record recommended.
 
-2. **A new `odk-motion` crate?** Recommendation: no. The solver stays in `odk-theme`, the driver in `odk-ui`.
+1. **Is reduced motion instant for a fade as well as for a move?** Decided: yes. One rule, the one `transition()` already implements, and the one Hyprland's switch implements. A crossfade-only mode is a second policy and would keep an exit on screen after the state had changed.
 
-3. **Follow Hyprland's speeds and curves live, or copy Omarchy's `easeOutQuint` `(0.23, 1, 0.32, 1)` over the foundation's `(0.22, 1, 0.36, 1)`?** Recommendation: neither. Keep ADR 0040's durations and curve. Do not read `hl.animation`.
+2. **A new `odk-motion` crate?** Decided: no. The solver stays in `odk-theme`, the driver in `odk-ui`.
 
-4. **Springs at all, given the design language forbids overshoot?** Recommendation: one critically damped `settle` token, used by layout only, unused by the stock components until then. No underdamped spring, and not Hyprland's example spring.
+3. **Follow Hyprland's speeds and curves live, or copy Omarchy's `easeOutQuint` `(0.23, 1, 0.32, 1)` over the foundation's `(0.22, 1, 0.36, 1)`?** Decided: neither. Keep ADR 0040's durations and curve. Do not read `hl.animation`.
 
-5. **Shared elements and gestures in the first implementation?** Recommendation: reserve the `Shared` slot, implement it only after `Layout` is in the checklist, and do not add gestures. Hover and press stay instant. No drag.
+4. **Springs at all, given the design language forbids overshoot?** Decided: one critically damped `settle` token, used by layout only, unused by the stock components until then. No underdamped spring, and not Hyprland's example spring.
 
-6. **Should a surface that holds focus be forced to full opacity, removing the entrance fade from menus, popovers, dialogs and the command palette?** Recommendation: no. Keep those fades. They are at most `enter` (240 ms), focus and the ring arrive on the open frame, and reduced motion is already full opacity on that frame. Forcing opacity 1 whenever a surface is focused would delete the fades the motion table already specifies. What does change is the close: focus leaves on the first exiting frame, and the exiting surface is not a tab stop, so the ring is never on the way out.
+5. **Shared elements and gestures in the first implementation?** Decided: reserve the `Shared` slot, implement it only after `Layout` is in the checklist, and do not add gestures. Hover and press stay instant. No drag.
 
-7. **May an application pass its own `Duration` or bezier?** Recommendation: no. `Transition` names foundation tokens. Item 19 then holds for application code as well as for components.
+6. **Should a surface that holds focus be forced to full opacity, removing the entrance fade from menus, popovers, dialogs and the command palette?** Decided: no. Keep those fades. They are at most `enter` (240 ms), focus and the ring arrive on the open frame, and reduced motion is already full opacity on that frame. Forcing opacity 1 whenever a surface is focused would delete the fades the motion table already specifies. What does change is the close: focus leaves on the first exiting frame, and the exiting surface is not a tab stop, so the ring is never on the way out.
 
-8. **Does `NoMotion` on a parent bind the children?** Recommendation: yes, and a child cannot clear it.
+7. **May an application pass its own `Duration` or bezier?** Decided: no. `Transition` names foundation tokens. Item 19 then holds for application code as well as for components.
 
-9. **What is the stagger step?** Recommendation: 30 ms, provisional, and the group never waits longer than `slow` (240 ms).
+8. **Does `NoMotion` on a parent bind the children?** Decided: yes, and a child cannot clear it.
 
-10. **Toast stack motion against ADR 0058, which is not written down yet.** Recommendation: the expand and collapse is `Layout` over `normal`; the grouped count changes immediately; timers stay the toast manager's, paused while expanded and while hovered or focused; scroll is the list, not a decoration. If ADR 0058's accepted behaviour differs, the motion follows that behaviour and only supplies the timeline.
+9. **What is the stagger step?** Decided: 30 ms, provisional, and the group never waits longer than `slow` (240 ms).
+
+10. **Toast stack motion against ADR 0058.** Decided: the expand and collapse is `Layout` over `normal`; the grouped count changes immediately; timers stay the toast manager's, paused while expanded and while hovered or focused; scroll is the list, not a decoration. If ADR 0058's accepted behaviour differs, the motion follows that behaviour and only supplies the timeline.
 
 ## Consequences
 
-- `docs/spec/odk-motion.md` is the sketch. It is not normative until this record is accepted. Until then `docs/spec/odk-interaction.md` and `docs/spec/odk-foundation-tokens.md` win.
-- On acceptance, the interaction contract's sentence "every transition is zero" becomes the category table (the outcome is the same; the close-focus rule is the part that is new); the foundation spec gains `settle` and `stagger`; `docs/accessibility.md` gains 2.3.3, 2.2.2 and 2.3.1 as met by this policy. Entrance fades stay. None of those edits are in the proposal.
+- `docs/spec/odk-motion.md` is the spec. Until the driver is built, a component keeps the motion `docs/spec/odk-interaction.md` and `docs/spec/odk-foundation-tokens.md` describe, and its "First implementation" is the order of work.
+- With the code, not before it: the interaction contract's sentence "every transition is zero" becomes the category table (the outcome is the same; the close-focus rule is the part that is new); the foundation spec gains `settle` and `stagger`; `docs/accessibility.md` gains 2.3.3, 2.2.2 and 2.3.1 as met by this policy. Entrance fades stay. Until then those documents describe what is built.
 - ADR 0028 is not amended: no crate and no facade module. ADR 0035 and ADR 0040 are not amended: no duration moves to Omarchy. ADR 0048 is not amended: this record uses it and does not add a key.
 - The first implementation is a replacement of the private drivers, checked by the existing motion tests, then the decorations, then the close-focus rule. `Shared` and gestures are not part of it.
