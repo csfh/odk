@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0064 and ADR 0065
+status: amended by ADR 0064, ADR 0065 and ADR 0067
 ---
 
 # `odk` is installed for one user by a script from GitHub Releases
