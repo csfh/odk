@@ -539,8 +539,11 @@ impl FakeHost {
         let (kept, line) = (stream.clone(), first.to_line());
         std::thread::spawn(move || {
             if let Ok((mut accepted, _)) = listener.accept() {
+                // Held while the first line goes out: `Host::connect` returns once it has heard
+                // that line, and `say` must then find the stream, not an empty slot.
+                let mut kept = kept.lock().unwrap();
                 let _ = writeln!(accepted, "{line}");
-                *kept.lock().unwrap() = Some(accepted);
+                *kept = Some(accepted);
             }
         });
         Self {
