@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::fmt::Identifier;
+use crate::trust::KeyId;
 
 #[derive(Debug, Clone)]
 pub struct Layout {
@@ -51,6 +52,51 @@ impl Layout {
     /// The application's consent record (ADR 0023).
     pub fn grants_file(&self, id: &Identifier) -> PathBuf {
         self.state.join("grants").join(format!("{id}.toml"))
+    }
+
+    /// Where a signed file's application keeps its data, previous file and inbox: one directory
+    /// per (root key id, app id) pair, so the same Identifier under two roots shares nothing
+    /// (ADR 0060, section 2).
+    pub fn pair_dir(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.state
+            .join("apps")
+            .join(root.to_string())
+            .join(app.as_str())
+    }
+
+    pub fn pair_data_dir(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.pair_dir(root, app).join("data")
+    }
+
+    pub fn pair_previous_file(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.pair_dir(root, app).join("previous.oma")
+    }
+
+    pub fn pair_inbox_dir(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.pair_dir(root, app).join("inbox")
+    }
+
+    /// The pair's record: the pin, consent, the high-water mark and a denial (ADR 0060,
+    /// section 2). A directory Bundle's record is [`Self::grants_file`], beside these, and an
+    /// Identifier is never 16 hex digits, so the two never share a name.
+    pub fn pair_grants_file(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.pairs_dir()
+            .join(root.to_string())
+            .join(format!("{app}.toml"))
+    }
+
+    /// Where every pair's record is, one directory per root.
+    pub fn pairs_dir(&self) -> PathBuf {
+        self.state.join("grants")
+    }
+
+    /// Where `--register` holds a valid file signed by a root that is not the pin (ADR 0060,
+    /// section 7).
+    pub fn held_file(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.state
+            .join("held")
+            .join(root.to_string())
+            .join(format!("{app}.oma"))
     }
 
     /// Where `odk oma dev` assembles a Bundle before it installs it (ADR 0051).

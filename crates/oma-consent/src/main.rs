@@ -41,6 +41,7 @@ const KNOWN: &[(&str, &str)] = &[
     ("run-once", "Run once"),
     ("allow", "Allow"),
     ("keep-previous", "Keep previous version"),
+    ("confirm", "It is a different publisher"),
     ("cancel", "Cancel"),
 ];
 
