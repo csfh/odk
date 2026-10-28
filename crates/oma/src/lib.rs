@@ -12,6 +12,7 @@ pub mod grants;
 pub mod install;
 pub mod layout;
 pub mod sandbox;
+pub mod trust;
 pub mod userdirs;
 pub mod view;
 

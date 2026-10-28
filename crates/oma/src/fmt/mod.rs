@@ -12,6 +12,7 @@ mod wording;
 pub use bundle::Bundle;
 pub use error::Error;
 pub use identifier::Identifier;
+pub(crate) use manifest::check_relative_path;
 pub use manifest::{Access, Daemon, FsGrant, Manifest, Permissions, UserDir, precedence};
 pub use semver::Version;
 pub use wording::permission_lines;

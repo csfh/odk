@@ -14,9 +14,17 @@ path = "src/main.rs"
 [dependencies]
 deps.workspace = true
 clap = { version = "4", features = ["derive"] }
+# Release keys in `oma-keys` are standard base64 (ADR 0060, section 3).
+base64 = "0.22"
+# Ed25519ctx for the signed documents of ADR 0060 (ADR 0061).
+crrl = { version = "0.9.0", default-features = false, features = ["std", "ed25519"] }
 libc = "0.2"
+# Sealing a Bundle file before it is trusted (ADR 0060, section 5).
+rustix = { version = "1", features = ["fs", "process"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
+# Digests and key ids of ADR 0060; the version crrl uses.
+sha2 = "0.10"
 thiserror = "2"
 toml = "0.9"
 

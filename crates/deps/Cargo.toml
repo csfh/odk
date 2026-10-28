@@ -38,6 +38,14 @@ event-listener = { version = "5", features = ["default", "parking", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "default", "std"] }
 smallvec = { version = "1", features = ["const_generics", "const_new", "union", "write"] }
 concurrent-queue = { version = "2", features = ["default", "std"] }
+# Through crrl and sha2 in oma (ADR 0061). Two names are renamed, since other versions of
+# getrandom and digest are in the tree as well.
+rand_core = { version = "0.6", features = ["alloc", "getrandom", "std"] }
+typenum = { version = "1", features = ["const-generics"] }
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js", "rdrand", "std"] }
+crypto-common = { version = "0.1", features = ["rand_core", "std"] }
+digest_010 = { package = "digest", version = "0.10", features = ["alloc", "core-api", "mac", "std"] }
+subtle = { version = "2", features = ["default", "i128", "std"] }
 event-listener-strategy = { version = "0.5", features = ["default", "std"] }
 
 [build-dependencies]
@@ -54,9 +62,12 @@ syn = { version = "3", features = ["clone-impls", "default", "derive", "extra-tr
 ignored = [
     "concurrent-queue",
     "crossbeam-utils",
+    "crypto-common",
+    "digest_010",
     "event-listener",
     "event-listener-strategy",
     "futures-core",
+    "getrandom_02",
     "hashbrown",
     "libc",
     "linux-raw-sys",
@@ -65,13 +76,16 @@ ignored = [
     "once_cell",
     "proc-macro2",
     "quote",
+    "rand_core",
     "rustix",
     "semver",
     "serde",
     "serde_core",
     "smallvec",
+    "subtle",
     "syn",
     "toml_parser",
+    "typenum",
     "unicode-ident",
     "winnow",
 ]
