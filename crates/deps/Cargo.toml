@@ -49,6 +49,29 @@ subtle = { version = "2", features = ["default", "i128", "std"] }
 # Through url in GPUI, and in oma for the consent dialog's hosts (ADR 0060, section 7).
 idna = { version = "1", features = ["alloc", "compiled_data", "default", "std"] }
 event-listener-strategy = { version = "0.5", features = ["default", "std"] }
+memchr = { version = "2", features = ["alloc", "default", "std"] }
+# Through ashpd and zbus in odkd's file chooser (ADR 0068), as GPUI uses them.
+equivalent = "1"
+futures-channel = { version = "0.3", features = ["alloc", "default", "futures-sink", "sink", "std"] }
+futures-sink = { version = "0.3", features = ["alloc", "default", "std"] }
+form_urlencoded = { version = "1", features = ["alloc", "default", "std"] }
+futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "default", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
+serde_json = { version = "1", features = ["alloc", "default", "indexmap", "preserve_order", "raw_value", "std"] }
+uuid = { version = "1", features = ["default", "rng", "serde", "sha1", "std", "v4", "v5", "v7"] }
+futures-io = { version = "0.3", features = ["default", "std"] }
+indexmap = { version = "2", features = ["default", "serde", "std"] }
+slab = { version = "0.4", features = ["default", "std"] }
+zvariant = { version = "5", features = ["default", "enumflags2", "gvariant", "url"] }
+zvariant_utils = { version = "4", features = ["default", "gvariant"] }
+wayland-sys = { version = "0.31", features = ["client", "dlopen", "once_cell"] }
+wayland-backend = { version = "0.3", features = ["client_system", "dlopen"] }
+# Macros in a build of odkd or the CLI alone, run-time crates in a workspace build.
+zbus_macros = { version = "5", features = ["default", "gvariant"] }
+zvariant_derive = { version = "5", features = ["default", "gvariant"] }
+zbus_names = "4"
+percent-encoding = { version = "2", features = ["alloc", "default", "std"] }
+syn_2 = { package = "syn", version = "2", features = ["clone-impls", "default", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }
+zerocopy = { version = "0.8", features = ["derive", "simd", "zerocopy-derive"] }
 
 [build-dependencies]
 # A member with no proc macros of its own, such as odk-a11y, otherwise builds these for its build
@@ -56,6 +79,13 @@ event-listener-strategy = { version = "0.5", features = ["default", "std"] }
 quote = { version = "1", features = ["default", "proc-macro"] }
 proc-macro2 = { version = "1", features = ["default", "proc-macro"] }
 syn = { version = "3", features = ["clone-impls", "default", "derive", "extra-traits", "fold", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }
+# Through zbus's and serde_repr's macros in odkd (ADR 0068).
+syn_2 = { package = "syn", version = "2", features = ["clone-impls", "default", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }
+serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
+serde = { version = "1", features = ["default", "derive", "rc", "std"] }
+zvariant = { version = "5", features = ["default", "enumflags2", "gvariant"] }
+zvariant_utils = { version = "4", features = ["default", "gvariant"] }
+indexmap = { version = "2", features = ["default", "serde", "std"] }
 
 # The dependencies above exist so the workspace resolves one feature set. This crate's
 # Rust code does not name them, so cargo-machete would report each one. Add a new
@@ -66,17 +96,26 @@ ignored = [
     "crossbeam-utils",
     "crypto-common",
     "digest_010",
+    "equivalent",
     "event-listener",
     "event-listener-strategy",
+    "form_urlencoded",
+    "futures-channel",
     "futures-core",
+    "futures-io",
+    "futures-sink",
+    "futures-util",
     "getrandom_02",
     "hashbrown",
     "idna",
+    "indexmap",
     "libc",
     "linux-raw-sys",
     "log",
+    "memchr",
     "mio",
     "once_cell",
+    "percent-encoding",
     "proc-macro2",
     "quote",
     "rand_core",
@@ -84,11 +123,23 @@ ignored = [
     "semver",
     "serde",
     "serde_core",
+    "serde_json",
+    "slab",
     "smallvec",
     "subtle",
     "syn",
+    "syn_2",
     "toml_parser",
     "typenum",
     "unicode-ident",
+    "uuid",
+    "wayland-backend",
+    "wayland-sys",
     "winnow",
+    "zbus_macros",
+    "zbus_names",
+    "zerocopy",
+    "zvariant",
+    "zvariant_derive",
+    "zvariant_utils",
 ]

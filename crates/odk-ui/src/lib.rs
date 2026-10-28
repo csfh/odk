@@ -15,6 +15,7 @@ mod dialog;
 #[cfg(test)]
 mod drawn;
 mod editor;
+mod files;
 mod focus;
 mod form_field;
 mod hover_card;
@@ -75,6 +76,7 @@ pub use decoration::{
     Applied, Autosize, Clamp, EndEllipsis, FixedWidth, FlowKind, MiddleEllipsis, SizeMode, Wrap,
 };
 pub use dialog::Dialog;
+pub use files::{FileChooser, FileChooserError, StartFolder};
 pub use focus::{FocusNext, FocusPrevious, focused_component};
 pub use form_field::{FieldControl, Fielded, FormField, form};
 pub use hover_card::HoverCard;
@@ -133,11 +135,12 @@ pub mod prelude {
     pub use crate::{
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Checkbox,
         Clamp, Command, CommandItem, ContextMenu, Density, Dialog, DropdownMenu, Emphasis,
-        EndEllipsis, FixedWidth, FormField, Heading, HoverCard, Input, InputGroup, Kbd, Menu,
-        MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
-        RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, Space, Spinner,
-        Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast, ToggleGroup, Tone,
-        Tooltip, WindowConfig, Wrap, content_column, form, h_flex, middle_ellipsis, root, scroll_y,
-        sidebar_frame, toast, truncate_end, truncate_lines, v_flex,
+        EndEllipsis, FileChooser, FixedWidth, FormField, Heading, HoverCard, Input, InputGroup,
+        Kbd, Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover,
+        Progress, RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton, Space,
+        Spinner, StartFolder, Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea,
+        Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column, form, h_flex,
+        middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end, truncate_lines,
+        v_flex,
     };
 }

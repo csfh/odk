@@ -22,6 +22,7 @@
 //! its geometry derived from the foundation. Every snapshot's semantic colours have passed its
 //! checks. Every component draws it.
 
+pub mod chooser;
 mod color;
 pub mod component;
 mod compositor;

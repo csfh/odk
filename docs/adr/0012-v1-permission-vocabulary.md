@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0050
+status: amended by ADR 0050 and ADR 0068
 ---
 
 # v1 permissions: a fixed baseline plus six declared capabilities, deny by default

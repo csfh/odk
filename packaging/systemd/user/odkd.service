@@ -1,7 +1,8 @@
 [Unit]
-Description=ODK host settings: reduced motion, text size, font and colours (ADR 0062)
+Description=ODK host settings: reduced motion, text size, font and colours (ADR 0062), and the file chooser (ADR 0068)
 Requires=odkd.socket
-After=odkd.socket
+Wants=odkd-files.socket
+After=odkd.socket odkd-files.socket
 
 [Service]
 Type=simple
