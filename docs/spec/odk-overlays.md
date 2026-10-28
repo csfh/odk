@@ -25,7 +25,7 @@ From lowest: the page; popovers (menus, popovers, hover cards, tooltips, side pa
 - **Escape** closes the innermost overlay that has focus and goes no further (`stop_propagation`), so Escape in a menu in a dialog closes the menu only.
 - **A press outside** closes a menu, a `Select`'s list and a `Popover` (unless its outside clicks are off) and is the overlay's: a full-window layer under the overlay takes the press of either main button, so nothing beneath is pressed (ADR 0045). A hover card, a tooltip and a side panel have no such layer; a modal's scrim is one.
 - **The scrim** of a modal closes it unless it says otherwise.
-- Each overlay says which it has. `Dialog` and `Sheet`: `close_on_escape`, `close_on_backdrop` (and `Dialog::close_button`). `Popover`: `close_on_escape`, `close_on_outside_click`. A destructive confirmation turns the backdrop off; a busy dialog turns everything off, so only the application closes it.
+- Each overlay says which it has. `Dialog` and `Sheet`: `close_on_escape`, `close_on_backdrop` (and `Dialog::close_button`). `Popover`: `close_on_escape`, `close_on_outside_click`. A destructive confirmation turns the backdrop off and keeps Escape and the close button. A dialog with Escape, the scrim and the close button all off is refused: it would be a keyboard trap. A busy dialog keeps at least one of those.
 - Choosing an item closes a menu. A controlled overlay only *asks* to close, once per request, and the application decides.
 - A closed overlay keeps nothing: its keyed state is dropped with its element, and the stores kept per window (`Toasts`, the lifted overlays) forget a window that has closed the next time a toast is raised (nothing runs when a window closes, and what is kept is small).
 
@@ -34,7 +34,7 @@ From lowest: the page; popovers (menus, popovers, hover cards, tooltips, side pa
 - **Menus** open with focus on the first enabled item; Up and Down move between enabled items and wrap, Home and End jump, a letter jumps to the next item that starts with what was typed (a pause of a second starts afresh), Enter or Space chooses, Escape or Tab closes. Focus goes back to what had it. Headings, separators and disabled items are never reached. Hover, the keyboard's highlight and the chosen item are three things, drawn apart.
 - **Popover** takes focus into its panel on open and gives it back to the trigger on close. It is not modal: Tab leaves the panel to the control after its trigger, Shift+Tab to the trigger, and the window behind it stays live.
 - **Dialog and modal sheet** take focus, keep Tab inside, take the pointer and keys of the window behind, and give focus back. Initial focus is the panel itself, so the first Tab reaches the first control. Escape and the scrim follow the policy above.
-- **Side panel** (`Sheet::modal(false)`), **tooltip**, **hover card**, **toast**: take no focus on open. A side panel closes on Escape while focus is inside it; a toast on Escape while focus is inside it.
+- **Side panel** (`Sheet::modal(false)`), **tooltip**, **hover card**, **toast**: take no focus on open. A side panel closes on Escape while focus is inside it. A toast's stack is a tab stop: Tab reaches it without the toast taking focus when it appears, the clock pauses while the stack has focus, and Escape dismisses the newest toast, including one with no action button. A dialog or sheet body scrolls the focused control into view. A side panel or a toast that would hide the focused control completely shifts by the smallest move that leaves a sliver of it visible.
 
 ## Components
 

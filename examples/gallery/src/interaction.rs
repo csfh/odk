@@ -455,7 +455,7 @@ impl Render for InteractionPage {
         }
         tightest.sort_by_key(|t| t.0);
         let mut contrast = v_flex().gap(Space::Xs).child(caption(
-            "The pair of each component with the least room over its minimum, from the resolved tokens (WCAG 2: 4.5:1 for text, 3:1 for essential non-text). A token-level check, not a test with a screen reader or an accessibility tree, which the gallery has not had.",
+            "The pair of each component with the least room over its minimum, from the resolved tokens (WCAG 2.2: 4.5:1 for text, 3:1 for essential non-text). A token-level check, not a test with a screen reader or an accessibility tree, which the gallery has not had.",
         ));
         for (component, label, found, required, against) in tightest {
             contrast = contrast.child(Text::new(format!(

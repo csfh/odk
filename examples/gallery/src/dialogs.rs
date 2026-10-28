@@ -344,13 +344,12 @@ impl Render for DialogsPage {
                                 })
                         })
                 })
-                // Busy: nothing closes it until the work is done.
+                // Busy: the actions wait. Escape stays on, so the dialog still has a way out.
                 .child({
                     let busy = self.demo == Some(Demo::Saving);
                     Dialog::new("dlg-saving", "Saving notes.md")
                         .open(busy)
                         .description("Please wait.")
-                        .close_on_escape(false)
                         .close_on_backdrop(false)
                         .close_button(false)
                         .content(|_, _| Spinner::new("saving-spinner").label("Writing the file…"))

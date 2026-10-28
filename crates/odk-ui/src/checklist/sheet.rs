@@ -1,11 +1,11 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use gpui::{ParentElement, TestAppContext};
+use gpui::{ParentElement, Styled, TestAppContext};
 use odk_a11y::{Describe, Role};
 
-use super::{Count, open, press, reduce_motion};
-use crate::{Button, Sheet, v_flex};
+use super::{Count, open, press, redraw, reduce_motion};
+use crate::{Button, Sheet, Text, v_flex};
 
 /// Items 8, 10, 13: the sheet takes focus when it opens, Tab and Shift+Tab stay inside it,
 /// Escape asks to close it, and focus goes back to the button that opened it.
@@ -239,6 +239,72 @@ fn a_side_panel_does_not_trap_tab_and_closes_on_escape(cx: &mut gpui::TestAppCon
     assert_eq!(behind.get(), 1, "Tab went round the window, not the panel");
     press(cx, "tab tab escape");
     assert_eq!(closed.get(), 1, "Escape in the panel asked to close it");
+}
+
+/// A tall body scrolls the focused control into view.
+#[gpui::test]
+fn the_body_scrolls_the_focused_control_into_view(cx: &mut gpui::TestAppContext) {
+    use gpui::{px, size};
+    let cx = open(cx, |_, _| {
+        Sheet::new("s", "Inspector").open(true).content(|_, _| {
+            let mut body = v_flex();
+            for n in 0..40 {
+                body = body.child(Text::new(format!("Line {n}")));
+            }
+            body.child(Button::new("bottom").label("Bottom"))
+        })
+    });
+    reduce_motion();
+    cx.simulate_resize(size(px(480.0), px(280.0)));
+    redraw(cx);
+    // Close, then the button below the fold.
+    press(cx, "tab tab");
+    redraw(cx);
+    let body = cx.debug_bounds("s/body").unwrap();
+    let button = cx.debug_bounds("bottom/button").unwrap();
+    assert!(
+        button.bottom() > body.top() && button.top() < body.bottom(),
+        "the focused button is in the body: {button:?} in {body:?}"
+    );
+}
+
+/// A side panel does not completely cover the focused control.
+#[gpui::test]
+fn a_side_panel_does_not_cover_the_focused_control(cx: &mut gpui::TestAppContext) {
+    use gpui::{div, px, size};
+    let cx = open(cx, |_, _| {
+        div()
+            .size_full()
+            .relative()
+            .child(
+                div()
+                    .absolute()
+                    .bottom(px(8.0))
+                    .right(px(8.0))
+                    .child(Button::new("corner").label("Go")),
+            )
+            .child(
+                Sheet::new("s", "Inspector")
+                    .open(true)
+                    .modal(false)
+                    .side(crate::Side::Right)
+                    .content(|_, _| Text::new("Details")),
+            )
+    });
+    reduce_motion();
+    cx.simulate_resize(size(px(480.0), px(400.0)));
+    press(cx, "tab");
+    redraw(cx);
+    let button = cx.debug_bounds("corner/button").unwrap();
+    let panel = cx.debug_bounds("s/panel").unwrap();
+    let covered = button.top() >= panel.top()
+        && button.bottom() <= panel.bottom()
+        && button.left() >= panel.left()
+        && button.right() <= panel.right();
+    assert!(
+        !covered,
+        "the button is fully inside the panel: {button:?} {panel:?}"
+    );
 }
 
 /// The panel is attached to its edge, with a border on the side that faces the window and

@@ -172,22 +172,35 @@ impl FormField {
     /// The description and the message, as the control's accessible description, read as
     /// sentences: a part that does not end one is ended with a full stop.
     fn accessible_description(&self) -> Option<SharedString> {
-        let mut out = String::new();
-        for part in self
-            .description
-            .iter()
-            .chain(self.message.as_ref().map(|m| &m.text))
-        {
-            if !out.is_empty() {
-                if !out.ends_with(['.', '!', '?']) {
-                    out.push('.');
-                }
-                out.push(' ');
-            }
-            out.push_str(part);
-        }
-        (!out.is_empty()).then(|| out.into())
+        join_sentences(
+            [
+                self.description.as_ref().map(AsRef::as_ref),
+                self.message.as_ref().map(|m| m.text.as_ref()),
+            ]
+            .into_iter()
+            .flatten(),
+        )
+        .map(Into::into)
     }
+}
+
+/// Joins `parts` into one description, as sentences: a part that does not end one is ended
+/// with a full stop. Empty parts are skipped.
+pub(crate) fn join_sentences<'a>(parts: impl IntoIterator<Item = &'a str>) -> Option<String> {
+    let mut out = String::new();
+    for part in parts {
+        if part.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
+            if !out.ends_with(['.', '!', '?']) {
+                out.push('.');
+            }
+            out.push(' ');
+        }
+        out.push_str(part);
+    }
+    (!out.is_empty()).then_some(out)
 }
 
 impl Describe for FormField {

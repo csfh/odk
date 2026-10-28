@@ -77,7 +77,11 @@ pub(crate) fn labelled(
     focus: FocusHandle,
     change: Action,
 ) -> AnyElement {
-    let line = px(crate::foundation().typography.style(look.role).line_height);
+    let f = crate::foundation();
+    let line = f.typography.style(look.role).line_height;
+    // The row is the pointer target. Pad it when the text line is shorter than the 24 px
+    // minimum, so the control stays centred on the first line and the target still meets it.
+    let pad = ((f.geometry.target_min - line) / 2.0).max(0.0);
     let text = div()
         .debug_selector(|| part_name(id, "label"))
         .flex_1()
@@ -88,11 +92,16 @@ pub(crate) fn labelled(
         .id(child_id(id, "row"))
         .debug_selector(|| part_name(id, "row"))
         .items_start()
+        // A floor on the height only. A minimum width would replace the row's content
+        // width, and a row beside another control would then shrink to 24 px and wrap.
+        .min_h(px(f.geometry.target_min))
+        .pt(px(pad))
+        .pb(px(pad))
         .gap(px(look.gap))
         .text_role(look.role)
         .child(
             div()
-                .h(line)
+                .h(px(line))
                 .flex()
                 .flex_shrink_0()
                 .items_center()

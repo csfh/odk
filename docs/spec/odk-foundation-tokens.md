@@ -31,6 +31,7 @@ Lengths are logical pixels, as `f32`. Every token is a field or method of `Found
 | `focus_width` | 2 | The keyboard focus indicator. |
 | `focus_offset` | 2 (*provisional*) | The gap of the surface between a control and its focus indicator, which is drawn outside it, so a solid fill never meets the indicator (`docs/spec/odk-semantic-tokens.md`, "Rules for component tokens"). |
 | `thumb_gap` | 2 (*provisional*) | Between a control's inner edge and a part nested inside it: a switch's thumb in its track, a radio's dot in its circle, a button inside a field (a field action). |
+| `target_min` | 24 | The smallest pointer target (WCAG 2.5.8). It does not scale with the text size. |
 | `corner_radius` | `Subtle` | The application's choice that `radius.default` and `radius.overlay` follow. |
 
 `CornerRadius::Square` is 0 px and `CornerRadius::Subtle` is 2 px, exactly (ADR 0042, which replaced ADR 0040's 0.8 px because a 0.8 px corner does not show at scale 1). No token is larger than 2 px, and no component may introduce a larger radius without the user's approval. The radius is set for the whole application; a component cannot choose its own.
@@ -92,7 +93,7 @@ The sizes in this spec are those at Omarchy's default text size, 12 px. `Foundat
 - every control metric: height, horizontal padding, icon size and gap, at every density (`f.controls`);
 - every spacing step and the layout tokens built from them (`f.spacing`, `f.layout`).
 
-It never changes a border width, the focus ring and its offset, the thumb gap, a corner radius or a duration, nor a weight or a family. The scale is `base-size / 12`, with `base-size` from the user's `~/.config/omarchy/shell.toml` over the theme's `shell.toml` (`docs/spec/odk-source-palette.md`, "Text size"), kept to 9 to 20 px and 12 when neither says. Component tokens are derived from the foundation, so they follow it; `odk::ui::foundation()` is built again, from the application's configuration, when the scale changes and not otherwise.
+It never changes a border width, the focus ring and its offset, the thumb gap, the 24 px target minimum, a corner radius or a duration, nor a weight or a family. The scale is `base-size / 12`, with `base-size` from the user's `~/.config/omarchy/shell.toml` over the theme's `shell.toml` (`docs/spec/odk-source-palette.md`, "Text size"), kept to 9 to 20 px and 12 when neither says. 20 px is 167% of the 12 px default; that ceiling is unchanged (`docs/accessibility.md`, "Text size"). Component tokens are derived from the foundation, so they follow it; `odk::ui::foundation()` is built again, from the application's configuration, when the scale changes and not otherwise.
 
 ### Typography (`f.typography`)
 

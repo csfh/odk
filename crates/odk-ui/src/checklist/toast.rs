@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use gpui::{Modifiers, TestAppContext, VisualTestContext};
+use gpui::{Modifiers, ParentElement, Styled, TestAppContext, VisualTestContext, div, px, size};
 use odk_a11y::{Describe, Role};
 
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw};
@@ -258,11 +258,57 @@ fn its_action_is_reached_by_keyboard_and_runs_once(cx: &mut TestAppContext) {
             .action("Undo", move |_, _| r.bump())
             .persistent(),
     );
-    // The page's button, then the toast's action.
-    press(cx, "tab tab enter");
+    // The page's button, the stack, then the toast's action.
+    press(cx, "tab tab tab enter");
     assert_eq!(ran.get(), 1, "the action ran once");
     wait(cx, exit() * 2);
     assert!(!shown(cx, id), "and dismissed the toast");
+}
+
+/// A toast with no action can be paused and dismissed from the keyboard: Tab reaches the
+/// stack itself, which holds the clock, and Escape dismisses the toast.
+#[gpui::test]
+fn a_toast_with_no_action_can_be_paused_and_dismissed_from_the_keyboard(cx: &mut TestAppContext) {
+    let cx = page(cx);
+    let id = raise(cx, Toast::new("Saved"));
+    press(cx, "tab tab");
+    let focused = cx
+        .update(|window, cx| crate::focused_component(window, cx))
+        .map(|name| name.to_string());
+    assert_eq!(focused.as_deref(), Some("odk-toasts-focus"));
+    wait(cx, life() * 4);
+    assert!(shown(cx, id), "focus held a toast that has no action");
+    press(cx, "escape");
+    wait(cx, exit() * 2);
+    assert!(!shown(cx, id));
+}
+
+/// A toast does not completely cover the focused control.
+#[gpui::test]
+fn a_toast_does_not_cover_the_focused_control(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        div().size_full().relative().child(
+            div()
+                .absolute()
+                .bottom(px(8.0))
+                .right(px(8.0))
+                .child(Button::new("corner").label("Go")),
+        )
+    });
+    cx.simulate_resize(size(px(480.0), px(360.0)));
+    redraw(cx);
+    press(cx, "tab");
+    let id = raise(cx, Toast::new("Saved").persistent());
+    let button = cx.debug_bounds("corner/button").unwrap();
+    let card = part(cx, format!("odk-toast/card-{}", number(id))).unwrap();
+    let covered = button.top() >= card.top()
+        && button.bottom() <= card.bottom()
+        && button.left() >= card.left()
+        && button.right() <= card.right();
+    assert!(
+        !covered,
+        "the button is fully inside the toast: {button:?} {card:?}"
+    );
 }
 
 /// Escape while focus is in a toast dismisses it.

@@ -683,7 +683,9 @@ pub(crate) fn docked(
             .w(viewport.width)
             .h(viewport.height)
             .overflow_hidden()
-            .child(Inside(panel.into_any_element())),
+            .child(Inside(
+                crate::reveal::Uncover::new(panel.into_any_element()).into_any_element(),
+            )),
     );
     lift(id, Layer::Popover, overlay, window, cx)
 }

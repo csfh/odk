@@ -3,8 +3,11 @@
 //! the bottom-right corner above everything else, even a modal. Each stays for the foundation's
 //! `toast` (twice as long when it has an action), until it is dismissed, or for as long as the
 //! application says, and a persistent one stays until it is dismissed. The clocks stop while the
-//! pointer is over the stack or focus is inside it. At most [`MAX_VISIBLE`] show at a time, or
-//! the limit of [`set_toast_limit`]; the rest wait their turn. They never take focus. The
+//! pointer is over the stack or focus is inside it. The stack is a tab stop, so the keyboard
+//! can pause the clocks and dismiss the newest toast with Escape, including one with no action
+//! button. A toast never takes focus when it appears. At most [`MAX_VISIBLE`] show at a time, or
+//! the limit of [`set_toast_limit`]; the rest wait their turn. If the stack would hide the
+//! focused control completely, it shifts enough to leave a sliver of that control visible. The
 //! window's [`crate::Shell`] draws them, and this module is the one manager: it hands out
 //! [`ToastId`]s, runs the clocks and removes a toast once its exit has run.
 
@@ -395,7 +398,7 @@ impl RenderOnce for ToastHost {
         if !store.windows.contains_key(&id) {
             return div().into_any_element();
         }
-        let focus = focus_handle("odk-toasts-focus".into(), false, window, cx);
+        let focus = focus_handle("odk-toasts-focus".into(), true, window, cx);
         let focused = focus.contains_focused(window, cx);
         let store = cx.global_mut::<Toasts>();
         let limit = store.limit;
@@ -448,6 +451,7 @@ impl RenderOnce for ToastHost {
 
         let viewport = window.viewport_size();
         let margin = px(f.spacing.s4);
+        let newest = shown.last().map(|s| s.id);
         let mut column = v_flex()
             .id("odk-toasts")
             .track_focus(&focus)
@@ -546,12 +550,27 @@ impl RenderOnce for ToastHost {
                 );
             column = column.child(card.relative());
         }
+        if let Some(toast_id) = newest {
+            // The stack itself is a tab stop. Escape while it has focus dismisses the newest
+            // toast, so one with no button can still be dismissed. A card that has focus
+            // dismisses itself and stops the key.
+            column = column.on_key_down(move |event: &KeyDownEvent, window, cx| {
+                if event.keystroke.key == "escape" {
+                    let now = cx.background_executor().now();
+                    if let Some(stack) = cx.global_mut::<Toasts>().windows.get_mut(&id) {
+                        stack.dismiss(toast_id, now, toast_timing());
+                    }
+                    window.refresh();
+                    cx.stop_propagation();
+                }
+            });
+        }
 
         deferred(
             anchored()
                 .anchor(gpui::Corner::BottomRight)
                 .position(point(viewport.width - margin, viewport.height - margin))
-                .child(column),
+                .child(crate::reveal::Uncover::new(column.into_any_element())),
         )
         .with_priority(Layer::Toast.priority())
         .into_any_element()

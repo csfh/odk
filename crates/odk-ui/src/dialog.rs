@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use gpui::{
     AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    ScrollHandle, SharedString, Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
 
@@ -26,10 +26,10 @@ const DIALOG_WIDTH: f32 = 480.0;
 /// close button or a click on the scrim asks the application to close it through `on_close`,
 /// and focus goes back to where it was. [`Dialog::close_on_escape`], [`Dialog::close_on_backdrop`]
 /// and [`Dialog::close_button`] take those away one by one, as a confirmation of something
-/// destructive or a dialog that is busy should; with all three off the dialog closes only when
-/// the application stops saying `open`. It fades in with a slight rise over the foundation's
-/// `enter` and out over its `exit`, at once with reduced motion. It is never larger than the
-/// window: a body too tall scrolls while the header and actions stay. Controlled: the
+/// destructive should. Turning all three off is refused: a dialog with no way out is a keyboard
+/// trap. A body too tall scrolls, and scrolls the focused control into view, while the header
+/// and actions stay. It fades in with a slight rise over the foundation's `enter` and out over
+/// its `exit`, at once with reduced motion. It is never larger than the window. Controlled: the
 /// application owns `open`. While it closes it keeps drawing the title, description, body and
 /// actions it last had open.
 ///
@@ -37,7 +37,7 @@ const DIALOG_WIDTH: f32 = 480.0;
 /// (`ComponentTokens::dialog`); its title is a `Heading`, its description a `Text`, and its
 /// actions are the application's own `Button`s, so a destructive action is a button with
 /// `ButtonVariant::Destructive`. A form dialog holds the form controls as its content; a busy
-/// one disables its buttons (`Button::loading`) and the three ways out; one that failed
+/// one disables its buttons (`Button::loading`) and keeps a way out; one that failed
 /// validation shows an `Alert` above its fields and stays open.
 #[derive(IntoElement)]
 pub struct Dialog {
@@ -142,6 +142,9 @@ struct Shown {
 
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        if !self.close_on_escape && !self.close_on_backdrop && !self.close_button {
+            panic!("a dialog needs a way out: leave Escape, the scrim, or the close button on");
+        }
         let c = components();
         let f = c.foundation().clone();
         let frame = layer_over(
@@ -177,6 +180,12 @@ impl RenderOnce for Dialog {
             }
             k.clone()
         });
+        let scroll = window
+            .use_keyed_state(child_id(&self.id, "body-scroll"), cx, |_, _| {
+                ScrollHandle::new()
+            })
+            .read(cx)
+            .clone();
         let close: Action = self.on_close.unwrap_or_else(|| Rc::new(|_, _| {}));
         let mut dismiss = Dismiss::new(close.clone());
         dismiss.escape = self.close_on_escape;
@@ -215,14 +224,15 @@ impl RenderOnce for Dialog {
                     .children(description.map(|d| Text::new(d).muted())),
             )
             .child(
-                // The body scrolls when the dialog would be taller than the window.
-                div()
-                    .id(child_id(&self.id, "body"))
-                    .debug_selector(|| part_name(&self.id, "body"))
-                    .flex_1()
-                    .overflow_y_scroll()
-                    .px(pad_x)
-                    .children(content.map(|build| build(window, cx))),
+                // The body scrolls when the dialog would be taller than the window, and brings
+                // the focused control into view.
+                crate::reveal::scrolling_body(
+                    child_id(&self.id, "body"),
+                    scroll,
+                    div().children(content.map(|build| build(window, cx))),
+                )
+                .debug_selector(|| part_name(&self.id, "body"))
+                .px(pad_x),
             )
             .child(
                 h_flex()

@@ -10,7 +10,7 @@ use gpui::{
 };
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
-use odk_theme::foundation::Density;
+use odk_theme::foundation::{Density, TypeRole};
 
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
@@ -248,7 +248,12 @@ impl RenderOnce for RadioGroup {
                 .flex_wrap()
                 .gap(px(c.foundation().layout.form_gap))
         } else {
-            v_flex().gap(px(c.radio(density, States::NONE).geometry.gap))
+            // At small text the line is shorter than the 24 px target. The gap makes up the
+            // difference, which at 9 px text is 9 px.
+            let line = c.foundation().typography.style(TypeRole::Body).line_height;
+            let gap = c.radio(density, States::NONE).geometry.gap;
+            let apart = gap.max(c.foundation().geometry.target_min - line).max(0.0);
+            v_flex().gap(px(apart))
         }
         .id(self.id.clone())
         .debug_selector(|| part_name(&self.id, "group"))

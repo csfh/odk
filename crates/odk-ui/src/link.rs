@@ -13,7 +13,7 @@ use crate::focus::{child_id, focus_handle, part_name};
 use crate::interaction::{RingTarget, link_states};
 use crate::layout::StyledExt;
 
-/// Text drawn as a link: secondary text, primary and underlined under the pointer, a tab stop.
+/// Text drawn as a link: secondary text, primary and underlined at rest, a tab stop.
 /// Its focus ring is painted by the path around it, from `ring`, since a path clips its links
 /// where they truncate. The caller adds the click.
 pub(crate) fn link(

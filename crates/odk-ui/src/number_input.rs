@@ -23,7 +23,8 @@ type CommitHandler = Rc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
 /// `1.` or `.5` may stand on the way to a number, and nothing is clamped while it is typed.
 /// Enter and leaving the field commit the text: a number is clamped to the bounds and shown
 /// tidily (`2.50` as `2.5`); text that is no number is kept, and the field shows itself
-/// invalid until it is one. Ctrl+Z undoes a step or a commit like any edit.
+/// invalid until it is one, with the mark and the text "Enter a number", which is also part
+/// of its description. Ctrl+Z undoes a step or a commit like any edit.
 ///
 /// Uncontrolled by default, starting from `default_value`; pass `value` to control it and
 /// follow `on_change`, which hears the number after each edit, or `None` while the text is no

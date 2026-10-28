@@ -484,3 +484,83 @@ fn icons_and_pointer_states_of_a_field(cx: &mut TestAppContext) {
     assert_eq!(drawn::last("off").placeholder, semantic.text.disabled);
     assert_eq!(s.icon, semantic.text.tertiary);
 }
+
+/// WCAG 2.5.8: compact field actions and labelled rows are at least 24 px. At 9 px text the
+/// actions stay that large, and a vertical radio's rows are 24 px with at least 9 px between them.
+#[gpui::test]
+fn targets_are_at_least_24_px(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        v_flex()
+            .child(
+                SearchInput::new("search", "Search")
+                    .default_value("dock")
+                    .density(Density::Compact),
+            )
+            .child(
+                PasswordInput::new("password", "Password")
+                    .default_value("x")
+                    .density(Density::Compact),
+            )
+            .child(NumberInput::new("number", "Quantity").density(Density::Compact))
+            .child(Checkbox::new("c", "Wrap"))
+            .child(Switch::new("w", "Wi-Fi"))
+            .child(
+                RadioGroup::new("r", "Fruit")
+                    .item("a", "Apple")
+                    .item("b", "Banana"),
+            )
+    });
+    let at_least = |cx: &mut VisualTestContext, part: &str| {
+        let b = bounds(cx, part.to_owned());
+        assert!(
+            b.size.height >= px(24.0) && b.size.width >= px(24.0),
+            "{part} is smaller than 24 px: {b:?}"
+        );
+    };
+    for part in [
+        "search/clear/button",
+        "password/reveal/button",
+        "number/increment/button",
+        "number/decrement/button",
+        "c/row",
+        "w/row",
+        "r/option-0/row",
+        "r/option-1/row",
+    ] {
+        at_least(cx, part);
+    }
+
+    crate::theme::publish(std::sync::Arc::new(
+        odk_theme::ThemeSnapshot::from_toml(
+            crate::theme::TEST_COLORS,
+            Some("[font]\nbase-size = 9\n"),
+        )
+        .unwrap(),
+    ));
+    redraw(cx);
+    for part in [
+        "search/clear/button",
+        "password/reveal/button",
+        "number/increment/button",
+        "c/row",
+        "w/row",
+        "r/option-0/row",
+        "r/option-1/row",
+    ] {
+        at_least(cx, part);
+    }
+    let (first, second) = (
+        bounds(cx, "r/option-0/row".into()),
+        bounds(cx, "r/option-1/row".into()),
+    );
+    let gap = second.top() - first.bottom();
+    assert!(
+        gap >= px(8.5),
+        "at 9 px text the rows are at least 9 px apart: {gap:?}"
+    );
+    let centres = (second.center().y - first.center().y).abs();
+    assert!(
+        centres >= px(24.0),
+        "the row centres are at least 24 px apart: {centres:?}"
+    );
+}

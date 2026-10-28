@@ -55,7 +55,9 @@ A known gap is a test marked `#[ignore = "known gap: <item>"]` that calls `asser
 15. Its name is not empty. A part labelled only by a glyph takes an `accessible_name`.
 16. It reports its state: selected, disabled, busy.
 17. A composite control reports each item (`item_accessibles`).
-18. Colour is never the only signal. A tone also has a mark, and a selection also has a fill or an underline.
+18. Colour is never the only signal. A tone also has a mark, and a selection also has a fill or an underline. A link is underlined at rest (a button link, a breadcrumb link, a menu's link); the current page is not a link and is not underlined. A number that is not a number says "Enter a number" as well as showing the field's mark.
+
+A pointer target is at least 24 px on each side (WCAG 2.5.8), or the space around it makes up the difference. `geometry.target_min` is 24 px and does not scale with the text size. Field actions (clear, reveal, steppers) use it as a floor, so at the smallest text size a compact one can extend past its field rather than shrink below 24 px. A checkbox, radio or switch row is at least 24 px wide and tall. Vertical radios add gap when the text line is shorter than that, which at 9 px text is 9 px between the rows.
 
 ## Motion
 
