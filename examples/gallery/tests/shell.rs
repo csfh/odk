@@ -46,8 +46,8 @@ fn a_click_in_the_sidebar_opens_a_page() {
     assert_eq!(Page::ALL[1], Page::Buttons);
     click(cx, "pages/item-1");
     assert_eq!(current(&gallery, cx), Page::Buttons);
-    assert_eq!(Page::ALL[9], Page::Colors);
-    click(cx, "pages/item-9");
+    assert_eq!(Page::ALL[10], Page::Colors);
+    click(cx, "pages/item-10");
     assert_eq!(current(&gallery, cx), Page::Colors);
     click(cx, "pages/item-0");
     assert_eq!(current(&gallery, cx), Page::Overview);

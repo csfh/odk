@@ -1763,3 +1763,31 @@ fn the_pairings_that_interaction_rests_on_are_all_measured() {
         );
     }
 }
+
+// Data and layout (ADR 0069).
+
+#[test]
+fn a_resize_handle_takes_one_border_of_room_and_a_target_of_the_minimum() {
+    for name in ["tokyo-night", "catppuccin-latte", "vantablack"] {
+        let c = tokens(name);
+        let g = c.foundation().geometry.clone();
+        let rest = c.resize_handle(States::NONE);
+        let hovered = c.resize_handle(States::NONE.hovered(true));
+        let dragged = c.resize_handle(States::NONE.pressed(true));
+        assert_eq!(rest.thickness, g.border_width, "{name}");
+        assert_eq!(
+            hovered.thickness, rest.thickness,
+            "{name}: a state takes no room"
+        );
+        assert_eq!((rest.drawn, hovered.drawn), (g.border_width, g.focus_width));
+        assert_eq!(dragged.line, hovered.line, "{name}");
+        assert_ne!(rest.line, hovered.line, "{name}: an active handle shows it");
+        assert_eq!(rest.target, g.target_min);
+        let off = c.resize_handle(States::NONE.hovered(true).disabled(true));
+        assert_eq!(
+            off.line, rest.line,
+            "{name}: a disabled handle never lights up"
+        );
+        assert!(c.resize_handle(States::NONE.focused(true)).focus_visible);
+    }
+}

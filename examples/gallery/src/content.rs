@@ -38,6 +38,8 @@ pub struct Content {
     pub alerts: [(&'static str, &'static str, &'static str); 4],
     pub short_path: &'static [&'static str],
     pub long_path: &'static [&'static str],
+    /// A resizable group's three panels: each one's title and body.
+    pub panels: [(&'static str, &'static str); 3],
     pub alignment: [&'static str; 4],
     pub tabs: &'static [&'static str],
     /// Three periods for a segmented control: day, week and month.
@@ -147,6 +149,14 @@ impl Content {
             ],
             short_path: &["Settings", "Display", "Scaling"],
             long_path: &["Home", "Settings", "Hardware", "Input", "Keyboard layout"],
+            panels: [
+                ("Services", "NetworkManager, bluetooth, sshd and nine more."),
+                (
+                    "bluetooth.service",
+                    "Active since 09:12. Bluetooth service for the adapter hci0.",
+                ),
+                ("Log", "09:12 Starting Bluetooth service…"),
+            ],
             alignment: ["Left", "Center", "Right", "Justify"],
             tabs: &["General", "Display", "Advanced", "About"],
             periods: ["Day", "Week", "Month"],
@@ -298,6 +308,17 @@ impl Content {
                 "Tastaturbelegungen und Eingabemethoden",
                 "Deutsch (Schweiz, ohne Akzenttasten)",
                 "Erweiterte Tastenkombinationen für Barrierefreiheit",
+            ],
+            panels: [
+                (
+                    "Systemdienstverwaltungsübersicht",
+                    "https://example.com/a/very/long/unbroken/path/to/a/unit/file/that/will/not/wrap/anywhere.service",
+                ),
+                (
+                    "日本語のサービス詳細 🔥",
+                    "サービスは起動していません。ログを確認してください。🔥🔥",
+                ),
+                ("L", "x"),
             ],
             alignment: [
                 "Linksbündig",

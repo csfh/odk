@@ -18,18 +18,20 @@ pub enum Category {
     Navigation,
     Feedback,
     Overlays,
+    Data,
     Foundation,
     Tools,
 }
 
 impl Category {
-    pub const ALL: [Category; 8] = [
+    pub const ALL: [Category; 9] = [
         Category::Overview,
         Category::Actions,
         Category::Forms,
         Category::Navigation,
         Category::Feedback,
         Category::Overlays,
+        Category::Data,
         Category::Foundation,
         Category::Tools,
     ];
@@ -42,6 +44,7 @@ impl Category {
             Category::Navigation => "Navigation",
             Category::Feedback => "Feedback",
             Category::Overlays => "Overlays",
+            Category::Data => "Data",
             Category::Foundation => "Foundation",
             Category::Tools => "Tools",
         }
@@ -61,6 +64,7 @@ pub enum Page {
     Feedback,
     Overlays,
     Dialogs,
+    Data,
     Colors,
     Resolver,
     Typography,
@@ -92,7 +96,7 @@ pub struct Meta {
 }
 
 impl Page {
-    pub const ALL: [Page; 19] = [
+    pub const ALL: [Page; 20] = [
         Page::Overview,
         Page::Buttons,
         Page::Fields,
@@ -102,6 +106,7 @@ impl Page {
         Page::Feedback,
         Page::Overlays,
         Page::Dialogs,
+        Page::Data,
         Page::Colors,
         Page::Resolver,
         Page::Typography,
@@ -358,6 +363,25 @@ impl Page {
                 ],
                 tokens: &["dialog", "sheet", "surface.scrim"],
                 accessibility: "A modal holds focus: Tab cycles inside it, Escape closes it, and focus returns to the control that opened it. The window behind it does not respond.",
+            },
+            Page::Data => &Meta {
+                id: "data",
+                title: "Data",
+                category: Category::Data,
+                description: "Resizable panels: a list beside its detail, sized by the user and kept.",
+                components: &["Resizable"],
+                keywords: &[
+                    "resizable",
+                    "split",
+                    "splitter",
+                    "panel",
+                    "pane",
+                    "drag",
+                    "handle",
+                    "layout",
+                ],
+                tokens: &["resize handle"],
+                accessibility: "Each handle is a tab stop and a separator whose value is the size of the panel before it. The arrow keys along the group move it, Home and End take that panel to its limits, and Escape puts back a drag in progress.",
             },
             Page::Colors => &Meta {
                 id: "colors",

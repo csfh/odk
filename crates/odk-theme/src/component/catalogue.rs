@@ -6,7 +6,7 @@ use std::fmt;
 
 use super::geometry::Shape;
 use super::{
-    ComponentError, ComponentTokens, TreatmentRef, controls, feedback, navigation, overlay,
+    ComponentError, ComponentTokens, TreatmentRef, controls, data, feedback, navigation, overlay,
 };
 use crate::foundation::{Density, FoundationTokens, TypeRole};
 use crate::semantic::{
@@ -174,6 +174,7 @@ pub(crate) fn catalogue() -> Vec<Entry> {
     navigation::catalogue(&mut out);
     overlay::catalogue(&mut out);
     feedback::catalogue(&mut out);
+    data::catalogue(&mut out);
     out
 }
 

@@ -34,6 +34,7 @@ mod performance;
 mod popover;
 mod progress;
 mod radio;
+mod resizable;
 mod search_input;
 mod select;
 mod separator;
