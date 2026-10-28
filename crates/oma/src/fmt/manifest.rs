@@ -242,7 +242,7 @@ fn check_name(name: &str) -> Result<(), Error> {
 
 /// A path inside the Bundle: relative, no `..`. Symlinks are checked against the real
 /// directory later, in [`crate::fmt::Bundle::open`].
-fn check_relative_path(field: &'static str, path: &str) -> Result<(), Error> {
+pub(crate) fn check_relative_path(field: &'static str, path: &str) -> Result<(), Error> {
     let bad = |reason| Error::Path {
         field,
         path: path.to_owned(),

@@ -1338,6 +1338,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
+name = "crrl"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca032663238726938d4ca23189575167143599eb219b591270c0d268ca9259b0"
+dependencies = [
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "sha3",
+]
+
+[[package]]
 name = "crunchy"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1397,9 +1408,12 @@ version = "0.1.0-rc.3"
 dependencies = [
  "concurrent-queue",
  "crossbeam-utils",
+ "crypto-common 0.1.7",
+ "digest 0.10.7",
  "event-listener 5.4.2",
  "event-listener-strategy",
  "futures-core",
+ "getrandom 0.2.17",
  "hashbrown 0.17.1",
  "libc",
  "linux-raw-sys 0.12.1",
@@ -1408,13 +1422,16 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
+ "rand_core 0.6.4",
  "rustix 1.1.5",
  "semver",
  "serde",
  "serde_core",
  "smallvec",
+ "subtle",
  "syn 3.0.9",
  "toml_parser",
+ "typenum",
  "unicode-ident",
  "winnow 1.0.4",
 ]
@@ -3122,6 +3139,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
+dependencies = [
+ "cpufeatures 0.2.17",
+]
+
+[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4016,11 +4042,15 @@ dependencies = [
 name = "oma"
 version = "0.1.0-rc.3"
 dependencies = [
+ "base64",
  "clap",
+ "crrl",
  "deps",
  "libc",
+ "rustix 1.1.5",
  "semver",
  "serde",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.21",
  "toml 0.9.12+spec-1.1.0",
@@ -5350,6 +5380,16 @@ dependencies = [
  "cfg-if",
  "cpufeatures 0.3.1",
  "digest 0.11.3",
+]
+
+[[package]]
+name = "sha3"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77fd7028345d415a4034cf8777cd4f8ab1851274233b45f84e3d955502d93874"
+dependencies = [
+ "digest 0.10.7",
+ "keccak",
 ]
 
 [[package]]
