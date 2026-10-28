@@ -4,20 +4,22 @@ Normative. This spec defines the dialog of ADR 0016, shown by the helper of ADR 
 
 ## When it is shown
 
-oma shows the dialog whenever a Bundle requests a permission missing from its consent record (ADR 0023), and whenever a signed Bundle is signed by a key that is not the one pinned for its Identifier (ADR 0055). That covers:
+`odk oma` shows the dialog whenever a Bundle requests a permission missing from its consent record (ADR 0023), and whenever a Bundle is signed under a publisher root that is not pinned for that app id (ADR 0060). Consent is the pair (root key id, app id). That covers:
 
 - opening a Bundle from outside `~/Applications`, where it offers Install, Run once or Cancel (ADR 0018);
-- the first launch of a Bundle already in `~/Applications` that has no consent record;
+- the first launch of a Bundle already in `~/Applications` that has no consent record for that pair;
 - launching an upgraded Bundle that requests anything new (ADR 0015);
-- a file signed by any key other than the pin, including a key the publisher's domain has newly listed and a key from a domain that was unreachable and came back with a different key. That case uses the first-install buttons, not the upgrade buttons.
+- a new publisher root. A release key the pinned root has authorized, a higher root-signed `oma-keys`, a revocation and a rotation are not this case. A new root uses the first-install buttons, not the upgrade buttons.
 
-It is not shown when everything a Bundle requests is already in its consent record and the file verifies under the pinned key. In non-interactive mode there is no dialog: a missing permission, or a key that is not the pin, makes oma exit non-zero and launch nothing. `odk oma install --accept-permissions` grants permissions without a dialog (ADR 0016). It does not accept a key other than the pin; pointed at one, it installs nothing.
+It is not shown when everything a Bundle requests is already in its consent record and the file verifies under the pinned root. In non-interactive mode there is no dialog: a missing permission, or a root that is not the pin, makes `odk oma` exit non-zero and launch nothing. `odk oma install --accept-permissions` grants permissions without a dialog (ADR 0016). It does not accept a new root; pointed at one, it installs nothing.
+
+A Cancel for a (root key id, app id) pair is stored. A later launch, `--register`, or another pass over the same file does not open the dialog again for that pair. `odk oma install` of the file can ask again.
 
 ## Layout
 
 One screen per consent, in this order:
 
-1. The application's name, icon and version, with its Identifier in small text.
+1. The publisher identity from the signed manifest (ADR 0060): the root fingerprint, the app id, the monotonic version, and the publisher host in Unicode and in punycode. The image's display name and icon are not read for this screen.
 2. One line saying whether the application is new or an upgrade that adds permissions.
 3. One line per requested permission, worded as in the table below.
 4. The buttons.
@@ -28,11 +30,11 @@ For an upgrade, only the **new** permissions are listed. The ones already in the
 
 | Situation | Buttons |
 |---|---|
-| First open of a Bundle outside `~/Applications` | Install, Run once, Cancel |
-| A file signed by a key that is not the pin, including a new publisher after the domain was unreachable (ADR 0055) | Install, Run once, Cancel |
-| An upgrade that verifies under the pinned key and requests something new, with a previous version kept | Allow, Keep previous version, Cancel |
+| First open of a Bundle outside `~/Applications`, under a root already pinned for that app id | Install, Run once, Cancel |
+| A publisher root that is not pinned for that app id (ADR 0060) | Install, Run once, Cancel |
+| An upgrade that verifies under the pinned root and requests something new, with a previous version kept | Allow, Keep previous version, Cancel |
 | Any other installed Bundle that requests something new | Allow, Cancel |
-| `odk oma install` of a Bundle that requests something new, under the pinned key or with no key pinned yet | Install, Cancel |
+| `odk oma install` of a Bundle that requests something new, under the pinned root | Install, Cancel |
 
 Keep previous version rolls back to the previous version (ADR 0011) and launches it, so declining an upgrade never leaves an application that will not start (ADR 0015). Cancel launches nothing.
 
@@ -55,21 +57,19 @@ Each line states the consequence in plain language, not the permission's name.
 
 A named directory that is unavailable (ADR 0012) is listed as "{Desktop}: you have no such folder, so this will not be available".
 
-A trust note (ADR 0055) is a `notes` entry, not a permission line. At most one of the key notes applies, and the origin note is separate:
+The trust lines are signed fields, plus the URL that was fetched (ADR 0060). They are `notes` entries, not permission lines. The dialog shows the root fingerprint in groups of eight, the app id, the monotonic version, and the publisher host in Unicode and in punycode. It does not read the image for a name or an icon.
 
 | Situation | Note |
 |---|---|
-| No signature, and no key pinned | This bundle is unsigned. |
-| The domain could not be reached, so the key in the file is not confirmed | The publisher's domain could not be reached, so this signing key is not confirmed. |
-| The file's key is not the pin, and the domain stayed reachable | This file is signed by a different key from the one pinned for this application. Installing it asks you to accept that key, as on a first install. |
-| The domain was unreachable and now signs with a different key | This domain was unreachable and now signs with a different key. This is a new publisher, and it needs your consent as on a first install. |
-| `user.xdg.origin.url` names a host other than the publisher | The download origin ({host}) is not the publisher's domain ({domain}). |
+| A new publisher root | This pins the publisher key {fingerprint} for {app id} {version}. The publisher host is {unicode host} ({punycode}). |
+| The publisher host is confusable with a host already pinned for a different root | {unicode host} looks like {existing host}, which is already pinned for a different publisher. Confirm that this is a different publisher before installing. |
+| `user.xdg.origin.url` or `user.xdg.referrer.url` is shown at all | Unverified download note: {value}. This is not the publisher. |
 
-A missing origin attribute adds no note and never blocks. An origin whose host is the publisher adds no note. `odk oma install --accept-permissions` does not skip a different key.
+Install and Run once stay disabled while the confusable-host note is up, until the person confirms that note on its own. `user.xdg.origin.url` and `user.xdg.referrer.url` are never a decision. A missing attribute adds no note. The host of a URL `odk-oma` fetched must be the signed publisher; a mismatch does not reach this dialog. `odk oma install --accept-permissions` does not accept a new root and does not skip the confusable-host confirmation.
 
 ## Interface
 
-`oma` runs `oma-consent`, found next to its own executable, and talks to it through its standard streams. The helper never sees the Bundle (ADR 0025).
+`odk-oma` runs `oma-consent`, found next to its own executable, and talks to it through its standard streams. The helper never sees the Bundle (ADR 0025).
 
 **Request**, TOML on standard input:
 
@@ -87,15 +87,15 @@ notes = ["Desktop: you have no such folder, so this will not be available"]
 
 **Answer**, one line on standard output: exactly one of the offered words, and exit status 0. Closing the window or pressing Escape is `cancel`.
 
-**`oma` treats everything else as Cancel and fails closed**: the helper is missing or cannot start, there is no display, it exits non-zero, its output is not exactly one line, or the word is not one that was offered. This is the non-interactive rule of ADR 0016: with no usable dialog, a missing permission launches nothing, and `odk oma install --accept-permissions` is the only way to grant without one.
+**`odk-oma` treats everything else as Cancel and fails closed**: the helper is missing or cannot start, there is no display, it exits non-zero, its output is not exactly one line, or the word is not one that was offered. This is the non-interactive rule of ADR 0016: with no usable dialog, a missing permission launches nothing, and `odk oma install --accept-permissions` is the only way to grant without one.
 
 ## Behaviour
 
 - No button is the default: Enter grants nothing. Escape and closing the window are Cancel.
 - The window is small and fixed in size, with the application id `oma-consent`. GPUI 0.2.2 cannot ask a Wayland compositor for a floating dialog, so under Hyprland the helper asks `hyprctl` to float, size and centre it, and ignores any failure; on another compositor it may be tiled.
 - The helper follows the Omarchy theme by reading `colors.toml` itself, with fallback colours; it does not depend on ODK.
-- **Not in the dialog yet:** the application's icon, because showing it would have an unsandboxed process parse an untrusted Bundle's image; the "upgrade" screen, with its collapsed "already allowed" line and the "Keep previous version" button, because upgrades are not built.
+- **Not in the dialog yet:** the "upgrade" screen, with its collapsed "already allowed" line and the "Keep previous version" button, because upgrades are not built. The icon stays out of the dialog (ADR 0060): the identity lines are the signed fields, and the image is not mounted to fill them.
 
 ## Left out of v1
 
-Remembering "don't ask again", revoking a permission from a settings UI, and a permissions viewer. Revoking a permission means deleting the consent record, which prompts again on the next launch (ADR 0023). A management UI can come later.
+Remembering a yes that would suppress a later permission prompt, revoking a permission from a settings UI, and a permissions viewer. A denial of a new publisher root is remembered, and that pair is not asked again until `odk oma install` (ADR 0060). Revoking a permission means deleting the consent record, which prompts again on the next launch (ADR 0023). A management UI can come later.

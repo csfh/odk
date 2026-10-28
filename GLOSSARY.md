@@ -19,7 +19,8 @@ An application packaged as one `<App>.oma` file (ADR 0052): a read-only EROFS im
 _Avoid_: package, archive, app image
 
 **Publisher**:
-The domain a Bundle's Manifest names. That domain's list of signing keys is the root of trust for the Bundle's signature (ADR 0055). A domain that was unreachable and comes back with a different key is a new publisher.
+The pinned root public key that signs a Bundle (ADR 0060). The fingerprint of that key is the identity. The domain in the signed manifest is the name shown for the publisher and the host used the first time the key is discovered. It is not the root of trust. A different root key is a different publisher, including at the same domain, and it inherits no installed applications, data or permissions.
+_Avoid_: the domain (that is display text and the first-contact host)
 
 **Manifest**:
 The declarative TOML file inside a Bundle that names the application and declares the permissions it requests.

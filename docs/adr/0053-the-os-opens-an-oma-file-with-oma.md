@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0065
+status: amended by ADR 0060 and ADR 0065
 ---
 
 # The OS opens an `.oma` file with `oma`

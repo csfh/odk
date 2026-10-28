@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0060
 ---
 
 # A Bundle's trust is its publisher's domain, then its key, then its download origin

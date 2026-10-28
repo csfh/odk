@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0055
+status: amended by ADR 0060
 ---
 
 # Bundles are unsigned in v1, with room left for signatures

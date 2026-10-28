@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0063
+status: amended by ADR 0060 and ADR 0063
 ---
 
 # `oma` is installed from its domain, then from Omarchy's repository
