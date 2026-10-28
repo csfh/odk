@@ -18,7 +18,7 @@ Atmos lists processes, services and packages, live, re-sorted at every sample, a
 
 **Empty and loading.** With no rows the table shows its `empty` text in the rows' place; while `loading` and empty it shows skeleton rows. A table that has rows and is loading keeps them.
 
-**Truncation (amending ADR 0058).** A cell's text that does not fit shows its full text in a tooltip on hover. A row is selected as a whole and holds several cells, so the keyboard opens no cell's tooltip; the full text of every cell of the selected row is in its accessible description.
+**Truncation (amending ADR 0058).** A cell's text that does not fit shows its full text in a tooltip on hover. A row is selected as a whole and holds several cells, so the keyboard opens no cell's tooltip; the full text of every cell of a row is its accessible name.
 
 **Accessibility.** `odk-a11y` gains `Table`, `Row`, `Cell` and `ColumnHeader`. The table reports `Table` with its name, each header `ColumnHeader` with its sort as its value, each row `Row` with its cells' text, selected or not.
 
