@@ -102,7 +102,7 @@ impl Themes {
     /// with the user's own text size and request for reduced motion, as the followed theme is.
     fn read(&mut self, name: &str, cx: &App) -> Result<Loaded, String> {
         self.reads += 1;
-        let mut manager = ThemeManager::with_users_files(self.source(name)?);
+        let mut manager = ThemeManager::following_host(self.source(name)?);
         manager
             .set_options(odk::ui::colour_options(cx))
             .map_err(|e| e.to_string())?;

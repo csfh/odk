@@ -26,7 +26,7 @@ pub struct Config {
     pub scope_abstract_unix_sockets: bool,
     /// Setup errors are written here; it closes when the application starts (end of file).
     pub report_fd: RawFd,
-    /// `oma run --wait` reads the application's status from here; -1 when nothing does.
+    /// `odk oma run --wait` reads the application's status from here; -1 when nothing does.
     pub status_fd: RawFd,
 }
 
@@ -77,7 +77,7 @@ pub fn run(config_text: &str) -> ! {
     let config: Config = match toml::from_str(config_text) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("oma: bad init configuration: {e}");
+            eprintln!("odk oma: bad init configuration: {e}");
             std::process::exit(1);
         }
     };
@@ -205,7 +205,7 @@ fn start_application(config: &Config, fd: RawFd) -> ! {
         fail("cannot install the seccomp filter", &e);
     }
 
-    // The report pipe closes when the exec succeeds, which tells `oma run` the application started.
+    // The report pipe closes when the exec succeeds, which tells `odk oma run` the application started.
     unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
 
     let exe = CString::new(config.exe.as_os_str().to_str().expect("UTF-8 path")).unwrap();

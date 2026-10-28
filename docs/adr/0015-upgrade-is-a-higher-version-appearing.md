@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0052 and ADR 0055
+---
+
 # An upgrade is a higher version of the same Identifier, offered through a per-application inbox
 
 omalaunch has no update API (ADR 0010). An application that wants to update itself stages the new Bundle directory in its own inbox, `~/.local/share/oma/inbox/<identifier>/`, using the `updates` permission (ADR 0012). Applications are never given write access to `~/Applications`, because a Bundle is a directory (ADR 0022) and write access there would let one application overwrite another's ELF in place and run with its permissions, with no consent prompt because the permissions would not change.

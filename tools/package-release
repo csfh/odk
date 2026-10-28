@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Assembles the release tarball and its checksum from built programs (ADR 0063).
+#
+#   tools/package-release BIN_DIR OUT_DIR VERSION
+#
+# BIN_DIR holds the built `odk`, `odk-oma`, `oma-consent` and `odkd`. OUT_DIR gets
+# `odk-x86_64-linux.tar.gz` and `odk-x86_64-linux.tar.gz.sha256`, and a copy of `install.sh`.
+# The layout inside the tarball is the one `install.sh` installs:
+#
+#   odk/VERSION   odk/bin/odk   odk/lib/odk/{odk-oma,oma-consent,odkd}
+#   odk/share/systemd/user/{odkd.socket,odkd.service}   odk/share/mime/packages/oma.xml
+#
+# CI and the installer's test both call this, so the asset names and the layout cannot drift.
+set -euo pipefail
+
+[[ $# -eq 3 ]] || { sed -n 3,4p "$0" >&2; exit 2; }
+bin=$1 out=$2 version=$3
+root=$(cd "$(dirname "$0")/.." && pwd)
+name=odk-x86_64-linux
+
+for program in odk odk-oma oma-consent odkd; do
+    [[ -x $bin/$program ]] || { echo "package-release: no $bin/$program" >&2; exit 1; }
+done
+[[ $version =~ ^[A-Za-z0-9._-]+$ ]] || { echo "package-release: bad version '$version'" >&2; exit 2; }
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+mkdir -p "$stage/odk/bin" "$stage/odk/lib/odk" "$stage/odk/share/systemd/user" \
+    "$stage/odk/share/mime/packages" "$out"
+install -m 755 "$bin/odk" "$stage/odk/bin/odk"
+for program in odk-oma oma-consent odkd; do
+    install -m 755 "$bin/$program" "$stage/odk/lib/odk/$program"
+done
+install -m 644 "$root/packaging/systemd/user/odkd.socket" "$root/packaging/systemd/user/odkd.service" \
+    "$stage/odk/share/systemd/user/"
+install -m 644 "$root/packaging/mime/oma.xml" "$stage/odk/share/mime/packages/oma.xml"
+printf '%s\n' "$version" >"$stage/odk/VERSION"
+
+# The same bytes for the same inputs: sorted, no owner, no times, no gzip name or time.
+tar --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -C "$stage" -cf - odk \
+    | gzip -n -9 >"$out/$name.tar.gz"
+(cd "$out" && sha256sum "$name.tar.gz" >"$name.tar.gz.sha256")
+install -m 755 "$root/install.sh" "$out/install.sh"
+echo "$out/$name.tar.gz"

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::fmt::{Access, FsGrant, Identifier, Permissions, UserDir};
+use crate::fmt::{Access, Daemon, FsGrant, Identifier, Permissions, UserDir};
 use crate::layout::Layout;
 
 const VERSION: u32 = 1;
@@ -34,6 +34,9 @@ struct File {
     updates: bool,
     filesystem: Vec<Entry>,
     dbus_talk: Vec<String>,
+    /// Absent in a record written before ADR 0050, which grants no daemon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    daemon: Option<DaemonEntry>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -41,6 +44,14 @@ struct File {
 struct Entry {
     dir: String,
     access: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DaemonEntry {
+    executable: String,
+    args: Vec<String>,
+    socket: String,
 }
 
 /// What the user has consented to for one application.
@@ -83,6 +94,11 @@ pub fn load(layout: &Layout, id: &Identifier) -> Result<Option<Permissions>, Err
         updates: file.updates,
         filesystem,
         dbus_talk: file.dbus_talk,
+        daemon: file.daemon.map(|d| Daemon {
+            executable: d.executable,
+            args: d.args,
+            socket: d.socket,
+        }),
     }))
 }
 
@@ -116,6 +132,11 @@ pub fn save(layout: &Layout, id: &Identifier, permissions: &Permissions) -> Resu
             })
             .collect(),
         dbus_talk: permissions.dbus_talk.clone(),
+        daemon: permissions.daemon.as_ref().map(|d| DaemonEntry {
+            executable: d.executable.clone(),
+            args: d.args.clone(),
+            socket: d.socket.clone(),
+        }),
     };
     let text = toml::to_string(&file).expect("a grant serialises");
     let staging = dir.join(format!(".{id}.toml.partial-{}", std::process::id()));
@@ -157,6 +178,13 @@ pub fn missing(granted: &Permissions, requested: &Permissions) -> Permissions {
             .filter(|n| !granted.dbus_talk.contains(n))
             .cloned()
             .collect(),
+        // The three parts are one grant: a different executable, arguments or socket is a
+        // different program running outside the sandbox, so it is asked for whole.
+        daemon: requested
+            .daemon
+            .as_ref()
+            .filter(|want| granted.daemon.as_ref() != Some(*want))
+            .cloned(),
     }
 }
 
@@ -192,7 +220,60 @@ mod tests {
                 },
             ],
             dbus_talk: vec!["org.a".into()],
+            daemon: Some(daemon("bin/d", &["daemon"], "app/d.sock")),
         }
+    }
+
+    fn daemon(executable: &str, args: &[&str], socket: &str) -> Daemon {
+        Daemon {
+            executable: executable.into(),
+            args: args.iter().map(|a| (*a).into()).collect(),
+            socket: socket.into(),
+        }
+    }
+
+    #[test]
+    fn a_record_from_before_daemons_grants_none() {
+        let dir = TempDir::new().unwrap();
+        let layout = Layout::new(dir.path(), dir.path().join("share"));
+        let path = layout.grants_file(&id());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            "grant_version = 1\nidentifier = \"com.example.t\"\nnetwork = true\ngpu = false\naudio = false\nupdates = false\nfilesystem = []\ndbus_talk = []\n",
+        )
+        .unwrap();
+        let granted = load(&layout, &id()).unwrap().unwrap();
+        assert!(granted.network && granted.daemon.is_none());
+        // And a bundle that now declares one is asked, whole.
+        let asked = missing(&granted, &everything());
+        assert_eq!(asked.daemon, everything().daemon);
+    }
+
+    #[test]
+    fn a_daemon_is_granted_whole_so_any_change_asks_again() {
+        let with = |d: Option<Daemon>| Permissions {
+            daemon: d,
+            ..Default::default()
+        };
+        let granted = with(Some(daemon("bin/d", &["daemon"], "app/d.sock")));
+        for same in [Some(daemon("bin/d", &["daemon"], "app/d.sock")), None] {
+            assert!(is_empty(&missing(&granted, &with(same))));
+        }
+        for changed in [
+            daemon("bin/other", &["daemon"], "app/d.sock"),
+            daemon("bin/d", &["daemon", "--more"], "app/d.sock"),
+            daemon("bin/d", &["daemon"], "app/other.sock"),
+        ] {
+            assert_eq!(
+                missing(&granted, &with(Some(changed.clone()))).daemon,
+                Some(changed)
+            );
+        }
+        assert_eq!(
+            missing(&Permissions::default(), &granted).daemon,
+            granted.daemon
+        );
     }
 
     #[test]

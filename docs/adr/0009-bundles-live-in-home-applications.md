@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0052 and ADR 0053
+---
+
 # Bundles live in `~/Applications`; data and rollback copies live under XDG directories
 
 The installed Bundle is the directory `~/Applications/<App>.oma/` (ADR 0022), as `/Applications/<App>.app` is on macOS, so removing an application means deleting its directory. omalaunch's own state lives under `~/.local/share/oma/`, never inside `~/Applications`: `data/<identifier>/` for per-application data, `previous/<identifier>/` for rollback copies (ADR 0011), `inbox/<identifier>/` for staged upgrades (ADR 0015) and `grants/<identifier>.toml` for consent records (ADR 0023). A Bundle run from anywhere else still works. Installs are per-user only and omalaunch never needs root.

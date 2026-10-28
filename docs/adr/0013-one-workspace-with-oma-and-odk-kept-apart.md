@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0031 and ADR 0032
+status: amended by ADR 0031, ADR 0032 and ADR 0052
 ---
 
 # One Cargo workspace; the OMA crates and the ODK crates do not depend on each other

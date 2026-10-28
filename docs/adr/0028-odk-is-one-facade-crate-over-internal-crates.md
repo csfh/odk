@@ -14,4 +14,6 @@ ODK is built from several crates but applications name only one, `odk`, a thin f
 
 Applications never put `gpui` in their own `Cargo.toml`; `odk::gpui` is the only way to it, so they cannot end up on a different GPUI version from the one ODK is tested against. The internal crates are implementation detail: their names and boundaries may change without a major version of `odk`.
 
+ADR 0036 adds `odk-a11y`, re-exported as `odk::a11y`. ADR 0049 adds `odk-db`, re-exported as `odk::db` behind the `db` feature of this crate, which is off by default, so an application that does not keep a database does not build the bundled SQLite.
+
 The OMA crates never depend on ODK, and `omagate` keeps using GPUI directly (ADR 0013, ADR 0016).

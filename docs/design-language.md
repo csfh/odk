@@ -25,7 +25,7 @@ Omarchy colors.toml  ->  Source (Palette)  ->  Adaptive colour resolver  ->  Sem
 
 `odk-theme` has no GPUI. `odk-ui` holds the current snapshot, its component tokens and the foundation in one process store (`crates/odk-ui/src/theme.rs`); a component reads `components()` and `foundation()` inside `render` and converts a colour with `colour()`. That store is the only theme state in `odk-ui`, and `checklist/source.rs` fails the build if another appears (checklist items 40 to 42).
 
-What comes from Omarchy is narrow (`docs/spec/odk-theme-tokens.md`): the theme's `colors.toml`, the user's text size, Omarchy's font and the user's request for reduced motion, which is Hyprland's own animations setting (ADR 0048). Sizes, radius, borders and durations are ODK's own (ADR 0035, ADR 0043, ADR 0046).
+What comes from Omarchy is narrow (`docs/spec/odk-theme-tokens.md`): the theme's `colors.toml`, the user's text size, Omarchy's font and the user's request for reduced motion, which is Hyprland's own animations setting (ADR 0048). Sizes, radius, borders and durations are ODK's own (ADR 0035, ADR 0043).
 
 ## Foundation
 

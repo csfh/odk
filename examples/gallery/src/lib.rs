@@ -204,7 +204,7 @@ impl Gallery {
     }
 
     /// Whether the user asks for reduced motion, as the compositor says (ADR 0048), which the
-    /// gallery's switch can add to but never take back (ADR 0046): the toolbar then says so instead of offering
+    /// gallery's switch can add to but never take back: the toolbar then says so instead of offering
     /// the choice.
     pub fn motion_forced_by_user(&self) -> bool {
         odk::ui::theme_snapshot().reduced_motion

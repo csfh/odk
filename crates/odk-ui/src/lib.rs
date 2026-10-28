@@ -76,7 +76,7 @@ pub use hover_card::HoverCard;
 pub use input::Input;
 pub use input_group::InputGroup;
 pub use kbd::Kbd;
-pub use layout::{Space, StyledExt, h_flex, root, v_flex};
+pub use layout::{Space, StyledExt, content_column, h_flex, root, scroll_y, sidebar_frame, v_flex};
 pub use menu::{ContextMenu, DropdownMenu, Menu, MenuItem};
 pub use nav_list::NavList;
 pub use number_input::NumberInput;
@@ -127,6 +127,7 @@ pub mod prelude {
         HoverCard, Input, InputGroup, Kbd, Menu, MenuItem, NavList, NumberInput, PasswordInput,
         Popover, Progress, RadioGroup, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton,
         Space, Spinner, Status, StatusIndicator, StyledExt, Switch, Tabs, Text, Textarea, Toast,
-        ToggleGroup, Tone, Tooltip, form, h_flex, root, toast, v_flex,
+        ToggleGroup, Tone, Tooltip, content_column, form, h_flex, root, scroll_y, sidebar_frame,
+        toast, v_flex,
     };
 }
