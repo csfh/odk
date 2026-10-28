@@ -12,7 +12,7 @@ use odk_theme::semantic;
 
 use crate::focus::{child_id, part_name};
 use crate::interaction::tween;
-use crate::layout::{StyledExt, h_flex, single_line, v_flex};
+use crate::layout::{StyledExt, h_flex, tail, truncate_end, v_flex};
 use crate::theme::colour;
 use crate::{Tone, components};
 
@@ -176,16 +176,17 @@ impl RenderOnce for Progress {
                 .gap(px(s.gap))
                 .text_role(s.type_role);
             line = line.child(
-                single_line(div().flex_1().min_w_0().text_color(colour(s.label)))
+                truncate_end(div().flex_1().min_w_0().text_color(colour(s.label)))
                     .children(self.show_label.then_some(self.name)),
             );
             if self.show_value {
                 line = line.child(
-                    div()
-                        .debug_selector(|| part_name(&self.id, "value"))
-                        .flex_shrink_0()
-                        .text_color(colour(s.value))
-                        .child(value),
+                    tail(
+                        div()
+                            .debug_selector(|| part_name(&self.id, "value"))
+                            .text_color(colour(s.value)),
+                    )
+                    .child(value),
                 );
             }
             column = column.child(line);

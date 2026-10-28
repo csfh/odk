@@ -12,9 +12,10 @@ use odk_theme::component::States;
 use odk_theme::foundation::Density;
 
 use crate::components;
+use crate::decoration::{self, ClipFit};
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
-use crate::layout::{StyledExt, h_flex, single_line, text_width};
+use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
 use crate::theme::{colour, mono};
 
 type ChangeHandler = Rc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
@@ -36,7 +37,8 @@ struct Item {
 ///
 /// Tab reaches the group, the arrow keys move between options without choosing, Home and End
 /// jump to the ends, and Space or Enter toggles the focused one. The arrow keys skip a disabled
-/// option, and a disabled group is not a tab stop.
+/// option, and a disabled group is not a tab stop. A truncated label shows the full text in a
+/// tooltip on hover and while that segment has focus; the tooltip adds no tab stop.
 ///
 /// Uncontrolled by default, keeping its own selection from `default_value`; pass `value` to
 /// control it and follow `on_change`.
@@ -277,6 +279,30 @@ impl RenderOnce for ToggleGroup {
             #[cfg(test)]
             crate::drawn::record(&part_name(&self.id, &format!("item-{i}")), s);
             let icon_only = item.label.is_empty() && item.icon.is_some();
+            let label_text = item.label.clone();
+            let text_size = px(c.foundation().typography.style(g.type_role).size);
+            let (was, probe) = decoration::truncation_probe(
+                &child_id(&self.id, format!("label-{i}")),
+                label_text.clone(),
+                text_size,
+                1,
+                window,
+                cx,
+            );
+            // The shell is the flex item, at the label's own width and no narrower than a
+            // letter and its `…`. The option fills it, so a long label ellipsizes and the
+            // tooltip around the option can see the segment's focus. An icon alone stays the
+            // flex item: it has no text to recover.
+            let shell = (!icon_only).then(|| {
+                let text_w = text_width(window, &label_text, text_size);
+                let icon_w = if item.icon.is_some() {
+                    px(g.icon_size + g.gap)
+                } else {
+                    px(0.0)
+                };
+                let chrome = icon_w + px(g.padding_x) + px(g.padding_x);
+                (text_w + chrome, text_w.min(floor_cap) + chrome)
+            });
             let mut option = div()
                 .id(child_id(&self.id, format!("item-{i}")))
                 .debug_selector(|| part_name(&self.id, &format!("item-{i}")))
@@ -289,17 +315,7 @@ impl RenderOnce for ToggleGroup {
                 // An icon alone is a square segment.
                 option.w(px(g.height)).px_0().flex_shrink_0()
             } else {
-                // An option too long for the column shrinks and its label ends in `…`; it keeps
-                // room for a letter and its ellipsis, or its label's own width when that is
-                // shorter. GPUI would otherwise keep an option as wide as its whole label.
-                let size = px(c.foundation().typography.style(g.type_role).size);
-                let floor = text_width(window, &item.label, size).min(floor_cap);
-                let icon = if item.icon.is_some() {
-                    px(g.icon_size + g.gap)
-                } else {
-                    px(0.0)
-                };
-                option.min_w(floor + icon + px(g.padding_x + g.padding_x))
+                option.w_full().min_w_0()
             };
             if let Some(glyph) = item.icon {
                 let size = px(g.icon_size);
@@ -317,12 +333,17 @@ impl RenderOnce for ToggleGroup {
                 );
             }
             if !icon_only {
-                option = option.child(single_line(
+                option = option.child(truncate_end(
                     div()
                         .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
                         .min_w_0()
-                        .child(item.label),
+                        .child(label_text.clone())
+                        .child(probe),
                 ));
+            } else {
+                // An icon has no label to measure. The probe still has to be built above, where
+                // the label is known, so it is dropped on this path.
+                drop(probe);
             }
             // Last, so hover and press keep the type role.
             option = pointer_states(option, &s.colours, s.responds, &Pointer::Own);
@@ -347,7 +368,21 @@ impl RenderOnce for ToggleGroup {
                 option = option.child(ring.probe());
                 focus = Some((s.focus, g.radius));
             }
-            group = group.child(option);
+            group = group.child(match shell {
+                Some((natural, at_least)) => div()
+                    .w(natural)
+                    .min_w(at_least)
+                    .child(decoration::overflow_tooltip(
+                        &child_id(&self.id, format!("item-{i}")),
+                        label_text,
+                        was,
+                        ClipFit::Fill,
+                        focused,
+                        option,
+                    ))
+                    .into_any_element(),
+                None => option.into_any_element(),
+            });
         }
         if let Some((focus, radius)) = focus {
             group = group.child(ring.ring(focus, radius, &self.id));

@@ -46,6 +46,95 @@ impl Layer {
 thread_local! {
     /// How many modal overlays the element being laid out is inside of.
     static INSIDE: Cell<usize> = const { Cell::new(0) };
+    /// How deep the rows of an overlay that will itself be deferred are being built. A tooltip
+    /// there cannot call `deferred` (GPUI panics), so [`lift`] sends it to the host instead.
+    static OVERLAY_CONTENT: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Set while the rows of a menu or command list are built, and dropped before that list's own
+/// [`lift`], so the list stays deferred and a tooltip inside a row does not nest `deferred`.
+#[must_use]
+pub(crate) struct OverlayContent(usize);
+
+impl OverlayContent {
+    pub(crate) fn enter() -> Self {
+        let previous = OVERLAY_CONTENT.get();
+        OVERLAY_CONTENT.set(previous + 1);
+        Self(previous)
+    }
+}
+
+impl Drop for OverlayContent {
+    fn drop(&mut self) {
+        OVERLAY_CONTENT.set(self.0);
+    }
+}
+
+/// Lays `child` out while [`OverlayContent`] is set, so a tooltip rendered in that layout is
+/// lifted to the host. The flag has to be set here, not while the child is built: a `Tooltip`
+/// renders later, in its own `request_layout`.
+struct DuringOverlay(AnyElement);
+
+impl Element for DuringOverlay {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        let _guard = OverlayContent::enter();
+        (self.0.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.0.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.0.paint(window, cx);
+    }
+}
+
+impl IntoElement for DuringOverlay {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+/// See [`DuringOverlay`].
+pub(crate) fn during_overlay(child: impl IntoElement) -> AnyElement {
+    DuringOverlay(child.into_any_element()).into_any_element()
 }
 
 /// Puts `INSIDE` back when a scope ends, even by a panic.
@@ -127,10 +216,11 @@ impl IntoElement for Inside {
 /// Lifts `overlay` above the window in `layer`.
 ///
 /// GPUI 0.2.2 cannot draw a `deferred` element inside another one, and a modal overlay is
-/// deferred. So an overlay declared inside a modal's content is not deferred: it is kept for
-/// the window's [`RaisedHost`], which draws it above every deferred overlay. Overlays elsewhere
-/// are deferred in place, as ADR 0037 describes. `id` names the overlay, so one that is lifted
-/// again is kept once.
+/// deferred. So an overlay declared inside a modal's content, or inside the rows of a menu or
+/// command list ([`OverlayContent`]), is not deferred: it is kept for the window's
+/// [`RaisedHost`], which draws it above every deferred overlay. Overlays elsewhere are deferred
+/// in place, as ADR 0037 describes. `id` names the overlay, so one that is lifted again is kept
+/// once.
 pub(crate) fn lift(
     id: &ElementId,
     layer: Layer,
@@ -139,7 +229,7 @@ pub(crate) fn lift(
     cx: &mut App,
 ) -> AnyElement {
     let inside = INSIDE.get();
-    if inside == 0 {
+    if inside == 0 && OVERLAY_CONTENT.get() == 0 {
         return deferred(overlay)
             .with_priority(layer.priority())
             .into_any_element();
@@ -559,16 +649,29 @@ impl Dismiss {
     }
 }
 
-/// The header of a modal overlay: its title, wrapping when long, beside a close button that
-/// keeps its place when `closable`.
+/// The header of a modal overlay: its title, beside a close button that keeps its place when
+/// `closable`. `flow` is how the title truncates; a dialog's default is three lines (ADR 0058).
 pub(crate) fn modal_header(
     id: &ElementId,
     title: SharedString,
     closable: bool,
     close: Action,
+    flow: crate::decoration::FlowKind,
 ) -> Div {
     let c = components();
     let gap = c.foundation().spacing.s3;
+    let heading = match flow {
+        crate::decoration::FlowKind::Wrap => Heading::new(title).level(2).decorate(crate::Wrap),
+        crate::decoration::FlowKind::End => {
+            Heading::new(title).level(2).decorate(crate::EndEllipsis)
+        }
+        crate::decoration::FlowKind::Middle => {
+            Heading::new(title).level(2).decorate(crate::MiddleEllipsis)
+        }
+        crate::decoration::FlowKind::Clamp(n) => {
+            Heading::new(title).level(2).decorate(crate::Clamp(n))
+        }
+    };
     h_flex()
         .items_start()
         .gap(px(gap))
@@ -577,7 +680,7 @@ pub(crate) fn modal_header(
                 .debug_selector(|| part_name(id, "title"))
                 .flex_1()
                 .min_w_0()
-                .child(Heading::new(title).level(2)),
+                .child(heading),
         )
         .children(closable.then(|| {
             Button::icon(child_id(id, "close"), "×", "Close")

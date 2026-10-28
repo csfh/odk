@@ -164,12 +164,27 @@ pub(crate) fn code_panel_owned(id: &'static str, code: SharedString) -> impl Int
         .child(
             div()
                 .id(SharedString::from(format!("code-{id}")))
+                .w_full()
+                .min_w_0()
                 .max_h(odk::gpui::px(SCROLL_HEIGHT))
                 .overflow_y_scroll()
-                .overflow_x_hidden()
-                .text_role(odk::theme::foundation::TypeRole::Mono)
-                .child(text),
+                .child(code_lines(text)),
         )
+}
+
+/// One `Text` per line. GPUI refuses a text run that contains a newline, and a scroll on one
+/// axis clips the other, so a long line wraps instead of scrolling sideways (ADR 0058).
+fn code_lines(text: SharedString) -> impl IntoElement {
+    let mut lines = v_flex().w_full().min_w_0();
+    for line in text.lines() {
+        let line = if line.is_empty() {
+            "\u{00a0}".to_owned()
+        } else {
+            line.to_owned()
+        };
+        lines = lines.child(Text::new(line).role(odk::theme::foundation::TypeRole::Mono));
+    }
+    lines
 }
 
 /// A handler for a control that reports a `bool` by value (a check box, a switch, a popover),

@@ -15,8 +15,9 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::foundation::MotionDuration;
 
 use crate::components;
+use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{FocusNext, FocusPrevious, child_id, move_focus, part_name};
-use crate::layout::{StyledExt, bounds_probe, inside_window, single_line};
+use crate::layout::{StyledExt, bounds_probe, inside_window};
 use crate::overlay::{Action, Layer, Transition, dismiss_catcher, layer_over, lift};
 use crate::placement::{Align, Placement, place};
 
@@ -56,6 +57,7 @@ pub struct Popover {
     on_open_change: Option<OpenChange>,
     close_on_escape: bool,
     close_on_outside_click: bool,
+    applied: Applied,
 }
 
 impl Popover {
@@ -79,7 +81,16 @@ impl Popover {
             on_open_change: None,
             close_on_escape: true,
             close_on_outside_click: true,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a decoration. The title ends in `…`. The panel is at most 360 px wide;
+    /// [`crate::Autosize`] scales that cap with the text size, and [`crate::FixedWidth`] sets
+    /// another, both capped at the window (ADR 0058).
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     /// A heading at the top of the panel.
@@ -259,8 +270,14 @@ impl RenderOnce for Popover {
                 .gap(px(g.gap))
                 .px(px(g.padding_x))
                 .py(px(g.padding_y))
-                // Content-driven, never wider than a named length or than the window.
-                .max_w(px(POPOVER_MAX_WIDTH).min(inside_window(viewport.width, px(f.spacing.s2))))
+                // Content-driven, never wider than its measure or the window. The measure is
+                // fixed unless Autosize (ADR 0058).
+                .max_w(decoration::sized_width(
+                    POPOVER_MAX_WIDTH,
+                    self.applied.size(SizeMode::Fixed(POPOVER_MAX_WIDTH)),
+                    f.text_scale.factor(),
+                    inside_window(viewport.width, px(f.spacing.s2)),
+                ))
                 .max_h(inside_window(viewport.height, px(f.spacing.s2)))
                 .treatment(&style.surface)
                 .border(px(g.border_width))
@@ -268,11 +285,13 @@ impl RenderOnce for Popover {
                 .text_role(g.body)
                 .opacity(f.motion.easing.apply(amount));
             if let Some(title) = self.title.clone() {
-                panel = panel.child(single_line(
+                panel = panel.child(decoration::apply_flow(
                     div()
                         .debug_selector(|| part_name(&self.id, "title"))
+                        .min_w_0()
                         .text_role(g.title)
                         .child(title),
+                    self.applied.flow(FlowKind::End),
                 ));
             }
             if let Some(build) = self.content {

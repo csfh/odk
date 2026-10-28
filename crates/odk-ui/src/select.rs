@@ -14,9 +14,10 @@ use odk_theme::foundation::Density;
 
 use crate::button::Size;
 use crate::components;
+use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, part_name};
 use crate::input::{field_box, field_glyph};
-use crate::layout::{bounds_probe, h_flex, single_line};
+use crate::layout::{bounds_probe, h_flex};
 use crate::menu_list::{Fit, Menu, MenuItem, Surface, Typeahead, surface};
 use crate::theme::colour;
 
@@ -66,6 +67,7 @@ pub struct Select {
     /// moves focus to it.
     pub(crate) focus: Option<FocusHandle>,
     on_change: Option<ChangeHandler>,
+    applied: Applied,
 }
 
 impl Select {
@@ -87,7 +89,16 @@ impl Select {
             description: None,
             focus: None,
             on_change: None,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a decoration. The list grows to its longest label, up to the window, then the
+    /// labels end in `…`. [`crate::FixedWidth`] sets the list's width. The value in the box ends
+    /// in `…`; [`crate::Wrap`] lets that value wrap (ADR 0058).
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     /// Adds an option: `value` is what `on_change` reports and `label` what the user reads.
@@ -423,6 +434,7 @@ impl RenderOnce for Select {
                 scroll,
                 typeahead: Some(typeahead),
                 density: Some(density),
+                size: self.applied.size(SizeMode::Autosize),
             },
             window,
             cx,
@@ -444,21 +456,36 @@ impl RenderOnce for Select {
             None => (self.placeholder.clone().unwrap_or_default(), s.placeholder),
         };
 
+        let flow = self.applied.flow(FlowKind::End);
+        let foundation = c.foundation().clone();
+        let value_size = px(foundation.typography.style(g.type_role).size);
+        let lines = decoration::flow_lines(flow).unwrap_or(1);
+        let (clipped, probe) = decoration::truncation_probe(
+            &child_id(&id, "value"),
+            shown.clone(),
+            value_size,
+            lines,
+            window,
+            cx,
+        );
+        let full_value = shown.clone();
         let mut field = h_flex()
             .id(child_id(&id, "trigger"))
             .debug_selector(|| part_name(&id, "trigger"))
             .w_full()
             .gap(px(g.gap))
             .child(
-                single_line(
+                decoration::apply_flow(
                     div()
                         .flex_1()
                         .min_w_0()
                         .h(px(g.line_height))
                         .debug_selector(|| part_name(&id, "value"))
                         .text_color(colour(shown_ink)),
+                    flow,
                 )
-                .child(shown),
+                .child(shown)
+                .child(probe),
             );
         if let Some(mark) = s.invalid_mark {
             field = field.child(
@@ -518,6 +545,14 @@ impl RenderOnce for Select {
                 });
         }
 
+        let field = decoration::overflow_tooltip(
+            &id,
+            full_value,
+            clipped && flow != FlowKind::Wrap,
+            decoration::ClipFit::Fill,
+            false,
+            field,
+        );
         div()
             .relative()
             .w_full()

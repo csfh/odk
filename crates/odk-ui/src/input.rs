@@ -27,7 +27,7 @@ use crate::button::Size;
 use crate::editor::Editor;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::interaction::{Pointer, focus_ring, pointer_states};
-use crate::layout::{StyledExt, h_flex, single_line, v_flex};
+use crate::layout::{StyledExt, h_flex, truncate_end, truncate_lines, v_flex};
 use crate::number::Rules;
 use crate::text_layout::{Shown, TextLayout};
 use crate::theme::{colour, mono};
@@ -98,6 +98,9 @@ const CARET_BORDERS: f32 = 2.0;
 
 /// A field of rows wraps its text to at least this width, however narrow the box (ODK's own).
 const MIN_WRAP_WIDTH: f32 = 1.0;
+
+/// The narrowest plate behind an unfocused ellipsis, when shaping reports no width.
+const ELLIPSIS_PLATE: f32 = 1.0;
 
 /// A line break the selection covers is drawn this many ems wide (ODK's own), so that a
 /// selected empty line shows.
@@ -937,6 +940,9 @@ impl EntityInputHandler for InputState {
 #[derive(Clone, Copy)]
 struct Ink {
     text: Rgba,
+    /// The field's fill, painted behind an unfocused ellipsis so the clipped glyphs do not show
+    /// through it.
+    background: Rgba,
     selection: Rgba,
     /// Text inside the selection.
     selected: Rgba,
@@ -949,6 +955,7 @@ impl Ink {
     fn of(s: &FieldStyle) -> Self {
         Self {
             text: colour(s.current.foreground),
+            background: colour(s.current.background),
             selection: colour(s.selection.background),
             selected: colour(s.selection.foreground),
             caret: colour(s.caret),
@@ -999,6 +1006,9 @@ fn runs(
 }
 
 struct InputText {
+    /// The field's id, so tests can see whether the ellipsis was painted.
+    #[cfg_attr(not(test), allow(dead_code))]
+    id: ElementId,
     state: Entity<InputState>,
     ink: Ink,
     /// How many rows high the element is; `None` for one line.
@@ -1009,6 +1019,8 @@ struct InputText {
 
 struct Prepaint {
     text: Option<TextLayout>,
+    /// An unfocused one-line value that does not fit, drawn as `…` at the end.
+    ellipsis: bool,
     scroll: Point<Pixels>,
     selection: Vec<PaintQuad>,
     caret: Option<PaintQuad>,
@@ -1152,8 +1164,16 @@ impl Element for InputText {
             (quads, None)
         };
         let hitbox = multiline.then(|| window.insert_hitbox(bounds, HitboxBehavior::Normal));
+        // A focused field scrolls to the caret. An unfocused one-line field stays at the start
+        // and says so with `…` when the value continues (ADR 0058).
+        let ellipsis = !multiline
+            && !focused
+            && layout.width() > bounds.size.width + px(crate::layout::MEASURE_SLACK);
+        #[cfg(test)]
+        drawn::record_ellipsis(&self.id, ellipsis);
         Prepaint {
             text: Some(layout),
+            ellipsis,
             scroll,
             selection: selection_quads,
             caret: caret_quad,
@@ -1197,6 +1217,32 @@ impl Element for InputText {
             window,
             cx,
         );
+        if prepaint.ellipsis {
+            let style = window.text_style();
+            let font_size = style.font_size.to_pixels(window.rem_size());
+            let mark: SharedString = "…".into();
+            let mut run = style.to_run(mark.len());
+            run.color = self.ink.text.into();
+            let shaped = window
+                .text_system()
+                .shape_line(mark, font_size, &[run], None);
+            let w = shaped.width.max(px(ELLIPSIS_PLATE));
+            window.paint_quad(fill(
+                Bounds::new(
+                    point(bounds.right() - w, bounds.origin.y),
+                    size(w, bounds.size.height),
+                ),
+                self.ink.background,
+            ));
+            shaped
+                .paint(
+                    point(bounds.right() - w, bounds.origin.y),
+                    window.line_height(),
+                    window,
+                    cx,
+                )
+                .ok();
+        }
         if let Some(caret) = prepaint.caret.take() {
             window.paint_quad(caret);
         }
@@ -1505,6 +1551,7 @@ impl RenderOnce for Input {
             .h(height)
             .overflow_hidden()
             .child(InputText {
+                id: self.id.clone(),
                 state: state.clone(),
                 ink: Ink::of(&style),
                 rows,
@@ -1523,13 +1570,14 @@ impl RenderOnce for Input {
                 .text_color(colour(style.placeholder));
             // A field of rows wraps its placeholder inside its box; one line truncates it.
             inner = inner.child(if multiline {
-                hint.child(
+                hint.child(truncate_lines(
                     div()
                         .debug_selector(|| part_name(&self.id, "placeholder-text"))
                         .child(placeholder),
-                )
+                    rows.unwrap_or(1) as u8,
+                ))
             } else {
-                single_line(hint).child(placeholder)
+                truncate_end(hint).child(placeholder)
             });
         }
 
@@ -1831,6 +1879,7 @@ pub(crate) mod drawn {
         static DRAWN: RefCell<HashMap<String, FieldStyle>> = RefCell::new(HashMap::new());
         static ENDS: RefCell<HashMap<String, Vec<&'static str>>> = RefCell::new(HashMap::new());
         static DESCRIBED: RefCell<HashMap<String, Option<String>>> = RefCell::new(HashMap::new());
+        static ELLIPSIS: RefCell<HashMap<String, bool>> = RefCell::new(HashMap::new());
     }
 
     pub(crate) fn record(id: &ElementId, style: FieldStyle) {
@@ -1839,6 +1888,15 @@ pub(crate) mod drawn {
 
     pub(crate) fn record_ends(id: &ElementId, ends: Vec<&'static str>) {
         ENDS.with(|d| d.borrow_mut().insert(id_path(id), ends));
+    }
+
+    pub(crate) fn record_ellipsis(id: &ElementId, ellipsis: bool) {
+        ELLIPSIS.with(|d| d.borrow_mut().insert(id_path(id), ellipsis));
+    }
+
+    /// Whether the one-line field drew `…` over the end of an unfocused value on its last frame.
+    pub(crate) fn ellipsis(id: &str) -> bool {
+        ELLIPSIS.with(|d| d.borrow().get(id).copied().unwrap_or(false))
     }
 
     pub(crate) fn record_description(id: &ElementId, description: Option<String>) {
@@ -1902,6 +1960,7 @@ mod tests {
         };
         let ink = Ink {
             text: red,
+            background: red,
             selection: blue,
             selected: blue,
             caret: red,

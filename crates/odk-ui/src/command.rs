@@ -12,12 +12,13 @@ use gpui::{
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 
+use crate::decoration::{self, Applied, ClipFit, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::input::Input;
 use crate::interaction::{Pointer, pointer_states};
-use crate::layout::{h_flex, inside_window, single_line, v_flex};
+use crate::layout::{h_flex, inside_window, middle_ellipsis, text_width, truncate_end, v_flex};
 use crate::menu_list::hint_text;
-use crate::overlay::{Action, Dismiss, Transition, layer_over, modal};
+use crate::overlay::{Action, Dismiss, Transition, during_overlay, layer_over, modal};
 use crate::theme::colour;
 use crate::{StyledExt, components};
 use odk_theme::foundation::MotionDuration;
@@ -40,6 +41,7 @@ pub struct CommandItem {
     keywords: SharedString,
     disabled: bool,
     on_select: Option<Action>,
+    flow: Option<FlowKind>,
 }
 
 impl CommandItem {
@@ -50,7 +52,21 @@ impl CommandItem {
             keywords: SharedString::default(),
             disabled: false,
             on_select: None,
+            flow: None,
         }
+    }
+
+    /// Attaches a text decoration. A command stays on one line and ends in `…`;
+    /// [`crate::MiddleEllipsis`] shortens the middle instead. The accessible name stays the
+    /// full label (ADR 0058).
+    pub fn decorate(mut self, decoration: impl crate::decoration::TextDecoration) -> Self {
+        let mut slot = Applied::default();
+        decoration.apply_text(&mut slot);
+        self.flow = Some(match slot.flow(FlowKind::End) {
+            FlowKind::Wrap | FlowKind::Clamp(_) => FlowKind::End,
+            other => other,
+        });
+        self
     }
 
     /// A key chord, such as `Ctrl+C`, shown at the end of the item as muted text. It only labels the
@@ -135,7 +151,9 @@ fn step(enabled: &[usize], current: Option<usize>, forward: bool) -> Option<usiz
 /// the highlight, wrapping; Enter, when it comes up, closes the palette and runs the
 /// highlighted command, and does nothing when none is left; Escape, a click on the scrim or a click outside asks to
 /// close. Focus never leaves the field, so Tab stays where it is. A click on a command, or
-/// hovering one, highlights it, and a click runs it. Controlled: the application owns `open`.
+/// hovering one, highlights it, and a click runs it. A truncated row shows the full label in a
+/// tooltip on hover and while it is highlighted; the row is not a tab stop, and Escape still
+/// closes the palette. Controlled: the application owns `open`.
 /// While it closes it keeps drawing the commands it last had open.
 #[derive(IntoElement)]
 pub struct Command {
@@ -146,6 +164,7 @@ pub struct Command {
     empty: SharedString,
     items: Vec<CommandItem>,
     on_close: Option<Action>,
+    applied: Applied,
 }
 
 impl Command {
@@ -159,7 +178,15 @@ impl Command {
             empty: "No results".into(),
             items: Vec::new(),
             on_close: None,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a size decoration. The panel is 560 px wide; [`crate::Autosize`] scales that
+    /// with the text size, and [`crate::FixedWidth`] sets another, both capped at the window.
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     pub fn open(mut self, open: bool) -> Self {
@@ -329,6 +356,15 @@ impl RenderOnce for Command {
             });
         input.focus = Some(field.clone());
 
+        let viewport = window.viewport_size();
+        let margin = px(f.spacing.s4);
+        let width = decoration::sized_width(
+            COMMAND_WIDTH,
+            self.applied.size(SizeMode::Fixed(COMMAND_WIDTH)),
+            f.text_scale.factor(),
+            inside_window(viewport.width, margin),
+        );
+
         // The rows are menu items on component tokens: the highlight is the keyboard's place,
         // apart from the pointer's hover. The panel around them is still the dialog's.
         let density = c.density(None);
@@ -336,11 +372,22 @@ impl RenderOnce for Command {
             .iter()
             .map(|&i| {
                 let item = &shown.items[i];
+                let highlighted = current == Some(i);
                 let states = States::NONE
                     .disabled(item.disabled)
-                    .highlighted(current == Some(i));
+                    .highlighted(highlighted);
                 let s = c.menu_item(density, states, false);
                 let g = s.geometry;
+                let full = item.label.clone();
+                let label_size = px(f.typography.style(g.type_role).size);
+                let (was, probe) = decoration::truncation_probe(
+                    &child_id(&self.id, format!("row-{i}")),
+                    full.clone(),
+                    label_size,
+                    1,
+                    window,
+                    cx,
+                );
                 let mut row = h_flex()
                     .group(format!("row-{i}"))
                     .id(child_id(&self.id, format!("row-{i}")))
@@ -350,13 +397,45 @@ impl RenderOnce for Command {
                     .px(px(g.padding_x))
                     .gap(px(g.gap))
                     .text_role(g.type_role)
-                    .child(single_line(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
-                            .child(item.label.clone()),
-                    ))
+                    .child({
+                        let shown = if item.flow == Some(FlowKind::Middle) {
+                            let hint = item.hint.as_ref().map(|h| {
+                                text_width(
+                                    window,
+                                    h,
+                                    px(f.typography
+                                        .style(odk_theme::foundation::TypeRole::Mono)
+                                        .size),
+                                )
+                            });
+                            let budget = (width
+                                - px(g.padding_x)
+                                - px(g.padding_x)
+                                - hint.unwrap_or(px(0.0))
+                                - px(g.gap))
+                            .max(px(0.0));
+                            let text = middle_ellipsis(&full, |sample| {
+                                text_width(
+                                    window,
+                                    &SharedString::from(sample.to_owned()),
+                                    label_size,
+                                ) <= budget
+                            });
+                            #[cfg(test)]
+                            shown_label::record(&part_name(&self.id, &format!("label-{i}")), &text);
+                            SharedString::from(text)
+                        } else {
+                            full.clone()
+                        };
+                        truncate_end(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .debug_selector(|| part_name(&self.id, &format!("label-{i}")))
+                                .child(shown)
+                                .child(probe),
+                        )
+                    })
                     .children(item.hint.as_ref().map(|h| {
                         hint_text(
                             child_id(&self.id, format!("hint-{i}")),
@@ -392,13 +471,20 @@ impl RenderOnce for Command {
                             }
                         });
                 }
-                row.into_any_element()
+                // Focus stays in the field. `highlighted` opens the tooltip; the row is not a
+                // tab stop. Escape is the palette's, on the panel around this list.
+                decoration::overflow_tooltip(
+                    &child_id(&self.id, format!("row-{i}")),
+                    full,
+                    was,
+                    ClipFit::Fill,
+                    highlighted,
+                    row.w_full(),
+                )
             })
             .collect();
 
         let (key_state, key_scroll) = (state.clone(), scroll.clone());
-        let viewport = window.viewport_size();
-        let margin = px(f.spacing.s4);
         let style = c.command();
         let g = style.overlay.geometry;
         let list = div()
@@ -422,6 +508,9 @@ impl RenderOnce for Command {
                 )
             })
             .children(rows);
+        // The rows' tooltips render while this list is laid out. The palette is deferred, so
+        // they are lifted to the host instead of nesting `deferred`.
+        let list = during_overlay(list);
         let width = px(COMMAND_WIDTH).min(inside_window(viewport.width, margin));
         let top = viewport.height * COMMAND_TOP;
         let panel = v_flex()
@@ -501,6 +590,24 @@ impl RenderOnce for Command {
             window,
             cx,
         )
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod shown_label {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    thread_local! {
+        static SHOWN: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    }
+
+    pub(crate) fn record(part: &str, text: &str) {
+        SHOWN.with(|s| s.borrow_mut().insert(part.to_owned(), text.to_owned()));
+    }
+
+    pub(crate) fn get(part: &str) -> Option<String> {
+        SHOWN.with(|s| s.borrow().get(part).cloned())
     }
 }
 

@@ -10,9 +10,10 @@ use gpui::{
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 
+use crate::decoration::{self, ClipFit};
 use crate::focus::{child_id, part_name};
 use crate::interaction::RingTarget;
-use crate::layout::{StyledExt, h_flex, single_line, text_width};
+use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
 use crate::link::link;
 use crate::theme::colour;
 use crate::{DropdownMenu, MenuItem, components};
@@ -206,6 +207,7 @@ impl RenderOnce for Breadcrumb {
             };
             let crumb = items[i].take().expect("each item is shown once");
             let part = part_name(&self.id, &format!("item-{i}"));
+            let crumb_id = child_id(&self.id, format!("item-{i}"));
             // Labels truncate rather than overflow; the middle gives up width first.
             let shrink = if i == 0 || i == last {
                 1.0
@@ -216,17 +218,27 @@ impl RenderOnce for Breadcrumb {
             // that is shorter, so a label shrinks to a stub that still says which step it is,
             // and never vanishes between two separators.
             let floor = text_width(window, &crumb.label, size).min(floor_cap);
-            let mut cell = single_line(div().debug_selector(|| part).min_w(floor));
+            let (was, probe) =
+                decoration::truncation_probe(&crumb_id, crumb.label.clone(), size, 1, window, cx);
+            let mut cell = truncate_end(div().debug_selector(|| part).min_w(floor));
             cell.style().flex_shrink = Some(shrink);
+            // The cell stays the flex item. The tooltip hugs the text inside it, so a crumb
+            // still shrinks from its own width. A link is already a tab stop; the current page
+            // is not, and this does not make it one, so that tooltip is hover only.
             match crumb.on_click.filter(|_| i != last) {
                 Some(handler) => {
-                    let id = child_id(&self.id, format!("item-{i}"));
-                    row = row.child(
-                        cell.child(
-                            single_line(link(&id, crumb.label, &ring, window, cx))
-                                .on_click(move |_, w, cx| handler(w, cx)),
-                        ),
+                    let label = crumb.label.clone();
+                    let inner = truncate_end(link(&crumb_id, crumb.label, &ring, window, cx))
+                        .on_click(move |_, w, cx| handler(w, cx));
+                    let inner = decoration::overflow_tooltip(
+                        &crumb_id,
+                        label,
+                        was,
+                        ClipFit::Hug,
+                        false,
+                        inner,
                     );
+                    row = row.child(cell.child(inner).child(probe));
                 }
                 None => {
                     // The current page in primary text; a step that is not a link in the
@@ -236,7 +248,16 @@ impl RenderOnce for Breadcrumb {
                     } else {
                         s.current.foreground
                     };
-                    row = row.child(cell.text_color(colour(ink)).child(crumb.label));
+                    let label = crumb.label.clone();
+                    let inner = decoration::overflow_tooltip(
+                        &crumb_id,
+                        label,
+                        was,
+                        ClipFit::Hug,
+                        false,
+                        div().child(crumb.label),
+                    );
+                    row = row.child(cell.text_color(colour(ink)).child(inner).child(probe));
                 }
             }
         }

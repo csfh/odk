@@ -47,8 +47,8 @@ fn no_variant_or_tone_changes_its_size(cx: &mut TestAppContext) {
     }
 }
 
-/// Item 23: a long label in a narrow column stays on one line, as wide as its label, and the
-/// badge is not stretched across the column.
+/// Item 23: a long label in a narrow column stays on one line and ends in `…` instead of
+/// growing past the column (ADR 0058). A short label stays as wide as its text.
 #[gpui::test]
 fn a_long_label_stays_on_one_line(cx: &mut TestAppContext) {
     let long = Rc::new(Cell::new(false));
@@ -71,7 +71,11 @@ fn a_long_label_stays_on_one_line(cx: &mut TestAppContext) {
     redraw(cx);
     let wide = cx.debug_bounds("odk-badge").unwrap();
     assert_eq!(wide.size.height, short.size.height, "still one line");
-    assert!(wide.size.width > short.size.width);
+    assert!(
+        wide.size.width <= px(120.0) + px(1.0),
+        "ends in an ellipsis inside the column: {:?}",
+        wide.size
+    );
 }
 
 fn drawn(label: &str) -> BadgeStyle {

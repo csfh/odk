@@ -91,6 +91,11 @@ pub(crate) struct Hover {
     pub tab_stop: bool,
     pub placement: Placement,
     pub align: Align,
+    /// How the wrapper takes its width. A truncation tooltip that fills a slot uses [`ClipFit::Fill`].
+    pub fit: crate::decoration::ClipFit,
+    /// Open at once, as keyboard focus does, when the trigger is the highlighted row of a list
+    /// whose focus lives somewhere else (a command palette's field). Adds no tab stop.
+    pub keyboard: bool,
     /// How long it takes to appear and to go.
     pub transition: Transition,
     /// The panel, styled and filled, built while it is shown.
@@ -108,6 +113,8 @@ struct HoverState {
     /// Bumped on every pointer change, so a stale timer does nothing.
     generation: u64,
     trigger: Bounds<Pixels>,
+    /// The last frame this tooltip was drawn. A gap means it left the tree.
+    seen: u64,
 }
 
 /// Whether the panel should be open once the pointer has settled.
@@ -163,16 +170,28 @@ pub(crate) fn render_hover(hover: Hover, window: &mut Window, cx: &mut App) -> A
         tab_stop,
         placement,
         align,
+        fit,
+        keyboard,
         transition,
         panel,
     } = hover;
     let state = window.use_keyed_state(child_id(&id, "state"), cx, |_, _| HoverState::default());
     let focus = focus_handle(child_id(&id, "trigger"), tab_stop, window, cx);
     let focused = focus.contains_focused(window, cx);
-    let (open, at) = {
-        let s = state.read(cx);
-        ((s.open || focused) && !s.dismissed, s.trigger)
-    };
+    let frame = crate::reveal::frame();
+    let (open, at) = state.update(cx, |s, _| {
+        // A menu closes on the same Escape that dismisses the tooltip, and the row leaves the
+        // tree. The dismissal must not stick, or the row would stay quiet the next time the
+        // menu opened. A tooltip that stayed mounted (a toggle segment) keeps its dismissal.
+        if s.seen != 0 && frame.wrapping_sub(s.seen) > 1 {
+            s.dismissed = false;
+            s.open = false;
+            s.over_trigger = false;
+            s.over_panel = false;
+        }
+        s.seen = frame;
+        ((s.open || focused || keyboard) && !s.dismissed, s.trigger)
+    });
 
     // Not modal, and it does not take focus: the pointer or the focused trigger opened it.
     let frame = layer_over(child_id(&id, "layer"), open, false, transition, window, cx);
@@ -218,8 +237,15 @@ pub(crate) fn render_hover(hover: Hover, window: &mut Window, cx: &mut App) -> A
             0.0,
         ));
     }
-    // As wide as its trigger, so only the trigger itself is hovered.
-    wrapper.style().align_self = Some(gpui::AlignSelf::Start);
+    wrapper = match fit {
+        // As wide as the parent, so a bounded control inside still has that bound.
+        crate::decoration::ClipFit::Fill => wrapper.w_full().min_w_0(),
+        // As wide as its trigger, so only the trigger itself is hovered.
+        crate::decoration::ClipFit::Hug => {
+            wrapper.style().align_self = Some(gpui::AlignSelf::Start);
+            wrapper
+        }
+    };
     wrapper
         .child(trigger)
         .child(bounds_probe(px(0.0), move |bounds, cx| {
@@ -240,6 +266,8 @@ impl RenderOnce for HoverCard {
                 tab_stop: true,
                 placement: self.placement,
                 align: self.align,
+                fit: crate::decoration::ClipFit::Hug,
+                keyboard: false,
                 transition: Transition::of(MotionDuration::Normal, MotionDuration::Exit),
                 panel: Box::new(move |window, cx| {
                     let style = components().popover();

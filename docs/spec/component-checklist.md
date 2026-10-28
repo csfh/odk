@@ -70,7 +70,7 @@ A pointer target is at least 24 px on each side (WCAG 2.5.8), or the space aroun
 
 ## Content
 
-23. Long labels, an empty list, one item, many items and non-Latin text truncate or wrap without breaking the layout around it.
+23. Long labels, an empty list, one item, many items and non-Latin text truncate or wrap without breaking the layout around it (ADR 0058: prose wraps, a one-row control ends in `…` through `truncate_end`, a truncated string stays in `Describe` and in a tooltip when the control measures overflow, and a decoration changes that default).
 
 ## API
 

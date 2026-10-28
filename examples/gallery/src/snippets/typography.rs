@@ -8,7 +8,10 @@ fn text() -> impl IntoElement {
         .child(Heading::new("Settings").level(1))
         .child(Text::new("Applies to every window."))
         .child(Text::new("Last changed yesterday").muted())
-        // Any element, in one of the foundation's type roles:
-        .child(div().text_role(TypeRole::Mono).child("~/.config/omarchy"))
+        .child(Text::new("~/.config/omarchy").role(TypeRole::Mono))
+        .child(
+            Text::new("A file name that is much too long for its column.tar.gz")
+                .decorate(EndEllipsis),
+        )
 }
 // snippet end

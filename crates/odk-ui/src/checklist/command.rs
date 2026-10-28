@@ -296,7 +296,8 @@ fn worst_case_content_stays_inside_the_panel_and_the_window(cx: &mut TestAppCont
                 CommandItem::new(
                     "https://wiki.omarchy.org/troubleshooting/backups/restic-repository-integrity-check-failed",
                 )
-                .hint("Ctrl+Shift+Alt+K"),
+                .hint("Ctrl+Shift+Alt+K")
+                .decorate(crate::MiddleEllipsis),
             )
             .item(CommandItem::new("日本語のとても長いコマンドの名前がここに入ります 😀😀😀"))
     });
@@ -320,6 +321,14 @@ fn worst_case_content_stays_inside_the_panel_and_the_window(cx: &mut TestAppCont
             "{part} is inside the panel: {b:?} in {panel:?}"
         );
     }
+    let shown = crate::command::shown_label::get("cmd/label-0").expect("the url was measured");
+    assert!(shown.contains('…'), "middle ellipsis: {shown}");
+    assert!(shown.starts_with("https://"), "{shown}");
+    assert!(shown.ends_with("failed") || shown.ends_with('d'), "{shown}");
+    assert_ne!(
+        shown,
+        "https://wiki.omarchy.org/troubleshooting/backups/restic-repository-integrity-check-failed"
+    );
 }
 
 /// Item 21: while it closes it keeps drawing the commands it had, even when the application

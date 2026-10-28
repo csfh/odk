@@ -3,13 +3,17 @@
 //! the bottom-right corner above everything else, even a modal. Each stays for the foundation's
 //! `toast` (twice as long when it has an action), until it is dismissed, or for as long as the
 //! application says, and a persistent one stays until it is dismissed. The clocks stop while the
-//! pointer is over the stack or focus is inside it. The stack is a tab stop, so the keyboard
-//! can pause the clocks and dismiss the newest toast with Escape, including one with no action
-//! button. A toast never takes focus when it appears. At most [`MAX_VISIBLE`] show at a time, or
-//! the limit of [`set_toast_limit`]; the rest wait their turn. If the stack would hide the
-//! focused control completely, it shifts enough to leave a sliver of that control visible. The
-//! window's [`crate::Shell`] draws them, and this module is the one manager: it hands out
-//! [`ToastId`]s, runs the clocks and removes a toast once its exit has run.
+//! pointer is over the stack or focus is inside it, which is also when the stack is expanded
+//! (ADR 0058). Collapsed, identical on-screen toasts are one card with a count; hovering the
+//! stack or focusing it shows each toast, and the column scrolls when it is still taller than
+//! the window. The stack is a tab stop, so the keyboard can pause the clocks and dismiss the
+//! newest toast with Escape, including one with no action button. A toast never takes focus
+//! when it appears. At most [`MAX_VISIBLE`] show at a time, or the limit of
+//! [`set_toast_limit`]; the rest wait their turn, and the limit counts toasts, not grouped
+//! cards. If the stack would hide the focused control completely, it shifts enough to leave a
+//! sliver of that control visible. The window's [`crate::Shell`] draws them, and this module is
+//! the one manager: it hands out [`ToastId`]s, runs the clocks and removes a toast once its
+//! exit has run. A description is part of the accessible name, as an alert's is.
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -25,11 +29,12 @@ use odk_theme::component::ButtonVariant;
 use odk_theme::foundation::MotionDuration;
 use odk_theme::semantic::Role as Semantic;
 
+use crate::decoration::{Applied, OverlayDecoration, SizeMode};
 use crate::focus::focus_handle;
 use crate::layout::{StyledExt, h_flex, inside_window, v_flex};
 use crate::overlay::{Layer, Presence, Transition};
 use crate::theme::{colour, mono};
-use crate::{Button, Size, Tone, components};
+use crate::{Badge, Button, Size, Tone, components};
 
 /// The most toasts shown at once unless [`set_toast_limit`] says otherwise. A count, not a
 /// length.
@@ -96,6 +101,7 @@ pub struct Toast {
     description: Option<SharedString>,
     action: Option<(SharedString, Handler)>,
     lifetime: Lifetime,
+    applied: Applied,
 }
 
 impl Toast {
@@ -108,7 +114,15 @@ impl Toast {
             description: None,
             action: None,
             lifetime: Lifetime::Default,
+            applied: Applied::default(),
         }
+    }
+
+    /// Attaches a size decoration. A toast grows with the text size from 336 px;
+    /// [`crate::FixedWidth`] sets another width. Both are capped at the window (ADR 0058).
+    pub fn decorate(mut self, decoration: impl OverlayDecoration) -> Self {
+        decoration.apply_overlay(&mut self.applied);
+        self
     }
 
     /// Info, success, warning or danger: the mark and its colour.
@@ -181,7 +195,11 @@ impl Toast {
 
 impl Describe for Toast {
     fn accessible(&self) -> Accessible {
-        Accessible::new(Role::Status, self.title.to_string())
+        let name = match &self.description {
+            Some(description) => format!("{}: {description}", self.title),
+            None => self.title.to_string(),
+        };
+        Accessible::new(Role::Status, name)
     }
 }
 
@@ -370,6 +388,7 @@ impl Stack {
 }
 
 /// What one toast needs to be drawn this frame, copied out of the store.
+#[derive(Clone)]
 struct Shown {
     id: ToastId,
     amount: f32,
@@ -378,6 +397,60 @@ struct Shown {
     title: SharedString,
     description: Option<SharedString>,
     action: Option<(SharedString, Handler)>,
+    size: SizeMode,
+}
+
+/// Whether two on-screen toasts are the same message: title, description, role and action label.
+fn same_toast(a: &Shown, b: &Shown) -> bool {
+    a.title == b.title
+        && a.description == b.description
+        && a.role == b.role
+        && a.action.as_ref().map(|action| &action.0) == b.action.as_ref().map(|action| &action.0)
+}
+
+/// The cards to draw. Collapsed, identical on-screen toasts are one card at the newest one's
+/// place, with a count. Expanded (pointer or focus on the stack), each toast is its own card.
+/// The limit still counts toasts, not cards (ADR 0058).
+fn group_visible(shown: &[Shown], expanded: bool) -> Vec<(usize, usize)> {
+    if expanded {
+        return (0..shown.len()).map(|i| (i, 1)).collect();
+    }
+    let mut groups: Vec<(usize, usize)> = Vec::new();
+    for (i, toast) in shown.iter().enumerate() {
+        if let Some(group) = groups
+            .iter_mut()
+            .find(|(rep, _)| same_toast(&shown[*rep], toast))
+        {
+            group.0 = i;
+            group.1 += 1;
+        } else {
+            groups.push((i, 1));
+        }
+    }
+    groups
+}
+
+/// The cards drawn on the last frame, by toast number, for tests. `debug_bounds` keeps a card
+/// that is no longer drawn.
+#[cfg(test)]
+pub(crate) mod drawn_cards {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static CARDS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(crate) fn clear() {
+        CARDS.with(|c| c.borrow_mut().clear());
+    }
+
+    pub(crate) fn push(id: u64) {
+        CARDS.with(|c| c.borrow_mut().push(id));
+    }
+
+    pub(crate) fn current() -> Vec<u64> {
+        CARDS.with(|c| c.borrow().clone())
+    }
 }
 
 /// Draws the window's toasts. The window's [`crate::Shell`] has one.
@@ -427,6 +500,7 @@ impl RenderOnce for ToastHost {
                     title: e.toast.title.clone(),
                     description: e.toast.description.clone(),
                     action: e.toast.action.clone(),
+                    size: e.toast.applied.size(SizeMode::Autosize),
                 })
             })
             .collect();
@@ -452,12 +526,32 @@ impl RenderOnce for ToastHost {
         let viewport = window.viewport_size();
         let margin = px(f.spacing.s4);
         let newest = shown.last().map(|s| s.id);
+        let expanded = cx
+            .global::<Toasts>()
+            .windows
+            .get(&id)
+            .is_some_and(|stack| stack.hovered || stack.focused);
+        let groups = group_visible(&shown, expanded);
+        #[cfg(test)]
+        drawn_cards::clear();
+        let scale = f.text_scale.factor();
+        let widest = groups
+            .iter()
+            .map(|(index, _)| match shown[*index].size {
+                SizeMode::Fixed(w) => w,
+                SizeMode::Autosize => TOAST_WIDTH * scale,
+            })
+            .fold(0.0_f32, f32::max);
         let mut column = v_flex()
             .id("odk-toasts")
+            .debug_selector(|| "odk-toasts".into())
             .track_focus(&focus)
             .gap(px(f.spacing.s2))
-            // Never wider than the window, less its margins.
-            .w(px(TOAST_WIDTH).min(inside_window(viewport.width, margin)))
+            // Grows with the text size, never wider than the window, and scrolls when the
+            // expanded stack is still too tall (ADR 0058).
+            .w(px(widest).min(inside_window(viewport.width, margin)))
+            .max_h(inside_window(viewport.height, margin))
+            .overflow_y_scroll()
             .on_hover(move |over, _, cx| {
                 let (over, now) = (*over, cx.background_executor().now());
                 if let Some(stack) = cx.global_mut::<Toasts>().windows.get_mut(&id) {
@@ -465,16 +559,19 @@ impl RenderOnce for ToastHost {
                     stack.pause(stack.hovered || stack.focused, now);
                 }
             });
-        for Shown {
-            id: toast_id,
-            amount,
-            role,
-            mark,
-            title,
-            description,
-            action,
-        } in shown
-        {
+        for (index, count) in groups {
+            let Shown {
+                id: toast_id,
+                amount,
+                role,
+                mark,
+                title,
+                description,
+                action,
+                size: _,
+            } = shown[index].clone();
+            #[cfg(test)]
+            drawn_cards::push(toast_id.0);
             let toast_id_n = toast_id.0;
             let style = c.toast(role);
             let g = style.overlay.geometry;
@@ -488,12 +585,22 @@ impl RenderOnce for ToastHost {
             };
             // `min_w_0` lets the text be narrower than its longest word, so long words and
             // URLs wrap inside the box and the trailing buttons keep their place.
-            let mut text = v_flex().flex_1().min_w_0().gap(px(f.spacing.s1)).child(
+            let mut title_row = h_flex().gap(px(f.spacing.s2)).child(
                 div()
+                    .flex_1()
+                    .min_w_0()
                     .text_role(g.title)
                     .text_color(colour(style.overlay.surface.foreground))
                     .child(title),
             );
+            if count > 1 {
+                title_row = title_row.child(Badge::new(count.to_string()));
+            }
+            let mut text = v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap(px(f.spacing.s1))
+                .child(title_row);
             if let Some(d) = description {
                 text = text.child(
                     div()
