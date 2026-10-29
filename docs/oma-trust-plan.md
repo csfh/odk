@@ -150,10 +150,15 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
 - `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
 - Not yet:
-  - an install under a root that is already pinned, which needs the root's key-set version stored (section 3, question 14);
   - `--register`, held files, the inbox, `rollback` and `purge`;
   - revocation (question 2).
-- A pin made at first contact stores no key-set version yet. The PR that adds installs under a pinned root decides how such a pin is treated. It should take the version of the next set that verifies under the pin as the first one stored, and say so; it should not take it by accident.
+- Installs under a pinned root:
+  - an upgrade, or a second app id, verifies the key set under the pin;
+  - the version last accepted for the root is kept in `grants/<root>/oma-keys.version`, and an older set is refused;
+  - a pin made before that file existed takes the next set that verifies as its first;
+  - a lower version, or the same version with another payload, is refused;
+  - an upgrade asks Install or Cancel only for permissions not allowed yet, and Cancel there writes no denial;
+  - the replaced file is kept as `previous.oma`.
 
 ### 6. Bootstrap and self-upgrade
 

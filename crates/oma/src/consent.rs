@@ -149,6 +149,20 @@ impl Request {
         }
     }
 
+    /// `odk oma install` of a file under a root already pinned for its app id, which asks for
+    /// more than was allowed: the new permissions, Install or Cancel.
+    pub fn more(identity: &Identity<'_>, missing: &Permissions, named_dirs: &Resolved) -> Self {
+        let mut notes = vec![format!(
+            "{} {} is signed under the publisher key already pinned for it, and asks for more.",
+            identity.app_id, identity.version
+        )];
+        notes.extend(unavailable(missing, named_dirs));
+        Self {
+            lines: permission_lines(missing),
+            ..Self::signed(identity, &[Button::Install, Button::Cancel], notes)
+        }
+    }
+
     /// The confusable-host note on its own: Confirm or Cancel, and nothing that installs.
     pub fn confusable(identity: &Identity<'_>, existing: &Publisher) -> Self {
         let (unicode, _) = host_forms(identity.publisher);
