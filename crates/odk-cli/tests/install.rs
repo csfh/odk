@@ -31,10 +31,18 @@ impl World {
         for d in ["home", "tmp", "stubs", "release"] {
             fs::create_dir_all(root.join(d)).unwrap();
         }
+        // While `odkd-running` exists, an `odkd.service` started before `odkd-files.socket`
+        // existed is running, and starting that socket is refused, as systemd refuses it
+        // ("Socket service odkd.service already active, refusing"); stopping the service ends it.
         executable(
             &root.join("stubs/systemctl"),
             "#!/bin/sh\necho \"$*\" >>\"$SYSTEMCTL_LOG\"\n\
-             if [ \"$1 $2\" = \"--user show-environment\" ] && [ -e \"$NO_MANAGER\" ]; then exit 1; fi\nexit 0\n",
+             if [ \"$1 $2\" = \"--user show-environment\" ] && [ -e \"$NO_MANAGER\" ]; then exit 1; fi\n\
+             case \"$*\" in\n\
+             \"--user stop odkd.service\") rm -f \"$ODKD_RUNNING\" ;;\n\
+             \"--user enable --now \"*odkd-files.socket*|\"--user start \"*odkd-files.socket*)\n\
+             if [ -e \"$ODKD_RUNNING\" ]; then echo 'Job failed.' >&2; exit 1; fi ;;\n\
+             esac\nexit 0\n",
         );
         executable(
             &root.join("stubs/update-mime-database"),
@@ -121,7 +129,8 @@ impl World {
             )
             .env("SYSTEMCTL_LOG", self.root.join("systemctl.log"))
             .env("MIME_LOG", self.root.join("mime.log"))
-            .env("NO_MANAGER", self.root.join("no-manager"));
+            .env("NO_MANAGER", self.root.join("no-manager"))
+            .env("ODKD_RUNNING", self.root.join("odkd-running"));
         for (k, v) in extra {
             command.env(k, v);
         }
@@ -249,8 +258,8 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
             &log[1..],
             [
                 "--user daemon-reload",
-                "--user enable --now odkd.socket odkd-files.socket",
-                "--user try-restart odkd.service"
+                "--user stop odkd.service",
+                "--user enable --now odkd.socket odkd-files.socket"
             ],
             "{log:?}"
         );
@@ -268,13 +277,15 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
 }
 
 #[test]
-fn running_it_again_upgrades_and_restarts_odkd() {
+fn running_it_again_upgrades_and_starts_every_socket_while_odkd_runs() {
     if skip_as_root() {
         return;
     }
     let w = World::new();
     w.publish("1.0.0");
     assert!(w.install(&[]).status.success());
+    // The odkd of a release before the file chooser's socket, still running (ADR 0074).
+    fs::write(w.root.join("odkd-running"), "").unwrap();
     w.publish("1.1.0");
     let o = w.install(&[]);
     assert!(o.status.success(), "{}", out(&o));
@@ -283,12 +294,18 @@ fn running_it_again_upgrades_and_restarts_odkd() {
         .output()
         .unwrap();
     assert_eq!(String::from_utf8_lossy(&odkd.stdout).trim(), "odkd 1.1.0");
+    // The old program was stopped, so the next connection starts the new one.
+    assert!(!w.root.join("odkd-running").exists());
+    let log = w.log();
+    let second = &log[log.len() - 3..];
     assert_eq!(
-        w.log()
-            .iter()
-            .filter(|l| l.contains("try-restart odkd.service"))
-            .count(),
-        2
+        second,
+        [
+            "--user daemon-reload",
+            "--user stop odkd.service",
+            "--user enable --now odkd.socket odkd-files.socket"
+        ],
+        "{log:?}"
     );
 }
 
