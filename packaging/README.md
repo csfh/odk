@@ -20,15 +20,13 @@ file manager knows a `.oma` file as a kind of disk image (ADR 0065). The units f
 `XDG_CONFIG_HOME` and the type follows `XDG_DATA_HOME`. `odkd.service` names the program with `%h`, so the units hold
 no user name. `sh install.sh --uninstall` removes exactly these files.
 
-A tag `v*` runs `.github/workflows/release.yml`, which builds the four programs and runs
-`tools/package-release`, which makes `odk-x86_64-linux.tar.gz`, its `.sha256` and a copy of
-`install.sh`; those three are the release. The installer's test builds a tarball with the same
-script, so the layout cannot drift.
+A release is built here, with no CI: `cargo build --release --locked -p odk-cli -p oma -p oma-consent -p odkd`, then
+`tools/package-release target/release <dir> <tag>`, which makes `odk-x86_64-linux.tar.gz`, its `.sha256` and a copy of
+`install.sh`; those three are the release, uploaded with `gh release create <tag> <dir>/*`. The installer's test builds a
+tarball with the same script, so the layout cannot drift.
 
-Before the tag, `version` in `[workspace.package]` of the root `Cargo.toml` is set to the tag
-without its `v`, with `Cargo.lock`, in a commit on `main`. The workflow publishes nothing when the
-built `odk --version` says another (ADR 0064), so `v0.1.0-rc.1` and `v0.1.0-rc.2`, which say
-`0.0.0`, cannot be published again.
+Before the tag, `version` in `[workspace.package]` of the root `Cargo.toml` is set to the tag without its `v`, with
+`Cargo.lock`, in a commit on `main`, and the built `odk --version` must say it (ADR 0064) before anything is uploaded.
 
 Text for a system install, which nothing installs yet (ADR 0053, ADR 0056, ADR 0060 on pull
 request #9):
