@@ -6,6 +6,8 @@ Each example is a member of the workspace, so `cargo build --workspace` compiles
 
 Each example holds an application crate and the `manifest.toml` of its Bundle. To make a Bundle, build the crate in release mode and sign it into one file: `cargo build --release -p hello`, then `odk oma bundle target/release/hello --manifest examples/hello/manifest.toml --sign <release seed> --root <root key id> --release <N>`. That writes `Hello.oma`, signed for the publisher the manifest names (ADR 0032, ADR 0052, ADR 0060). `odk oma install Hello.oma` installs it, after fetching that publisher's key set.
 
+To build, install and run one in a single step, `odk oma dev examples/hello` does what its `oma.toml` says: it builds the crate and the licences the Bundle carries (ADR 0081), signs the Bundle with a dev key `odk oma dev` makes for this computer, installs it over the installed copy and runs it (ADR 0051, ADR 0085). No publisher's key set is fetched for it.
+
 | Example | Shows |
 |---|---|
 | `hello` | A window with a heading, a counter and a button; the only permission is `gpu`. |
