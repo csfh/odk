@@ -136,6 +136,7 @@ impl FoundationTokens {
                 field_gap: text.px(FIELD_GAP),
                 menu_item_gap: spacing.s2,
                 sidebar_width: text.px(SIDEBAR_WIDTH),
+                sidebar_padding: spacing.s2,
                 content_width: text.px(CONTENT_WIDTH),
             },
             spacing,
@@ -278,6 +279,8 @@ pub struct LayoutTokens {
     pub menu_item_gap: f32,
     /// The width of an application's sidebar (`sidebar_frame`).
     pub sidebar_width: f32,
+    /// How far a sidebar's content is inset from its edges (`sidebar_frame`).
+    pub sidebar_padding: f32,
     /// The widest a page's column grows (`content_column`).
     pub content_width: f32,
 }
@@ -854,6 +857,7 @@ mod tests {
         assert_eq!(l.field_gap, 6.0);
         assert_eq!(l.menu_item_gap, 8.0);
         assert_eq!(l.sidebar_width, 220.0);
+        assert_eq!(l.sidebar_padding, 8.0);
         assert_eq!(l.content_width, 1000.0);
     }
 

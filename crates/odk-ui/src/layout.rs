@@ -254,17 +254,27 @@ pub fn scroll_y(id: impl Into<ElementId>) -> Stateful<Div> {
     div().id(id).flex_1().min_h_0().w_full().overflow_y_scroll()
 }
 
-/// The frame of an application with a sidebar: the sidebar at the foundation's width, a line,
-/// and the content taking the rest. It fills its parent, so put it where the page goes, inside
-/// [`root`].
+/// The frame of an application with a sidebar: the sidebar at the foundation's width, on the
+/// recessed surface with its content inset by the foundation's sidebar padding, a line, and the
+/// content taking the rest. It fills its parent, so put it where the page goes, inside [`root`].
 pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Div {
-    let width = foundation().layout.sidebar_width;
+    let layout = &foundation().layout;
+    let surface = theme_snapshot().semantic.surface.recessed;
     // A row, not `h_flex`: that centres its children, and these two stretch to the full height.
     div()
         .flex()
         .flex_row()
         .size_full()
-        .child(v_flex().w(px(width)).flex_none().h_full().child(sidebar))
+        .child(
+            v_flex()
+                .debug_selector(|| "sidebar-frame".into())
+                .w(px(layout.sidebar_width))
+                .flex_none()
+                .h_full()
+                .p(px(layout.sidebar_padding))
+                .bg(colour(surface))
+                .child(sidebar),
+        )
         .child(Separator::vertical())
         .child(
             // The content is laid out in a box that is given its size, not one that is sized by

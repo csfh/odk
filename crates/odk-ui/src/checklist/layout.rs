@@ -23,7 +23,7 @@ fn the_sidebar_has_its_token_width_and_the_content_takes_the_rest(cx: &mut TestA
     });
     resize(cx, 1200.0, 700.0);
     let (side, main) = (
-        cx.debug_bounds("side").unwrap(),
+        cx.debug_bounds("sidebar-frame").unwrap(),
         cx.debug_bounds("main").unwrap(),
     );
     let want = foundation().layout.sidebar_width;
@@ -62,7 +62,7 @@ fn a_narrow_window_shrinks_the_content_not_the_sidebar(cx: &mut TestAppContext) 
         )
     });
     resize(cx, 500.0, 400.0);
-    let side = cx.debug_bounds("side").unwrap();
+    let side = cx.debug_bounds("sidebar-frame").unwrap();
     assert_eq!(
         f32::from(side.size.width),
         foundation().layout.sidebar_width
@@ -144,7 +144,7 @@ fn the_column_is_centred_in_the_content_area_of_the_frame(cx: &mut TestAppContex
         )
     });
     resize(cx, 2600.0, 700.0);
-    let side = cx.debug_bounds("side").unwrap();
+    let side = cx.debug_bounds("sidebar-frame").unwrap();
     let col = cx.debug_bounds("col").unwrap();
     let width = foundation().layout.content_width;
     assert_eq!(f32::from(col.size.width), width);
@@ -186,4 +186,27 @@ fn a_field_fills_its_row_under_a_long_paragraph_in_a_scroll_region(cx: &mut Test
         width,
         "the field is the column's width inside its padding"
     );
+}
+
+/// What the sidebar holds is inset from its edges by the foundation's sidebar padding, so a
+/// row's fill and the current page's indicator stand clear of the window's edge and the line.
+#[gpui::test]
+fn the_sidebars_content_is_inset_by_its_padding(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        sidebar_frame(
+            div().debug_selector(|| "side".into()).size_full(),
+            div().size_full(),
+        )
+    });
+    resize(cx, 1200.0, 700.0);
+    let (frame, side) = (
+        cx.debug_bounds("sidebar-frame").unwrap(),
+        cx.debug_bounds("side").unwrap(),
+    );
+    let pad = px(foundation().layout.sidebar_padding);
+    assert!(pad > px(0.0));
+    assert_eq!(side.left() - frame.left(), pad, "left");
+    assert_eq!(frame.right() - side.right(), pad, "right");
+    assert_eq!(side.top() - frame.top(), pad, "top");
+    assert_eq!(frame.bottom() - side.bottom(), pad, "bottom");
 }
