@@ -59,8 +59,9 @@ Specified in `docs/spec/odk-source-palette.md` and `docs/spec/odk-semantic-token
 | Navigation | `Tabs`, `ToggleGroup` (segmented control), `NavList`, `Breadcrumb` |
 | Feedback | `Badge`, `StatusIndicator`, `Alert`, `Progress`, `Spinner`, `Skeleton`, `Separator`, `Text`, `Heading`, `Kbd` |
 | Overlays | `DropdownMenu`, `ContextMenu`, `Popover`, `Tooltip`, `HoverCard`, `Dialog`, `Sheet`, `Toast` |
+| Data | `Item` (a row of content, its actions at its end), `DataTable`, `Chart`, `Image`, `Resizable` |
 
-Not built, on purpose: a stand-alone `Combobox` and `Pagination` (`odk-ui-components.md`, "Left out of v1"), and everything that needs drag or virtualisation (sliders, resizable panels, tables), which waits for its own ADR.
+Not built, on purpose: a stand-alone `Combobox` and `Pagination` (`odk-ui-components.md`, "Left out of v1"). Drag and virtualisation have their ADRs (0069, 0070), and `Resizable` and `DataTable` are built on them; a slider waits for its own.
 
 ## Interaction
 

@@ -44,7 +44,8 @@ pub use controls::{
     FieldStyle, FormFieldStyle, RadioStyle, SelectStyle, SwitchStyle,
 };
 pub use data::{
-    ChartStyle, HEAT_STEPS, ImageStyle, ResizeHandleStyle, SERIES_ROLES, TableCellStyle, TableStyle,
+    ChartStyle, HEAT_STEPS, ImageStyle, ItemStyle, ResizeHandleStyle, SERIES_ROLES, TableCellStyle,
+    TableStyle,
 };
 pub use feedback::{
     AlertStyle, BadgeAppearance, BadgeStyle, KbdStyle, ProgressStyle, ProseStyle, SeparatorStyle,

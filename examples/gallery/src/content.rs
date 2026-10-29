@@ -42,6 +42,8 @@ pub struct Content {
     pub panels: [(&'static str, &'static str); 3],
     /// The names a data table's processes take, in turn.
     pub processes: &'static [&'static str],
+    /// Three items: each one's title, description and the line under them (none when empty).
+    pub items: [(&'static str, &'static str, &'static str); 3],
     pub alignment: [&'static str; 4],
     pub tabs: &'static [&'static str],
     /// Three periods for a segmented control: day, week and month.
@@ -161,6 +163,23 @@ impl Content {
             ],
             processes: &[
                 "hyprland", "waybar", "firefox", "atmosd", "pipewire", "kitty",
+            ],
+            items: [
+                (
+                    "Natural scroll",
+                    "Content moves with your fingers, the way a phone does.",
+                    "~/.config/hypr/input.lua · input.touchpad.natural_scroll",
+                ),
+                (
+                    "Acceleration",
+                    "Adaptive speeds up as you move. Flat keeps a steady ratio.",
+                    "~/.config/hypr/input.lua · input.accel_profile",
+                ),
+                (
+                    "Sensitivity",
+                    "Pointer speed. Zero is the Hyprland default. Negative is slower.",
+                    "~/.config/hypr/input.lua · input.sensitivity",
+                ),
             ],
             alignment: ["Left", "Center", "Right", "Justify"],
             tabs: &["General", "Display", "Advanced", "About"],
@@ -324,6 +343,19 @@ impl Content {
                     "サービスは起動していません。ログを確認してください。🔥🔥",
                 ),
                 ("L", "x"),
+            ],
+            items: [
+                (
+                    "Natürliches Bildlaufverhalten für Berührungsflächen und Zeigegeräte",
+                    "Inhalte folgen den Fingern wie auf einem Telefon. Diese Beschreibung ist absichtlich so lang, dass sie in einer schmalen Spalte mehrmals umbricht und neben ihr nichts verdrängt.",
+                    "~/.config/hypr/a/very/long/unbroken/path/to/an/input/configuration/file/that/will/not/wrap/anywhere.lua",
+                ),
+                (
+                    "日本語の設定 🔥",
+                    "ポインターの加速。🔥🔥",
+                    "~/.config/hypr/入力.lua",
+                ),
+                ("L", "x", ""),
             ],
             processes: &[
                 "x",

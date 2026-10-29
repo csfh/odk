@@ -1792,6 +1792,41 @@ fn a_resize_handle_takes_one_border_of_room_and_a_target_of_the_minimum() {
     }
 }
 
+// An item.
+
+/// An item's title and description are a form field's label and description, and it is padded
+/// above and below by its density, 4, 8 or 12 px, with nothing at its sides.
+#[test]
+fn an_item_reads_as_a_form_field_and_pads_by_its_density() {
+    for name in ["tokyo-night", "catppuccin-latte", "vantablack"] {
+        let c = tokens(name);
+        let field = c.form_field(States::NONE);
+        for (density, padding) in [
+            (Density::Compact, 4.0),
+            (Density::Default, 8.0),
+            (Density::Comfortable, 12.0),
+        ] {
+            let item = c.item(density);
+            assert_eq!(item.padding_y, padding, "{name} {density:?}");
+            assert_eq!(
+                (item.title, item.title_role),
+                (field.label, field.label_role),
+                "{name}"
+            );
+            assert_eq!(
+                (item.description, item.description_role),
+                (field.description, field.description_role),
+                "{name}"
+            );
+            assert_eq!(
+                (item.line_gap, item.gap, item.footer_gap),
+                (4.0, 12.0, 8.0),
+                "{name}"
+            );
+        }
+    }
+}
+
 // A data table (ADR 0070).
 
 #[test]

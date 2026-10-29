@@ -13,6 +13,7 @@ Not normative. Atmos (`../atmos`) is moving its QML window to ODK page by page, 
 | Monitor's charts and the small data widgets | `Chart::new(id, name).paint(\|scene, t\| …)`: paths, arcs, curves, rectangles and haloed text in named `Ink`s, `height(ChartHeight::…)` for a sparkline, a chart or the Wi-Fi QR code, `transition(sample)` for the move between samples, `on_press`, `on_pan`, `on_zoom` for the treemap | ADR 0071, ADR 0075 |
 | The avatar and the wallpaper preview | `Image::avatar(id, name).source(bytes)` and `Image::new(id, name).fit(ImageFit::Contain).source(bytes)`, from bytes, never a path | ADR 0072 |
 | Record a shortcut (Keybindings) | `Button::new(id).listening(on).on_chord(\|chord, _, _\| …)`: the next key press and the modifiers held, as a `Chord`; Escape cancels | ADR 0076 |
+| A settings row whose control the page picks as it runs (`pages/row.rs`) | `Item::new(label).description(..).child(Text::new(path).mono().muted()).action(control).action(star)`, or `.footer(control)` for a control that takes the row's width | `docs/spec/odk-ui-components.md`, `Item` |
 
 Three things to know when using them:
 
