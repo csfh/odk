@@ -4,6 +4,7 @@
 pub mod bundle;
 pub mod consent;
 pub mod daemon;
+pub mod desktop;
 pub mod dev;
 pub mod entry;
 pub mod fetch;
