@@ -1210,6 +1210,61 @@ fn one_copy(layout: &Layout, app: &Identifier, root: &KeyId) -> Result<(), Error
     }
 }
 
+/// What `odk oma inspect` says of a Bundle file (`docs/spec/oma-cli.md`).
+#[derive(Debug)]
+pub struct Inspected {
+    /// The image's Manifest: name, semver, description and the permissions it asks for.
+    pub manifest: crate::fmt::Manifest,
+    /// The signed manifest: the monotonic version, the publisher and the root's key id.
+    pub signed: trust::SignedManifest,
+    /// The root, when it is pinned for this app id: its fingerprint is the publisher's identity.
+    pub pinned: Option<trust::PublicKey>,
+    /// Files of this app id held under other roots, with the root each is signed by.
+    pub held: Vec<(KeyId, PathBuf)>,
+}
+
+/// `odk oma inspect` of a Bundle file: its envelope and its image are checked as a launch checks
+/// them, and nothing is fetched. With no `layout` nothing is looked up, so it says nothing of a
+/// pin or of held files.
+pub fn inspect_file(layout: Option<&Layout>, path: &Path) -> Result<Inspected, Error> {
+    let sealed = Sealed::memfd(path)?;
+    let checked = trust::check(&sealed)?;
+    let image = Image::read(&checked)?;
+    let signed = checked.signed().manifest().clone();
+    let (app, root) = (&signed.app_id, &signed.root_key_id);
+    let mut pinned = None;
+    let mut held = Vec::new();
+    if let Some(layout) = layout {
+        pinned = grants::load_pair(layout, root, app)?
+            .filter(|pair| !pair.denied && pair.root.key_id() == *root)
+            .map(|pair| pair.root);
+        for entry in fs::read_dir(layout.held_dir())
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let Some(other) = entry
+                .file_name()
+                .to_str()
+                .and_then(|name| name.parse::<KeyId>().ok())
+            else {
+                continue;
+            };
+            let file = layout.held_file(&other, app);
+            if other != *root && file.is_file() {
+                held.push((other, file));
+            }
+        }
+        held.sort();
+    }
+    Ok(Inspected {
+        manifest: image.manifest().clone(),
+        signed,
+        pinned,
+        held,
+    })
+}
+
 /// What `--register` did with one Bundle file in `~/Applications`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Registered {
@@ -2168,6 +2223,37 @@ mod tests {
         let body = set.to_canonical().unwrap();
         let signature = root.sign(Context::KEYS, &body).0.to_vec();
         (file, fetch::KeySet { body, signature })
+    }
+
+    #[test]
+    fn inspecting_a_file_names_its_pin_and_the_files_held_under_other_roots() {
+        let f = fixture();
+        let prepared = f
+            .dev(NOW, &Dialog::answering(Button::Install).ask(), &stops())
+            .unwrap();
+        // A file of the same app id under another root, held by `--register`.
+        let (file, _) = released(&f);
+        let other = trust::check(&Sealed::memfd(&file).unwrap())
+            .unwrap()
+            .signed()
+            .manifest()
+            .root_key_id;
+        let held = f.layout.held_file(&other, &app());
+        fs::create_dir_all(held.parent().unwrap()).unwrap();
+        fs::copy(&file, &held).unwrap();
+
+        let inspected = inspect_file(Some(&f.layout), &prepared.installed).unwrap();
+        assert_eq!(inspected.manifest.name, "Dev");
+        assert_eq!(inspected.signed.version, NOW as u64);
+        assert_eq!(inspected.pinned, dev_key::root(&f.layout));
+        assert_eq!(inspected.held, [(other, held)]);
+
+        // The held file itself: its root is not pinned, and it is not held under another.
+        let inspected = inspect_file(Some(&f.layout), &file).unwrap();
+        assert_eq!(inspected.pinned, None);
+        assert!(inspected.held.is_empty());
+        let alone = inspect_file(None, &prepared.installed).unwrap();
+        assert_eq!((alone.pinned, alone.held.len()), (None, 0));
     }
 
     #[test]
