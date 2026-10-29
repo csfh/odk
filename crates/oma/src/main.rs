@@ -18,7 +18,7 @@ struct Cli {
 enum Command {
     /// Print a Bundle's name, Identifier, version and the permissions it requests
     Inspect {
-        /// Path to a Bundle directory
+        /// Path to a Bundle file or directory
         bundle_dir: PathBuf,
     },
     /// Run an application in its sandbox
@@ -138,9 +138,22 @@ fn main() -> ExitCode {
     }
 
     match Cli::parse().command {
+        Command::Inspect { bundle_dir } if bundle_dir.is_file() => {
+            let layout = oma::layout::Layout::from_env();
+            match oma::flow::inspect_file(layout.as_ref(), &bundle_dir) {
+                Ok(inspected) => {
+                    print!("{}", inspect_file_text(&inspected));
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         Command::Inspect { bundle_dir } => match Bundle::open(&bundle_dir) {
             Ok(bundle) => {
-                print!("{}", inspect_text(&bundle));
+                print!("{}", inspect_text(bundle.manifest(), None));
                 ExitCode::SUCCESS
             }
             Err(e) => {
@@ -349,12 +362,16 @@ fn main() -> ExitCode {
     }
 }
 
-fn inspect_text(bundle: &Bundle) -> String {
-    let m = bundle.manifest();
+/// `signed` is a Bundle file's lines about its signature, which go before its permissions.
+fn inspect_text(m: &oma::fmt::Manifest, signed: Option<&str>) -> String {
     let mut out = format!("{} {}\n{}\n", m.name, m.version, m.identifier);
     if let Some(description) = &m.description {
         out.push_str(description);
         out.push('\n');
+    }
+    if let Some(signed) = signed {
+        out.push_str("\nSigned:\n");
+        out.push_str(signed);
     }
     out.push_str("\nPermissions:\n");
     let lines = oma::fmt::permission_lines(&m.permissions);
@@ -365,6 +382,35 @@ fn inspect_text(bundle: &Bundle) -> String {
         out.push_str(&format!("  {line}\n"));
     }
     out
+}
+
+/// A Bundle file: [`inspect_text`] with its monotonic version, its publisher and its root,
+/// whose fingerprint is shown when the root is pinned for this app id (ADR 0060).
+fn inspect_file_text(inspected: &oma::flow::Inspected) -> String {
+    let signed = &inspected.signed;
+    let mut lines = format!(
+        "  version {}\n  publisher {}\n",
+        signed.version,
+        signed.publisher.as_str()
+    );
+    match &inspected.pinned {
+        Some(root) => lines.push_str(&format!(
+            "  publisher key {}, pinned, fingerprint {}\n",
+            signed.root_key_id,
+            root.fingerprint()
+        )),
+        None => lines.push_str(&format!(
+            "  publisher key {}, not pinned\n",
+            signed.root_key_id
+        )),
+    }
+    for (root, path) in &inspected.held {
+        lines.push_str(&format!(
+            "  held under publisher key {root}: {}\n",
+            path.display()
+        ));
+    }
+    inspect_text(&inspected.manifest, Some(&lines))
 }
 
 /// Runs `act` on the application `identifier` names, and says why not on standard error.

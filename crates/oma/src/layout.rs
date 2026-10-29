@@ -126,10 +126,14 @@ impl Layout {
     /// Where `--register` holds a valid file signed by a root that is not the pin (ADR 0060,
     /// section 7).
     pub fn held_file(&self, root: &KeyId, app: &Identifier) -> PathBuf {
-        self.state
-            .join("held")
+        self.held_dir()
             .join(root.to_string())
             .join(format!("{app}.oma"))
+    }
+
+    /// Where held files are, one directory per root.
+    pub fn held_dir(&self) -> PathBuf {
+        self.state.join("held")
     }
 
     /// Where `odk oma dev` assembles a Bundle before it installs it (ADR 0051).
