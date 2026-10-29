@@ -167,6 +167,24 @@ impl Request {
         }
     }
 
+    /// `odk oma dev` of a build that asks for more than its pair allows: the new permissions,
+    /// Install or Cancel, and a note that this computer's dev key signed it, so that the
+    /// publisher it names is not read as the publisher's release (ADR 0085).
+    pub fn dev(identity: &Identity<'_>, missing: &Permissions, named_dirs: &Resolved) -> Self {
+        let mut notes = vec![format!(
+            "{} {} is a development build, signed with this computer's dev key {}, not by {}.",
+            identity.app_id,
+            identity.version,
+            identity.root.key_id(),
+            identity.publisher.as_str()
+        )];
+        notes.extend(unavailable(missing, named_dirs));
+        Self {
+            lines: permission_lines(missing),
+            ..Self::signed(identity, &[Button::Install, Button::Cancel], notes)
+        }
+    }
+
     /// The upgrade screen (ADR 0015): an installed file, newer than what was allowed, that asks
     /// for more. Only the new permissions are listed; what is already allowed is one note. Keep
     /// previous version is offered when there is a previous version to go back to.

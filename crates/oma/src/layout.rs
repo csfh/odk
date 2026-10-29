@@ -137,6 +137,12 @@ impl Layout {
         self.state.join("dev")
     }
 
+    /// This computer's dev key, which `odk oma dev` signs with (ADR 0085). Outside
+    /// [`Self::dev_dir`], which `dev` removes what it assembled from.
+    pub fn dev_key_dir(&self) -> PathBuf {
+        self.state.join("dev-key")
+    }
+
     /// The application's own inbox (ADR 0015).
     pub fn inbox_dir(&self, id: &Identifier) -> PathBuf {
         self.state.join("inbox").join(id.as_str())

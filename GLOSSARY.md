@@ -22,6 +22,10 @@ _Avoid_: package, archive, app image
 The pinned root public key that signs a Bundle (ADR 0060). The fingerprint of that key is the identity. The domain in the signed manifest is the name shown for the publisher and the host used the first time the key is discovered. It is not the root of trust. A different root key is a different publisher, including at the same domain, and it inherits no installed applications, data or permissions.
 _Avoid_: the domain (that is display text and the first-contact host)
 
+**Dev key**:
+The root and release key one computer makes for itself to sign the Bundles `odk oma dev` builds there (ADR 0085). Its root is a Publisher pinned only for those applications, and nothing outside that computer knows it.
+_Avoid_: test key, debug key
+
 **Manifest**:
 The declarative TOML file inside a Bundle that names the application and declares the permissions it requests.
 

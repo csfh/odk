@@ -15,7 +15,7 @@ use crate::trust::keys::Signer;
 use crate::trust::{
     self, KeyId, Mark, Publisher, Sealed, SelfSigned, SetChange, Timestamp, Verdict, VerifiedKeys,
 };
-use crate::{desktop, dev, fetch, grants, image, install, userdirs};
+use crate::{desktop, dev, dev_key, fetch, grants, image, install, userdirs};
 
 /// Shows the dialog. The real one is [`consent::ask`].
 pub type Ask<'a> = &'a dyn Fn(&Request) -> Result<Button, consent::Error>;
@@ -137,6 +137,18 @@ pub enum Error {
     NothingToPurge { app: Identifier },
     #[error("systemctl: {0}")]
     Systemctl(String),
+    #[error(transparent)]
+    DevKey(#[from] dev_key::Error),
+    #[error(
+        "{app} is installed at {} under another publisher key, and one copy of an application is installed at a time (ADR 0085)", .path.display()
+    )]
+    InstalledUnderOtherRoot { app: Identifier, path: PathBuf },
+    #[error(
+        "the data of the directory Bundle being replaced, {}, would move to {}, which exists; nothing is merged, so move one of them away first", .from.display(), .to.display()
+    )]
+    DevData { from: PathBuf, to: PathBuf },
+    #[error("no key set is kept for this computer's dev key; `odk oma dev` makes one")]
+    NoDevKeySet,
 }
 
 /// What the Bundle's consent record does not cover yet.
@@ -313,6 +325,8 @@ pub struct Prepared {
     /// Something that is not `oma`'s unit still accepts connections on the daemon's socket, so
     /// `odk oma run` will use it, not the daemon of the Bundle just installed (ADR 0051).
     pub foreign_daemon: Option<PathBuf>,
+    /// The dev key was made by this run: its root's key id (ADR 0085).
+    pub made_key: Option<KeyId>,
 }
 
 /// Removes the directory a Bundle was assembled in, whichever way `dev` ends.
@@ -324,58 +338,189 @@ impl Drop for Scratch {
     }
 }
 
-/// `odk oma dev` up to running (ADR 0051): builds the project in `dir`, assembles its Bundle,
-/// asks for what its consent record lacks, stops the daemon of the copy it replaces and installs
-/// over it. The steps come in that order so that a build that fails, or a Cancel, changes nothing
-/// and stops nothing. Running the installed copy is [`run`]'s, by Identifier.
+/// `odk oma dev` up to running (ADR 0051, ADR 0085): builds the project in `dir`, signs its
+/// Bundle file with this computer's dev key, asks for what the pair (dev root, app id) lacks,
+/// stops the daemon of the copy it replaces and installs over it. `now` is the time in Unix
+/// seconds. A build that fails changes nothing, and a Cancel changes nothing but the dev key,
+/// once made. Running the installed copy is [`run`]'s, by Identifier.
+///
+/// The dev root is pinned without the first-install dialog, and its key set is made here and
+/// kept, never fetched. An installed directory Bundle of the Identifier, the old output, is
+/// replaced: its data moves to the pair's, and its consent record is deleted. A copy installed
+/// under another root is refused.
 pub fn dev(
     layout: &Layout,
     dir: &Path,
     runtime_dir: Option<&Path>,
+    now: i64,
     ask: Ask,
     stopper: &dyn Stopper,
 ) -> Result<Prepared, Error> {
     let project = dev::Project::load(dir)?;
     project.build()?;
+    let app = project.manifest()?.identifier;
+
+    let (key, made) = dev_key::DevKey::load_or_create(layout)?;
+    let root = key.root.public_key();
+    let root_id = root.key_id();
+    let existing = grants::load_pair(layout, &root_id, &app)?;
+    // The time, or one more than the mark when that is higher: two builds in one second, or a
+    // clock that went back, still install.
+    let marked = existing.as_ref().and_then(|p| p.mark).map(|m| m.version);
+    let version = newer(now, marked);
 
     let scratch = Scratch(layout.dev_dir().join(std::process::id().to_string()));
-    let assembled = project.assemble(&scratch.0).map_err(Error::from)?;
-    let bundle = Bundle::open(&assembled).map_err(install::Error::from)?;
-    let manifest = bundle.manifest();
+    let written = project.write_file(&scratch.0, &key.signing(version, now)?)?;
+    let sealed = Sealed::memfd(&written)?;
+    let checked = trust::check(&sealed)?;
+    let image = Image::read(&checked)?;
+    let file = checked.signed();
+    let manifest = image.manifest();
+    let target = layout
+        .applications()
+        .join(format!("{}.oma", manifest.name.replace('/', "-")));
 
-    let missing = missing(layout, &bundle)?;
-    let accept = if grants::is_empty(&missing) {
-        false
-    } else {
-        launch::preflight(&bundle)?;
-        dialog(
-            layout,
-            &bundle,
-            &missing,
-            &[Button::Install, Button::Cancel],
-            ask,
-        )?;
-        true
+    // Everything that refuses does so before anyone is asked.
+    one_copy(layout, &app, &root_id)?;
+    let installed = installed_file(layout, &app)?;
+    let directory = install::find(layout, &app).map(|b| b.root().to_owned());
+    if target.symlink_metadata().is_ok()
+        && installed.as_ref() != Some(&target)
+        && directory.as_ref() != Some(&target)
+    {
+        return Err(install::Error::Exists(target).into());
+    }
+    let (old_data, new_data) = (layout.data_dir(&app), layout.pair_data_dir(&root_id, &app));
+    let move_data = directory.is_some() && old_data.symlink_metadata().is_ok();
+    if move_data && new_data.symlink_metadata().is_ok() {
+        return Err(Error::DevData {
+            from: old_data,
+            to: new_data,
+        });
+    }
+
+    let requested = &manifest.permissions;
+    let granted = existing
+        .as_ref()
+        .and_then(|p| p.permissions.clone())
+        .unwrap_or_default();
+    let missing = grants::missing(&granted, requested);
+    if !grants::is_empty(&missing) {
+        let identity = Identity {
+            app_id: &app,
+            version,
+            root: &root,
+            publisher: &file.manifest().publisher,
+            fetched: None,
+        };
+        let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
+        let request = Request::dev(&identity, &missing, &named_dirs);
+        if ask(&request).map_err(Error::Dialog)? != Button::Install {
+            return Err(Error::Cancelled);
+        }
+    }
+
+    // The dev root's key set, newer than the one kept, so that it never runs out while the
+    // application is being built.
+    let set_version = newer(now, grants::keys_version(layout, &root_id)?);
+    let set = key.key_set(set_version, now)?;
+    grants::save_key_set(layout, &root_id, &set.body, &set.signature, set_version)?;
+    let unfetched: Fetch = &|publisher| {
+        Err(fetch::Failure::Unreachable {
+            host: publisher.as_str().to_owned(),
+            reason: "the dev root's key set is never fetched".to_owned(),
+        })
     };
+    let authorized = authorized_keys(layout, file, Some(&root), now, unfetched)?;
+    grants::save_pair(
+        layout,
+        &app,
+        &grants::Pair {
+            root,
+            publisher: file.manifest().publisher.clone(),
+            permissions: Some(requested.clone()),
+            mark: existing.as_ref().and_then(|p| p.mark),
+            installed: existing.as_ref().and_then(|p| p.installed),
+            denied: false,
+        },
+    )?;
 
     let declared = manifest.permissions.daemon.as_ref();
     if declared.is_some() {
-        stopper
-            .stop(&manifest.identifier)
-            .map_err(Error::StopDaemon)?;
+        stopper.stop(&app).map_err(Error::StopDaemon)?;
     }
-    let (installed, replaced) = install::reinstall(layout, &assembled, accept)?;
-    list_directory(layout, &installed);
+    // The directory Bundle goes aside, under a name listing skips, and its data moves to the
+    // pair's. Both come back if the file cannot be placed, so an error leaves what was installed.
+    let io = |path: &Path| {
+        let path = path.to_owned();
+        move |source| install::Error::Io { path, source }
+    };
+    let aside = match &directory {
+        Some(path) => {
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+            let aside = path.with_file_name(format!(
+                ".{}.replaced-{}",
+                name.as_deref().unwrap_or("bundle"),
+                std::process::id()
+            ));
+            fs::rename(path, &aside).map_err(io(path))?;
+            Some((path, aside))
+        }
+        None => None,
+    };
+    let put_back = |data_moved: bool| {
+        if data_moved {
+            let _ = fs::rename(&new_data, &old_data);
+        }
+        if let Some((path, aside)) = &aside {
+            let _ = fs::rename(aside, path);
+        }
+    };
+    if move_data {
+        let parent = new_data.parent().expect("a pair's directory");
+        let moved = fs::create_dir_all(parent)
+            .map_err(io(parent))
+            .and_then(|()| fs::rename(&old_data, &new_data).map_err(io(&old_data)));
+        if let Err(e) = moved {
+            put_back(false);
+            return Err(e.into());
+        }
+    }
+    if let Err(e) = commit(
+        layout,
+        file,
+        installed.as_deref(),
+        &sealed,
+        &target,
+        &authorized,
+    ) {
+        put_back(move_data);
+        return Err(e);
+    }
+    // The file is in place: what is left is tidying, which does not undo it.
+    if let Some((_, aside)) = &aside {
+        let _ = fs::remove_file(layout.grants_file(&app));
+        let _ = fs::remove_dir_all(aside);
+    }
+    list(layout, &app, manifest, None);
+
     let foreign_daemon = declared
         .zip(runtime_dir)
         .filter(|(daemon, runtime)| daemon::serving(runtime, daemon))
         .map(|(daemon, runtime)| runtime.join(&daemon.socket));
     Ok(Prepared {
-        identifier: manifest.identifier.clone(),
-        installed,
-        replaced,
+        identifier: app,
+        installed: target,
+        replaced: installed.is_some() || directory.is_some(),
         foreign_daemon,
+        made_key: made.then_some(root_id),
     })
+}
+
+/// `now` as a version, or one more than `kept` when that is higher.
+fn newer(now: i64, kept: Option<u64>) -> u64 {
+    let now = u64::try_from(now).unwrap_or(0);
+    kept.map_or(now, |kept| now.max(kept + 1))
 }
 
 /// How a signed file reached `odk-oma`. It decides what may be asked (ADR 0060, section 7).
@@ -618,6 +763,7 @@ pub fn install_file(
     };
 
     let root_id = &signed.root_key_id;
+    one_copy(layout, app, root_id)?;
     let pinned = grants::pairs(layout)?
         .into_iter()
         .filter(|(_, pair)| pair.root.key_id() == *root_id && !pair.denied)
@@ -717,8 +863,20 @@ fn authorized_keys(
     let signed = file.manifest();
     let app = &signed.app_id;
     let root_id = &signed.root_key_id;
-    let (keys, fetched) = match (fetch(&signed.publisher), pinned_root) {
-        (Ok(fetched), _) => {
+    // This computer's dev root: its set is the one `odk oma dev` keeps. The publisher's host
+    // serves its own root's set, which would refuse every dev build (ADR 0085).
+    let dev_root = dev_key::root(layout).filter(|root| root.key_id() == *root_id);
+    let attempt = match &dev_root {
+        Some(_) => None,
+        None => Some(fetch(&signed.publisher)),
+    };
+    let (keys, fetched) = match (attempt, pinned_root) {
+        (None, _) => {
+            let root = dev_root.as_ref().expect("no fetch is the dev root's");
+            let keys = kept_keys(layout, root_id, root)?.ok_or(Error::NoDevKeySet)?;
+            (keys, None)
+        }
+        (Some(Ok(fetched)), _) => {
             let signer = match pinned_root {
                 Some(root) => Signer::Pinned(root),
                 None => Signer::FirstContact,
@@ -726,18 +884,10 @@ fn authorized_keys(
             let keys = trust::keys::verify(&fetched.body, &fetched.signature, signer)?;
             (keys, Some(fetched))
         }
-        (Err(failure), Some(root)) => {
-            let Some(kept) = grants::stored_key_set(layout, root_id)? else {
+        (Some(Err(failure)), Some(root)) => {
+            let Some(keys) = kept_keys(layout, root_id, root)? else {
                 return Err(Error::Fetch(failure));
             };
-            let keys = trust::keys::verify(&kept.body, &kept.signature, Signer::Pinned(root))?;
-            let kept = grants::keys_version(layout, root_id)?;
-            if kept != Some(keys.set().version) {
-                return Err(Error::KeptKeySet {
-                    kept: kept.unwrap_or_default(),
-                    found: keys.set().version,
-                });
-            }
             if let fetch::Failure::HostNotFound { host } = &failure {
                 eprintln!(
                     "odk oma: `{host}` does not resolve; the name may have been lost. {app} keeps running. Updates that have to be fetched from this host are held."
@@ -745,7 +895,7 @@ fn authorized_keys(
             }
             (keys, None)
         }
-        (Err(failure), None) => return Err(Error::Fetch(failure)),
+        (Some(Err(failure)), None) => return Err(Error::Fetch(failure)),
     };
     if keys.root().key_id() != *root_id {
         return Err(Error::OtherRoot {
@@ -776,6 +926,27 @@ fn authorized_keys(
         });
     }
     Ok(Authorized { keys, fetched })
+}
+
+/// The key set kept for `root_id`, verified again under `root` and only at the version kept
+/// (ADR 0082). `None` when none is kept.
+fn kept_keys(
+    layout: &Layout,
+    root_id: &KeyId,
+    root: &trust::PublicKey,
+) -> Result<Option<VerifiedKeys>, Error> {
+    let Some(kept) = grants::stored_key_set(layout, root_id)? else {
+        return Ok(None);
+    };
+    let keys = trust::keys::verify(&kept.body, &kept.signature, Signer::Pinned(root))?;
+    let version = grants::keys_version(layout, root_id)?;
+    if version != Some(keys.set().version) {
+        return Err(Error::KeptKeySet {
+            kept: version.unwrap_or_default(),
+            found: keys.set().version,
+        });
+    }
+    Ok(Some(keys))
 }
 
 /// Keeps the key set that authorized a file just installed, when it was fetched (ADR 0082).
@@ -863,6 +1034,7 @@ pub fn open_file(
             at: signed.expires_at.clone(),
         });
     }
+    one_copy(layout, app, root_id)?;
     let target = layout
         .applications()
         .join(format!("{}.oma", image.manifest().name.replace('/', "-")));
@@ -1003,6 +1175,11 @@ pub fn purge(layout: &Layout, app: &Identifier) -> Result<Vec<KeyId>, Error> {
 /// The installed Bundle file of `app`: the one in `~/Applications` whose signed version and
 /// payload are what its pair records as installed. Other files of the same app id may be there.
 pub fn installed_file(layout: &Layout, app: &Identifier) -> Result<Option<PathBuf>, Error> {
+    Ok(installed_copy(layout, app)?.map(|(path, _)| path))
+}
+
+/// [`installed_file`], with the root it is installed under.
+fn installed_copy(layout: &Layout, app: &Identifier) -> Result<Option<(PathBuf, KeyId)>, Error> {
     for (path, signed) in install::bundle_files(layout) {
         let Some(signed) = signed.filter(|s| s.app_id == *app) else {
             continue;
@@ -1015,10 +1192,22 @@ pub fn installed_file(layout: &Layout, app: &Identifier) -> Result<Option<PathBu
             payload_sha256: signed.payload_sha256,
         };
         if !pair.denied && pair.installed.or(pair.mark) == Some(mark) {
-            return Ok(Some(path));
+            return Ok(Some((path, signed.root_key_id)));
         }
     }
     Ok(None)
+}
+
+/// One installed copy of an application at a time, whatever its root (ADR 0085): a file of
+/// `app` under `root` is refused while a copy under another root is installed.
+fn one_copy(layout: &Layout, app: &Identifier, root: &KeyId) -> Result<(), Error> {
+    match installed_copy(layout, app)? {
+        Some((path, other)) if other != *root => Err(Error::InstalledUnderOtherRoot {
+            app: app.clone(),
+            path,
+        }),
+        _ => Ok(()),
+    }
 }
 
 /// What `--register` did with one Bundle file in `~/Applications`.
@@ -1532,6 +1721,10 @@ mod tests {
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
+    /// The time the dev builds are made at, in Unix seconds.
+    const NOW: i64 = 1_800_000_000;
+    const DAY: i64 = 86_400;
+
     /// A home, and a project under it with a built executable, a daemon and a manifest, at `version`.
     fn fixture() -> Fixture {
         let dir = TempDir::new().unwrap();
@@ -1549,13 +1742,17 @@ mod tests {
         f
     }
 
+    fn app() -> Identifier {
+        "com.example.dev".parse().unwrap()
+    }
+
     impl Fixture {
         /// The project's files at `version`, with `permissions` and `extra` oma.toml lines.
         fn write(&self, version: &str, permissions: &str, extra: &str) {
             fs::write(
                 self.project.join("manifest.toml"),
                 format!(
-                    "manifest_version = 1\nidentifier = \"com.example.dev\"\nname = \"Dev\"\nversion = \"{version}\"\nexecutable = \"bin/app\"\n\n[daemon]\nexecutable = \"bin/d\"\nsocket = \"dev/d.sock\"\n\n[permissions]\n{permissions}\n"
+                    "manifest_version = 1\nidentifier = \"com.example.dev\"\nname = \"Dev\"\nversion = \"{version}\"\nexecutable = \"bin/app\"\npublisher = \"example.com\"\n\n[daemon]\nexecutable = \"bin/d\"\nsocket = \"dev/d.sock\"\n\n[permissions]\n{permissions}\n"
                 ),
             )
             .unwrap();
@@ -1566,30 +1763,79 @@ mod tests {
             .unwrap();
         }
 
+        fn dev(&self, now: i64, ask: Ask, stopper: &dyn Stopper) -> Result<Prepared, Error> {
+            dev(&self.layout, &self.project, None, now, ask, stopper)
+        }
+
+        /// The dev root's key id, once it is made.
+        fn root(&self) -> KeyId {
+            dev_key::root(&self.layout).unwrap().key_id()
+        }
+
+        fn pair(&self) -> Option<grants::Pair> {
+            grants::load_pair(&self.layout, &self.root(), &app()).unwrap()
+        }
+
+        /// The installed Bundle file's semver and the paths in its image.
+        fn installed(&self) -> Option<(String, Vec<PathBuf>)> {
+            let path = installed_file(&self.layout, &app()).unwrap()?;
+            let sealed = Sealed::memfd(&path).unwrap();
+            let checked = trust::check(&sealed).unwrap();
+            let image = Image::read(&checked).unwrap();
+            let paths = image.nodes().iter().map(|n| n.path.clone()).collect();
+            Some((image.manifest().version.to_string(), paths))
+        }
+
         fn installed_version(&self) -> Option<String> {
-            install::find(&self.layout, &"com.example.dev".parse().unwrap())
-                .map(|b| b.manifest().version.to_string())
+            self.installed().map(|(version, _)| version)
+        }
+
+        /// The Identifier installed as a directory Bundle, as `dev` did before ADR 0085, with
+        /// consent recorded and `notes.db` in its data directory.
+        fn directory_bundle(&self) -> PathBuf {
+            let out = self.project.parent().unwrap().join("assembled");
+            let assembled = dev::Project::load(&self.project)
+                .unwrap()
+                .assemble(&out)
+                .unwrap();
+            let installed = install::install(&self.layout, &assembled, true).unwrap();
+            let data = self.layout.data_dir(&app());
+            fs::create_dir_all(&data).unwrap();
+            fs::write(data.join("notes.db"), "notes").unwrap();
+            installed
+        }
+
+        fn applications(&self) -> Vec<String> {
+            let mut names = fs::read_dir(self.layout.applications())
+                .unwrap()
+                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            names.sort();
+            names
         }
     }
 
     /// What the dialog was shown and answered with.
     struct Dialog {
-        shown: Cell<usize>,
+        shown: RefCell<Vec<Request>>,
         answer: Button,
     }
 
     impl Dialog {
         fn answering(answer: Button) -> Self {
             Self {
-                shown: Cell::new(0),
+                shown: RefCell::new(Vec::new()),
                 answer,
             }
         }
         fn ask(&self) -> impl Fn(&Request) -> Result<Button, consent::Error> + '_ {
-            |_| {
-                self.shown.set(self.shown.get() + 1);
+            |request| {
+                self.shown.borrow_mut().push(request.clone());
                 Ok(self.answer)
             }
+        }
+        fn count(&self) -> usize {
+            self.shown.borrow().len()
         }
     }
 
@@ -1606,30 +1852,56 @@ mod tests {
         Stops(RefCell::new(Vec::new()))
     }
 
+    /// A fetch that counts its calls and never reaches anything.
+    fn counted(
+        calls: &Cell<usize>,
+    ) -> impl Fn(&Publisher) -> Result<fetch::KeySet, fetch::Failure> + '_ {
+        |publisher| {
+            calls.set(calls.get() + 1);
+            Err(fetch::Failure::Unreachable {
+                host: publisher.as_str().to_owned(),
+                reason: "a test".to_owned(),
+            })
+        }
+    }
+
     #[test]
-    fn the_first_run_asks_once_and_a_later_one_replaces_the_copy_without_asking() {
+    fn the_first_run_makes_the_key_and_asks_once_and_a_later_one_replaces_the_copy_without_asking()
+    {
         let f = fixture();
         let dialog = Dialog::answering(Button::Install);
         let stopper = stops();
 
-        let first = dev(&f.layout, &f.project, None, &dialog.ask(), &stopper).unwrap();
+        let first = f.dev(NOW, &dialog.ask(), &stopper).unwrap();
         assert!(!first.replaced);
-        assert_eq!(dialog.shown.get(), 1, "it asks for what is not granted");
-        assert_eq!(f.installed_version().as_deref(), Some("1.0.0"));
-
-        f.write("1.1.0", "audio = true", "");
-        let second = dev(&f.layout, &f.project, None, &dialog.ask(), &stopper).unwrap();
-        assert!(second.replaced);
-        assert_eq!(
-            dialog.shown.get(),
-            1,
-            "the grant is unchanged, so no dialog"
+        assert_eq!(first.made_key, Some(f.root()), "the key is made and said");
+        assert_eq!(first.installed, f.layout.applications().join("Dev.oma"));
+        assert!(first.installed.is_file(), "a Bundle file, not a directory");
+        assert_eq!(dialog.count(), 1, "it asks for what is not granted");
+        let request = &dialog.shown.borrow()[0];
+        assert_eq!(request.buttons, ["install", "cancel"]);
+        assert!(
+            request.notes[0].contains("development build, signed with this computer's dev key"),
+            "{:?}",
+            request.notes
         );
+        assert_eq!(f.installed_version().as_deref(), Some("1.0.0"));
+        let pair = f.pair().unwrap();
+        assert_eq!(pair.mark.unwrap().version, NOW as u64);
+        assert!(pair.permissions.unwrap().audio);
+
+        // A second build in the same second is still newer.
+        f.write("1.1.0", "audio = true", "");
+        let second = f.dev(NOW, &dialog.ask(), &stopper).unwrap();
+        assert!(second.replaced);
+        assert_eq!(second.made_key, None);
+        assert_eq!(dialog.count(), 1, "the grant is unchanged, so no dialog");
         assert_eq!(f.installed_version().as_deref(), Some("1.1.0"));
-        assert_eq!(
-            fs::read_dir(f.layout.applications()).unwrap().count(),
-            1,
-            "nothing is left beside the new copy"
+        assert_eq!(f.pair().unwrap().mark.unwrap().version, NOW as u64 + 1);
+        assert_eq!(f.applications(), ["Dev.oma"], "nothing is left beside it");
+        assert!(
+            f.layout.pair_previous_file(&f.root(), &app()).is_file(),
+            "the build it replaced is the previous one, for rollback"
         );
 
         // The daemon is stopped before each install, by the name `ensure` starts it under.
@@ -1639,53 +1911,55 @@ mod tests {
             daemon::unit_name(&stopped[0]),
             "oma-com.example.dev".to_owned()
         );
-        let root = second.installed;
-        assert!(root.join("bin/d").exists(), "the include is in");
-        assert!(!root.join(dev::FILE).exists(), "oma.toml is not");
+        let (_, paths) = f.installed().unwrap();
+        assert!(paths.contains(&PathBuf::from("bin/d")), "the include is in");
+        assert!(
+            !paths.contains(&PathBuf::from(dev::FILE)),
+            "oma.toml is not"
+        );
     }
 
     #[test]
-    fn a_failing_build_changes_nothing_and_asks_nothing() {
+    fn a_failing_build_makes_no_key_and_changes_nothing() {
         let f = fixture();
         let dialog = Dialog::answering(Button::Install);
         let stopper = stops();
-        dev(&f.layout, &f.project, None, &dialog.ask(), &stopper).unwrap();
-        let (shown, stopped) = (dialog.shown.get(), stopper.0.borrow().len());
+        let failing = "build = [[\"sh\", \"-c\", \"exit 1\"]]\n";
 
-        f.write(
-            "2.0.0",
-            "audio = true\nvideo = true",
-            "build = [[\"sh\", \"-c\", \"exit 1\"]]\n",
-        );
-        let e = dev(&f.layout, &f.project, None, &dialog.ask(), &stopper).unwrap_err();
+        f.write("1.0.0", "audio = true", failing);
+        let e = f.dev(NOW, &dialog.ask(), &stopper).unwrap_err();
+        assert!(matches!(e, Error::Dev(dev::Error::Build { .. })), "{e}");
+        assert!(!f.layout.dev_key_dir().exists(), "no key");
+        assert!(grants::pairs(&f.layout).unwrap().is_empty(), "no pair");
+
+        f.write("1.0.0", "audio = true", "");
+        f.dev(NOW, &dialog.ask(), &stopper).unwrap();
+        let (shown, stopped) = (dialog.count(), stopper.0.borrow().len());
+        f.write("2.0.0", "audio = true\nvideo = true", failing);
+        let e = f.dev(NOW + 1, &dialog.ask(), &stopper).unwrap_err();
         assert!(matches!(e, Error::Dev(dev::Error::Build { .. })), "{e}");
         assert_eq!(f.installed_version().as_deref(), Some("1.0.0"));
-        assert_eq!(dialog.shown.get(), shown);
+        assert_eq!(dialog.count(), shown);
         assert_eq!(stopper.0.borrow().len(), stopped, "nothing was stopped");
     }
 
     #[test]
-    fn cancelling_leaves_the_installed_copy_and_its_daemon_alone() {
+    fn cancelling_leaves_the_installed_copy_its_daemon_and_its_pair_alone() {
         let f = fixture();
         let stopper = stops();
-        dev(
-            &f.layout,
-            &f.project,
-            None,
-            &Dialog::answering(Button::Install).ask(),
-            &stopper,
-        )
-        .unwrap();
-        let stopped = stopper.0.borrow().len();
+        f.dev(NOW, &Dialog::answering(Button::Install).ask(), &stopper)
+            .unwrap();
+        let (stopped, pair) = (stopper.0.borrow().len(), f.pair());
 
         // More permissions than were granted: it asks, and the answer is no.
         f.write("2.0.0", "audio = true\ngpu = true", "");
         let no = Dialog::answering(Button::Cancel);
-        let e = dev(&f.layout, &f.project, None, &no.ask(), &stopper).unwrap_err();
+        let e = f.dev(NOW + 1, &no.ask(), &stopper).unwrap_err();
         assert!(matches!(e, Error::Cancelled), "{e}");
-        assert_eq!(no.shown.get(), 1);
+        assert_eq!(no.count(), 1);
         assert_eq!(f.installed_version().as_deref(), Some("1.0.0"));
         assert_eq!(stopper.0.borrow().len(), stopped);
+        assert_eq!(f.pair(), pair);
         assert!(
             !f.layout
                 .dev_dir()
@@ -1705,6 +1979,7 @@ mod tests {
             &f.layout,
             &f.project,
             Some(&runtime),
+            NOW,
             &Dialog::answering(Button::Install).ask(),
             &stops(),
         )
@@ -1713,15 +1988,245 @@ mod tests {
     }
 
     #[test]
-    fn oma_install_still_refuses_an_identifier_that_is_installed() {
+    fn the_dev_roots_key_set_is_never_fetched_and_does_not_run_out() {
         let f = fixture();
         let dialog = Dialog::answering(Button::Install);
-        let prepared = dev(&f.layout, &f.project, None, &dialog.ask(), &stops()).unwrap();
-        let e = install(&f.layout, &prepared.installed, true, &dialog.ask()).unwrap_err();
+        f.dev(NOW, &dialog.ask(), &stops()).unwrap();
+        let first_set = grants::keys_version(&f.layout, &f.root()).unwrap().unwrap();
+
+        // A year and more later the key set of the first build has run out; the next build
+        // signs a newer one.
+        let later = NOW + 400 * DAY;
+        f.write("1.1.0", "audio = true", "");
+        f.dev(later, &dialog.ask(), &stops()).unwrap();
+        assert!(grants::keys_version(&f.layout, &f.root()).unwrap().unwrap() > first_set);
+        assert_eq!(f.installed_version().as_deref(), Some("1.1.0"));
+
+        // A clock that went back still builds: the build and its key set are newer than the
+        // ones kept.
+        let kept = grants::keys_version(&f.layout, &f.root()).unwrap().unwrap();
+        f.write("1.1.1", "audio = true", "");
+        f.dev(later - DAY, &dialog.ask(), &stops()).unwrap();
+        assert_eq!(f.installed_version().as_deref(), Some("1.1.1"));
         assert!(
-            matches!(e, Error::Install(install::Error::AlreadyInstalled { .. })),
+            grants::keys_version(&f.layout, &f.root()).unwrap().unwrap() > kept,
+            "a kept set's version never goes down"
+        );
+
+        // A newer dev build reaching `odk oma install` is authorized by the kept set, and the
+        // publisher's host is never asked for one.
+        let (key, _) = dev_key::DevKey::load_or_create(&f.layout).unwrap();
+        f.write("1.2.0", "audio = true", "");
+        let version = f.pair().unwrap().mark.unwrap().version + 1;
+        let out = f.project.parent().unwrap().join("out");
+        let file = dev::Project::load(&f.project)
+            .unwrap()
+            .write_file(&out, &key.signing(version, later).unwrap())
+            .unwrap();
+        let calls = Cell::new(0);
+        install_file(
+            &f.layout,
+            &file,
+            true,
+            later,
+            &dialog.ask(),
+            &counted(&calls),
+        )
+        .unwrap();
+        assert_eq!(calls.get(), 0, "no fetch for the dev root");
+        assert_eq!(f.installed_version().as_deref(), Some("1.2.0"));
+    }
+
+    #[test]
+    fn a_directory_bundle_of_the_identifier_is_replaced_and_its_data_moves_to_the_pair() {
+        let f = fixture();
+        let directory = f.directory_bundle();
+        assert!(f.layout.grants_file(&app()).exists());
+
+        let prepared = f
+            .dev(NOW, &Dialog::answering(Button::Install).ask(), &stops())
+            .unwrap();
+        assert!(prepared.replaced);
+        assert_eq!(prepared.installed, directory, "the same name, now a file");
+        assert!(directory.is_file());
+        assert!(
+            install::find(&f.layout, &app()).is_none(),
+            "no directory Bundle"
+        );
+        assert_eq!(f.applications(), ["Dev.oma"], "nothing is left beside it");
+        let data = f.layout.pair_data_dir(&f.root(), &app());
+        assert_eq!(fs::read_to_string(data.join("notes.db")).unwrap(), "notes");
+        assert!(!f.layout.data_dir(&app()).exists());
+        assert!(
+            !f.layout.grants_file(&app()).exists(),
+            "the directory Bundle's consent record goes with it"
+        );
+    }
+
+    #[test]
+    fn a_cancel_leaves_the_directory_bundle_and_its_data_where_they_were() {
+        let f = fixture();
+        f.directory_bundle();
+        let e = f
+            .dev(NOW, &Dialog::answering(Button::Cancel).ask(), &stops())
+            .unwrap_err();
+        assert!(matches!(e, Error::Cancelled), "{e}");
+        assert!(install::find(&f.layout, &app()).is_some());
+        let old = f.layout.data_dir(&app()).join("notes.db");
+        assert_eq!(fs::read_to_string(old).unwrap(), "notes");
+        assert!(f.layout.grants_file(&app()).exists());
+        assert!(!f.layout.pair_dir(&f.root(), &app()).exists());
+    }
+
+    #[test]
+    fn a_data_move_that_fails_puts_the_directory_bundle_back() {
+        let f = fixture();
+        f.directory_bundle();
+        // The pair's directory is a file, so its data directory cannot be made.
+        dev_key::DevKey::load_or_create(&f.layout).unwrap();
+        let pair_dir = f.layout.pair_dir(&f.root(), &app());
+        fs::create_dir_all(pair_dir.parent().unwrap()).unwrap();
+        fs::write(&pair_dir, "in the way").unwrap();
+
+        let e = f
+            .dev(NOW, &Dialog::answering(Button::Install).ask(), &stops())
+            .unwrap_err();
+        assert!(
+            matches!(e, Error::Install(install::Error::Io { .. })),
             "{e}"
         );
+        assert!(install::find(&f.layout, &app()).is_some(), "put back");
+        assert_eq!(f.applications(), ["Dev.oma"], "nothing beside it");
+        let old = f.layout.data_dir(&app()).join("notes.db");
+        assert_eq!(fs::read_to_string(old).unwrap(), "notes");
+        assert!(f.layout.grants_file(&app()).exists());
+    }
+
+    #[test]
+    fn data_is_never_merged_into_the_pairs() {
+        let f = fixture();
+        f.directory_bundle();
+        // The dev key is made, and the pair already has data of its own.
+        dev_key::DevKey::load_or_create(&f.layout).unwrap();
+        let data = f.layout.pair_data_dir(&f.root(), &app());
+        fs::create_dir_all(&data).unwrap();
+        fs::write(data.join("notes.db"), "newer").unwrap();
+
+        let dialog = Dialog::answering(Button::Install);
+        let e = f.dev(NOW, &dialog.ask(), &stops()).unwrap_err();
+        assert!(matches!(e, Error::DevData { .. }), "{e}");
+        assert_eq!(dialog.count(), 0, "refused before anyone is asked");
+        assert!(install::find(&f.layout, &app()).is_some());
+        let old = f.layout.data_dir(&app()).join("notes.db");
+        assert_eq!(fs::read_to_string(old).unwrap(), "notes");
+        assert_eq!(fs::read_to_string(data.join("notes.db")).unwrap(), "newer");
+    }
+
+    /// The fixture's application as `Other.oma`, signed under a fixture root that is not the dev
+    /// root, and that root's key set as its publisher serves it.
+    fn released(f: &Fixture) -> (PathBuf, fetch::KeySet) {
+        use crate::trust::{Context, OmaKeys, ReleaseKey, SigningKey};
+        let root = SigningKey::from_seed(&[0x11; 32]).unwrap();
+        let release = SigningKey::from_seed(&[0x22; 32]).unwrap();
+        let dir = f.project.parent().unwrap().join("released");
+        fs::create_dir_all(&dir).unwrap();
+        let text = fs::read_to_string(f.project.join("manifest.toml")).unwrap();
+        fs::write(
+            dir.join("manifest.toml"),
+            text.replace("\"Dev\"", "\"Other\""),
+        )
+        .unwrap();
+        let file = crate::bundle::write_file(
+            &f.project.join("target/app"),
+            &dir.join("manifest.toml"),
+            &dir,
+            &[crate::bundle::Include::parse(&format!(
+                "{}=bin/d",
+                f.project.join("../tool").display()
+            ))
+            .unwrap()],
+            &crate::bundle::Signing {
+                release: release.clone(),
+                root: root.public_key().key_id(),
+                version: 7,
+                issued_at: Timestamp::from_unix_seconds(NOW).unwrap(),
+                expires_at: Timestamp::from_unix_seconds(NOW + DAY).unwrap(),
+                update_url: None,
+            },
+        )
+        .unwrap();
+        let set = OmaKeys {
+            root_public_key: root.public_key(),
+            root_key_id: root.public_key().key_id(),
+            version: 1,
+            keys: vec![ReleaseKey {
+                id: release.public_key().key_id(),
+                not_after: Timestamp::from_unix_seconds(NOW + DAY).unwrap(),
+                public_key: release.public_key(),
+            }],
+        };
+        let body = set.to_canonical().unwrap();
+        let signature = root.sign(Context::KEYS, &body).0.to_vec();
+        (file, fetch::KeySet { body, signature })
+    }
+
+    #[test]
+    fn one_copy_of_an_application_is_installed_whatever_its_root() {
+        // A dev copy refuses a released one, by app id and not by file name...
+        let f = fixture();
+        let dialog = Dialog::answering(Button::Install);
+        f.dev(NOW, &dialog.ask(), &stops()).unwrap();
+        let (file, _) = released(&f);
+        let e = install_file(
+            &f.layout,
+            &file,
+            true,
+            NOW,
+            &dialog.ask(),
+            &|_| unreachable!(),
+        )
+        .unwrap_err();
+        assert!(matches!(e, Error::InstalledUnderOtherRoot { .. }), "{e}");
+        let host = HostEnv {
+            uid: 1000,
+            gid: 1000,
+            runtime_dir: None,
+            wayland_display: None,
+        };
+        let e = open_file(
+            &f.layout,
+            &host,
+            &file,
+            false,
+            NOW,
+            &dialog.ask(),
+            &|_| unreachable!(),
+        )
+        .unwrap_err();
+        assert!(matches!(e, Error::InstalledUnderOtherRoot { .. }), "{e}");
+
+        // ...and a released copy refuses a dev build, naming it, before anyone is asked.
+        let f = fixture();
+        let (file, set) = released(&f);
+        let installed = install_file(
+            &f.layout,
+            &file,
+            false,
+            NOW,
+            &Dialog::answering(Button::Install).ask(),
+            &|_| Ok(set.clone()),
+        )
+        .unwrap();
+        let dialog = Dialog::answering(Button::Install);
+        let stopper = stops();
+        let e = f.dev(NOW, &dialog.ask(), &stopper).unwrap_err();
+        match e {
+            Error::InstalledUnderOtherRoot { path, .. } => assert_eq!(path, installed),
+            e => panic!("{e}"),
+        }
+        assert_eq!(dialog.count(), 0);
+        assert!(stopper.0.borrow().is_empty());
+        assert_eq!(f.applications(), ["Other.oma"]);
     }
 
     #[test]
