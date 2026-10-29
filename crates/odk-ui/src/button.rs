@@ -1,10 +1,12 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent,
-    ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement, KeyDownEvent,
+    KeyUpEvent, ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled,
+    Window, div, px,
 };
 
+use odk_theme::Color;
 use odk_theme::component::{
     ButtonAppearance, ButtonLayout, ButtonStyle, ButtonVariant, ComponentTokens, States,
 };
@@ -19,7 +21,7 @@ use crate::focus::{child_id, focus_handle, part_name};
 use crate::interaction::{Pointer, focus_ring, pointer_states, progress};
 use crate::layout::StyledExt;
 use crate::spinner::Spinner;
-use crate::theme::mono;
+use crate::theme::{colour, mono};
 
 /// A control's size relative to the density it would otherwise take: `Md` is that density,
 /// `Sm` one step tighter and `Lg` one step roomier, stopping at compact and comfortable, so a
@@ -62,6 +64,44 @@ pub struct Chord {
 
 /// The GPUI group a larger pointer target gives its button's face.
 const TARGET_GROUP: &str = "odk-button-target";
+/// The GPUI group a face that takes the pointer itself gives a mark it paints.
+const FACE_GROUP: &str = "odk-button-face";
+
+/// A painted mark's bar, as a share of the icon's size: ODK's own, the proportions of a common
+/// icon set's minus and plus, 14 of 24 long and 2 of 24 thick (ADR 0078).
+const MARK_LENGTH: f32 = 14.0 / 24.0;
+const MARK_THICKNESS: f32 = 2.0 / 24.0;
+
+/// A mark a button paints instead of setting it in the font (ADR 0078): a font draws `−`
+/// narrower than `+`, so a number field's two steppers would not match.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mark {
+    Minus,
+    Plus,
+}
+
+impl Mark {
+    /// The character the mark stands for, which the button keeps as its icon.
+    pub(crate) const fn character(self) -> &'static str {
+        match self {
+            Self::Minus => "−",
+            Self::Plus => "+",
+        }
+    }
+}
+
+/// A painted mark's bar in a square `size` whole pixels wide: its length and its thickness, at
+/// least one pixel. The length takes the thickness's parity, so a plus's two bars cross at the
+/// middle of each other on whole pixels.
+pub(crate) fn mark_bar(size: f32) -> (f32, f32) {
+    let thickness = (size * MARK_THICKNESS).round().max(1.0);
+    let exact = size * MARK_LENGTH;
+    let mut length = exact.round();
+    if (length - thickness) % 2.0 != 0.0 {
+        length += if length > exact { -1.0 } else { 1.0 };
+    }
+    (length, thickness)
+}
 
 /// A button: a label, an icon before or after it, or an icon alone (`Button::icon`), in one of
 /// eight variants (`ButtonVariant`) at the application's density or its own.
@@ -106,6 +146,8 @@ pub struct Button {
     /// Takes no focus from the pointer, so a press leaves it where it was: a field's own
     /// buttons, which act on the field without taking its caret or selection.
     pub(crate) keeps_focus: bool,
+    /// Painted in place of the leading icon's character (ADR 0078).
+    mark: Option<Mark>,
     applied: Applied,
 }
 
@@ -131,6 +173,7 @@ impl Button {
             in_field: false,
             skip_tab: false,
             keeps_focus: false,
+            mark: None,
             applied: Applied::default(),
         }
     }
@@ -239,6 +282,17 @@ impl Button {
     }
 
     /// Draws the button inside a field's box, lower than the field.
+    /// An icon-only button that paints `mark` (ADR 0078), keeping its character as its icon.
+    pub(crate) fn mark(
+        id: impl Into<ElementId>,
+        mark: Mark,
+        name: impl Into<SharedString>,
+    ) -> Self {
+        let mut button = Self::icon(id, mark.character(), name);
+        button.mark = Some(mark);
+        button
+    }
+
     pub(crate) fn in_field(mut self) -> Self {
         self.in_field = true;
         self
@@ -326,6 +380,65 @@ impl Describe for Button {
     }
 }
 
+/// `mark` painted in a square of the icon's size, centred on whole pixels, in the button's text
+/// colour in each state (ADR 0078). `group` is the GPUI group that takes the pointer for the
+/// button.
+fn painted(id: &ElementId, mark: Mark, style: &ButtonStyle, group: SharedString) -> Div {
+    let size = style.geometry.icon_size.round();
+    let (length, thickness) = mark_bar(size);
+    let along = ((size - length) / 2.0).floor();
+    let across = ((size - thickness) / 2.0).floor();
+    // The text colour a character would take: at rest, under the pointer and pressed.
+    let inks = [
+        style.colours.default.foreground,
+        style.colours.hover.foreground,
+        style.colours.pressed.foreground,
+    ];
+    #[cfg(test)]
+    crate::drawn::record(&part_name(id, "mark"), inks);
+    let bar = |part: &'static str, left: f32, top: f32, width: f32, height: f32| {
+        let name = part_name(id, part);
+        let bar = div()
+            .debug_selector(|| name)
+            .absolute()
+            .left(px(left))
+            .top(px(top))
+            .w(px(width))
+            .h(px(height));
+        ink(bar, child_id(id, part), inks, style.responds, group.clone())
+    };
+    let mut el = div()
+        .relative()
+        .size_full()
+        .child(bar("mark", along, across, length, thickness));
+    if mark == Mark::Plus {
+        el = el.child(bar("mark-upright", across, along, thickness, length));
+    }
+    el
+}
+
+/// A painted bar in `inks`, the text colours of [`painted`]: at rest, and, when the button
+/// responds and they differ from it, while `group` is under the pointer or pressed. Only then
+/// does the bar listen to the pointer, under `id`.
+fn ink(
+    bar: Div,
+    id: ElementId,
+    inks: [Color; 3],
+    responds: bool,
+    group: SharedString,
+) -> AnyElement {
+    let [rest, hover, pressed] = inks;
+    let bar = bar.bg(colour(rest));
+    if !responds || (hover == rest && pressed == rest) {
+        return bar.into_any_element();
+    }
+    let (hover, pressed) = (colour(hover), colour(pressed));
+    bar.id(id)
+        .group_hover(group.clone(), move |s| s.bg(hover))
+        .group_active(group, move |s| s.bg(pressed))
+        .into_any_element()
+}
+
 /// One icon of `style`'s size, in the button's text colour.
 fn glyph(style: &ButtonStyle, icon: SharedString) -> Div {
     let size = px(style.geometry.icon_size);
@@ -378,6 +491,11 @@ impl RenderOnce for Button {
             Some(_) => child_id(&self.id, "face"),
             None => self.id.clone(),
         };
+        // A painted mark follows the pointer through the group that takes it.
+        let group: SharedString = match &pointer {
+            Pointer::Group(group) => group.clone(),
+            Pointer::Own => FACE_GROUP.into(),
+        };
 
         let mut face = div()
             .id(face_id)
@@ -393,6 +511,9 @@ impl RenderOnce for Button {
             None if self.full_width => face.w_full().min_w_0(),
             None => face.flex_shrink_0(),
         };
+        if self.mark.is_some() && target.is_none() {
+            face = face.group(FACE_GROUP);
+        }
         if s.underline {
             face = face.underline();
         }
@@ -414,7 +535,7 @@ impl RenderOnce for Button {
                 .child(Spinner::new(child_id(&self.id, "spinner")).glyph_size(s.spinner_size))
         };
         let spinner_on_icon = self.leading.is_some() || self.trailing.is_some();
-        let icon = |icon: SharedString, part: &str, takes_spinner: bool| {
+        let icon = |content: Div, part: &str, takes_spinner: bool| {
             let name = part_name(&self.id, part);
             let shown = if takes_spinner { 1.0 - busy } else { 1.0 };
             let slot = div()
@@ -422,7 +543,7 @@ impl RenderOnce for Button {
                 .relative()
                 .flex_shrink_0()
                 .size(px(g.icon_size))
-                .child(glyph(&s, icon).opacity(shown));
+                .child(content.opacity(shown));
             if takes_spinner && busy > 0.0 {
                 slot.child(spinner("spinner"))
             } else {
@@ -432,7 +553,11 @@ impl RenderOnce for Button {
 
         let has_leading = self.leading.is_some();
         if let Some(leading) = self.leading {
-            face = face.child(icon(leading, "icon", true));
+            let content = match self.mark {
+                Some(mark) => painted(&self.id, mark, &s, group.clone()),
+                None => glyph(&s, leading),
+            };
+            face = face.child(icon(content, "icon", true));
         }
         let flow = self.applied.flow(FlowKind::End);
         let mut clipped = false;
@@ -452,7 +577,7 @@ impl RenderOnce for Button {
             );
         }
         if let Some(trailing) = self.trailing {
-            face = face.child(icon(trailing, "trailing-icon", !has_leading));
+            face = face.child(icon(glyph(&s, trailing), "trailing-icon", !has_leading));
         }
         if !spinner_on_icon && busy > 0.0 {
             face = face.child(spinner("spinner"));
