@@ -194,3 +194,30 @@ fn a_control_that_fills_its_parent_leaves_the_words_their_room(cx: &mut TestAppC
         "the select took the words' room: {words:?} in {item:?}"
     );
 }
+
+/// Item 23: under a scroll region, as on a settings page, a description that wraps keeps the
+/// words inside the item: the words column is as tall as its lines, not as tall as the
+/// description would be one word wide, which would centre it far above the item.
+#[gpui::test]
+fn a_wrapped_description_stays_inside_its_item_on_a_scrolling_page(cx: &mut TestAppContext) {
+    let long = "How a high-resolution or free-spin mouse wheel is turned into scroll events. \
+                Smooth keeps the fine motion. Stepped turns it into clicks.";
+    let cx = open(cx, move |_, _| {
+        v_flex().w(px(900.0)).h(px(700.0)).child(
+            crate::scroll_y("page").child(
+                crate::content_column().child(
+                    Item::new("Scroll inertia")
+                        .description(long)
+                        .child(Text::new("~/.config/hypr/input.lua").mono().muted())
+                        .action(Select::new("inertia", "Scroll inertia").item("1", "Default")),
+                ),
+            ),
+        )
+    });
+    let item = bounds(cx, "odk-item/Scroll inertia");
+    let words = bounds(cx, "odk-item/Scroll inertia/words");
+    assert!(
+        words.top() >= item.top() && words.bottom() <= item.bottom(),
+        "the words {words:?} spill out of the item {item:?}"
+    );
+}
