@@ -19,6 +19,7 @@
 #                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd-files.socket,odkd.service,
 #                       oma-register.service,oma-applications.path,oma-inbox@.path}
 #                   ${XDG_DATA_HOME:-~/.local/share}/mime/packages/oma.xml
+#                   ${XDG_DATA_HOME:-~/.local/share}/doc/odk/{LICENSE,THIRD-PARTY-LICENSES}
 #
 # Running it again upgrades. `ODK_BASE_URL` names another place to download from, for tests.
 set -eu
@@ -91,13 +92,13 @@ if [ "$action" = uninstall ]; then
     for file in "$bin/odk" "$lib/odk-oma" "$lib/oma-consent" "$lib/odkd" \
         "$units/odkd.socket" "$units/odkd-files.socket" "$units/odkd.service" \
         "$units/oma-register.service" "$units/oma-applications.path" "$units/oma-inbox@.path" \
-        "$mime/packages/oma.xml"; do
+        "$mime/packages/oma.xml" "$data/doc/odk/LICENSE" "$data/doc/odk/THIRD-PARTY-LICENSES"; do
         if [ -e "$file" ]; then
             rm -f "$file"
             say "removed $file"
         fi
     done
-    rmdir "$lib" 2>/dev/null || true
+    rmdir "$lib" "$data/doc/odk" 2>/dev/null || true
     if have_user_manager; then systemctl --user daemon-reload || true; fi
     if [ -d "$mime/packages" ]; then refresh_types; fi
     say "done; application data under ~/.local/share/oma is kept"
@@ -202,6 +203,12 @@ if [ -f "$src/share/systemd/user/oma-register.service" ] && [ ! -L "$src/share/s
 fi
 put 644 "$src/share/mime/packages/oma.xml" "$mime/packages/oma.xml"
 refresh_types
+# ODK's licence and those of what its programs contain (ADR 0081); a release before them has none.
+for doc in LICENSE THIRD-PARTY-LICENSES; do
+    if [ -f "$src/share/doc/odk/$doc" ] && [ ! -L "$src/share/doc/odk/$doc" ]; then
+        put 644 "$src/share/doc/odk/$doc" "$data/doc/odk/$doc"
+    fi
+done
 
 # --- start --------------------------------------------------------------------------------
 if have_user_manager; then

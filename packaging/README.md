@@ -11,6 +11,7 @@ from the repository except `tools/package-release`.
 | `~/.local/lib/odk/odk-oma`, `oma-consent`, `odkd` | the programs behind it |
 | `~/.config/systemd/user/odkd.socket`, `odkd-files.socket`, `odkd.service` | `systemd/user/` |
 | `~/.local/share/mime/packages/oma.xml` | `mime/oma.xml` |
+| `~/.local/share/doc/odk/LICENSE`, `THIRD-PARTY-LICENSES` | the repository's `LICENSE`, and what `tools/third-party-licenses` writes for the four programs (ADR 0081) |
 
 It then enables `odkd.socket` and `odkd-files.socket` for the user's session; the first
 connection to either starts `odkd`, which tells the two apart by their names (`host` and
@@ -21,6 +22,7 @@ file manager knows a `.oma` file as a kind of disk image (ADR 0065). The units f
 no user name. `sh install.sh --uninstall` removes exactly these files.
 
 A release is built here, with no CI: `cargo build --release --locked -p odk-cli -p oma -p oma-consent -p odkd`, then
+`tools/third-party-licenses Cargo.toml target/release/THIRD-PARTY-LICENSES odk-cli oma oma-consent odkd` (ADR 0081), then
 `tools/package-release target/release <dir> <tag>`, which makes `odk-x86_64-linux.tar.gz`, its `.sha256` and a copy of
 `install.sh`; those three are the release, uploaded with `gh release create <tag> <dir>/*`. The installer's test builds a
 tarball with the same script, so the layout cannot drift.

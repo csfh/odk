@@ -3,7 +3,9 @@
 #
 #   tools/package-release BIN_DIR OUT_DIR VERSION
 #
-# BIN_DIR holds the built `odk`, `odk-oma`, `oma-consent` and `odkd`. OUT_DIR gets
+# BIN_DIR holds the built `odk`, `odk-oma`, `oma-consent` and `odkd`, and THIRD-PARTY-LICENSES,
+# their licences as `tools/third-party-licenses Cargo.toml BIN_DIR/THIRD-PARTY-LICENSES odk-cli
+# oma oma-consent odkd` writes them (ADR 0081); this script runs no cargo. OUT_DIR gets
 # `odk-x86_64-linux.tar.gz` and `odk-x86_64-linux.tar.gz.sha256`, and a copy of `install.sh`.
 # The layout inside the tarball is the one `install.sh` installs:
 #
@@ -11,6 +13,7 @@
 #   odk/share/systemd/user/{odkd.socket,odkd-files.socket,odkd.service,
 #       oma-register.service,oma-applications.path,oma-inbox@.path}
 #   odk/share/mime/packages/oma.xml
+#   odk/share/doc/odk/{LICENSE,THIRD-PARTY-LICENSES}
 #
 # CI and the installer's test both call this, so the asset names and the layout cannot drift.
 set -euo pipefail
@@ -23,12 +26,16 @@ name=odk-x86_64-linux
 for program in odk odk-oma oma-consent odkd; do
     [[ -x $bin/$program ]] || { echo "package-release: no $bin/$program" >&2; exit 1; }
 done
+[[ -f $bin/THIRD-PARTY-LICENSES ]] || {
+    echo "package-release: no $bin/THIRD-PARTY-LICENSES (tools/third-party-licenses)" >&2
+    exit 1
+}
 [[ $version =~ ^[A-Za-z0-9._-]+$ ]] || { echo "package-release: bad version '$version'" >&2; exit 2; }
 
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/odk/bin" "$stage/odk/lib/odk" "$stage/odk/share/systemd/user" \
-    "$stage/odk/share/mime/packages" "$out"
+    "$stage/odk/share/mime/packages" "$stage/odk/share/doc/odk" "$out"
 install -m 755 "$bin/odk" "$stage/odk/bin/odk"
 for program in odk-oma oma-consent odkd; do
     install -m 755 "$bin/$program" "$stage/odk/lib/odk/$program"
@@ -40,6 +47,7 @@ install -m 644 "$root/packaging/systemd/user/odkd.socket" \
     "$root/packaging/systemd/user/oma-inbox@.path" \
     "$stage/odk/share/systemd/user/"
 install -m 644 "$root/packaging/mime/oma.xml" "$stage/odk/share/mime/packages/oma.xml"
+install -m 644 "$root/LICENSE" "$bin/THIRD-PARTY-LICENSES" "$stage/odk/share/doc/odk/"
 printf '%s\n' "$version" >"$stage/odk/VERSION"
 
 # The same bytes for the same inputs: sorted, no owner, no times, no gzip name or time.
