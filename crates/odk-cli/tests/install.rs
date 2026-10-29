@@ -87,6 +87,8 @@ impl World {
                 &format!("#!/bin/sh\necho '{says} {version}'\n"),
             );
         }
+        // What `tools/third-party-licenses` writes; its content is not this test's.
+        fs::write(bin.join("THIRD-PARTY-LICENSES"), "Third-party licences\n").unwrap();
         let out = Command::new(repo().join("tools/package-release"))
             .arg(&bin)
             .arg(self.root.join("release"))
@@ -181,7 +183,7 @@ fn skip_as_root() -> bool {
     String::from_utf8_lossy(&id.stdout).trim() == "0"
 }
 
-const FILES: [&str; 11] = [
+const FILES: [&str; 13] = [
     ".local/bin/odk",
     ".local/lib/odk/odk-oma",
     ".local/lib/odk/oma-consent",
@@ -193,6 +195,8 @@ const FILES: [&str; 11] = [
     ".config/systemd/user/oma-applications.path",
     ".config/systemd/user/oma-inbox@.path",
     ".local/share/mime/packages/oma.xml",
+    ".local/share/doc/odk/LICENSE",
+    ".local/share/doc/odk/THIRD-PARTY-LICENSES",
 ];
 
 #[test]
@@ -222,11 +226,12 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
                 .permissions()
                 .mode()
                 & 0o777;
-            let want = if file.contains("systemd") || file.ends_with(".xml") {
-                0o644
-            } else {
-                0o755
-            };
+            let want =
+                if file.contains("systemd") || file.ends_with(".xml") || file.contains("/doc/") {
+                    0o644
+                } else {
+                    0o755
+                };
             assert_eq!(mode, want, "{file}");
         }
         assert!(
@@ -601,6 +606,10 @@ fn uninstall_removes_what_was_installed_and_nothing_else() {
     assert!(
         !w.home().join(".local/lib/odk").exists(),
         "the empty directory goes too"
+    );
+    assert!(
+        !w.home().join(".local/share/doc/odk").exists(),
+        "and the licences' directory"
     );
     for kept in [
         ".local/bin/other",

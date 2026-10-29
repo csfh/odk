@@ -11,6 +11,12 @@ description = "ODK's UI components, built on GPUI and following the Omarchy them
 # component (`test_support`, `samples`). Not for applications.
 test-support = ["gpui/test-support"]
 
+# What odk-ui embeds that is not a crate, for tools/third-party-licenses (ADR 0081).
+[package.metadata.odk]
+third-party = [
+    { name = "Remix Icon", version = "4.8.0", license = "Apache-2.0", files = ["icons/remixicon/LICENSE"] },
+]
+
 [dependencies]
 deps.workspace = true
 async-channel = "2"

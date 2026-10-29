@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Writes the third-party licences of programs built with Cargo, for a release or a Bundle to
+carry beside them (ADR 0081).
+
+    tools/third-party-licenses MANIFEST_PATH OUT PACKAGE...
+
+PACKAGE names a package of MANIFEST_PATH's workspace whose program is shipped. Everything those
+packages reach through normal dependencies on x86_64 Linux is listed: each crate with its
+version, licence expression and repository, then its licence and notice files. Dev and build
+dependencies are left out, since no code of theirs is in a program. The workspace's own members
+are the programs, not third-party, and are not listed. A text several crates ship is printed
+once, and the others name the crate it is printed under.
+
+A crate's files are the ones at its top: LICENSE*, LICENCE*, COPYING*, NOTICE* and UNLICENSE*.
+A crate that links native code (`links` in its manifest) is searched three levels down too, for
+the licence of a bundled library. A path dependency outside the workspace with no file of its
+own takes the nearest one above it, up to its repository's root: ODK's crates, seen from an
+application, are under ODK's LICENSE. A crate that ships no file is listed with its expression.
+Assets a package embeds that are not crates (ODK's icons) are declared in its manifest under
+[package.metadata.odk] third-party, with the files that hold their licences.
+
+The output is the same bytes for the same Cargo.lock and sources: sorted, with no times and no
+paths outside the packages. `cargo metadata` runs --locked and --offline, so the sources must be
+in Cargo's cache already, as they are after a build."""
+
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+PATTERNS = ("licen", "copying", "notice", "unlicense", "ftl.txt", "gplv")
+TARGET = "x86_64-unknown-linux-gnu"
+RULE = "=" * 79
+
+
+def licence_files(directory: Path, depth: int) -> list[Path]:
+    """The licence files in `directory`, `depth` levels down at most, in name order."""
+    found = []
+    level = [directory]
+    for _ in range(depth):
+        below = []
+        for d in level:
+            for entry in sorted(d.iterdir(), key=lambda p: p.name):
+                if entry.is_file() and entry.name.lower().startswith(PATTERNS):
+                    found.append(entry)
+                elif entry.is_dir() and not entry.name.startswith(".") and entry.name != "target":
+                    below.append(entry)
+        level = below
+    return found
+
+
+def climb(directory: Path) -> list[Path]:
+    """The nearest licence files above a path dependency, up to the root of its repository."""
+    here = directory
+    while True:
+        if here != directory:
+            files = licence_files(here, 1)
+            if files:
+                return files
+        if (here / ".git").exists() or here.parent == here:
+            return []
+        here = here.parent
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 4:
+        print(__doc__.splitlines()[3].strip(), file=sys.stderr)
+        return 2
+    manifest, out, roots = argv[1], Path(argv[2]), set(argv[3:])
+    meta = json.loads(
+        subprocess.run(
+            ["cargo", "metadata", "--manifest-path", manifest, "--format-version", "1",
+             "--locked", "--offline", "--filter-platform", TARGET],
+            check=True, capture_output=True, text=True,
+        ).stdout
+    )
+    packages = {p["id"]: p for p in meta["packages"]}
+    members = set(meta["workspace_members"])
+    start = [i for i in members if packages[i]["name"] in roots]
+    missing = roots - {packages[i]["name"] for i in start}
+    if missing:
+        print(f"third-party-licenses: no package {', '.join(sorted(missing))}", file=sys.stderr)
+        return 1
+    edges = {
+        node["id"]: [
+            d["pkg"] for d in node["deps"] if any(k["kind"] is None for k in d["dep_kinds"])
+        ]
+        for node in meta["resolve"]["nodes"]
+    }
+    reached, todo = set(start), list(start)
+    while todo:
+        for dep in edges.get(todo.pop(), []):
+            if dep not in reached:
+                reached.add(dep)
+                todo.append(dep)
+
+    shown: dict[str, str] = {}
+
+    def texts(owner: str, base: Path, files: list[Path]) -> list[str]:
+        lines = []
+        for f in files:
+            # Relative to the package, `../../LICENSE` for one above it: never a path of this
+            # machine's.
+            name = Path(os.path.relpath(f, base)).as_posix()
+            text = f.read_text(encoding="utf-8", errors="replace").strip("\n")
+            digest = hashlib.sha256(text.encode()).hexdigest()
+            if digest in shown:
+                lines.append(f"{name}: the same text as {shown[digest]}.")
+            else:
+                shown[digest] = f"{owner}'s {name}"
+                lines += [f"{name}:", "", text, ""]
+        return lines
+
+    body: list[str] = []
+    assets = []
+    for i in sorted(reached):
+        p = packages[i]
+        for a in ((p.get("metadata") or {}).get("odk") or {}).get("third-party", []):
+            assets.append((a["name"], a["version"], a["license"], p["name"], a["files"],
+                           Path(p["manifest_path"]).parent))
+    if assets:
+        body += [RULE, "Assets", RULE, ""]
+        for name, version, licence, owner, files, base in sorted(set(
+            (n, v, l, o, tuple(f), b) for n, v, l, o, f, b in assets
+        )):
+            body += [f"{name} {version}", f"{licence}. Embedded in {owner}.", ""]
+            body += texts(f"{name} {version}", base, [base / f for f in files])
+    crates = sorted(
+        (packages[i] for i in reached if i not in members),
+        key=lambda p: (p["name"], [int(x) if x.isdigit() else x for x in
+                                    p["version"].replace("+", ".").replace("-", ".").split(".")]),
+    )
+    body += [RULE, "Crates", RULE, ""]
+    for p in crates:
+        base = Path(p["manifest_path"]).parent
+        files = licence_files(base, 3 if p.get("links") else 1)
+        if not files and p.get("source") is None:
+            files = climb(base)
+        owner = f"{p['name']} {p['version']}"
+        body += [owner, f"{p.get('license') or 'No licence expression'}."
+                 + (f" {p['repository']}" if p.get("repository") else ""), ""]
+        if files:
+            body += texts(owner, base, files)
+        else:
+            body += ["The published crate has no licence file; its licence is the expression above.", ""]
+    head = [
+        "Third-party licences",
+        "",
+        f"{', '.join(sorted(roots))} {'contains' if len(roots) == 1 else 'contain'} the following,"
+        " each under its own licence.",
+        "A text that several of them ship is printed once, and the others name the one it is under.",
+        "",
+    ]
+    out.write_text("\n".join(head + body).rstrip("\n") + "\n", encoding="utf-8")
+    print(out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
