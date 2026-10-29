@@ -102,6 +102,11 @@ impl Layout {
             .join("oma-keys.version")
     }
 
+    /// The inbox watches `--register` has enabled, one unit name a line (ADR 0015).
+    pub fn inbox_watches_file(&self) -> PathBuf {
+        self.state.join("inbox-watches")
+    }
+
     /// Where every pair's record is, one directory per root.
     pub fn pairs_dir(&self) -> PathBuf {
         self.state.join("grants")
