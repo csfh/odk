@@ -88,6 +88,10 @@ pub enum Error {
         "{app}'s publisher key is already pinned; installing again under a pinned key is not built yet (issue #14)"
     )]
     PinnedRootNotBuilt { app: Identifier },
+    #[error(
+        "this {app} is not the installed one; install it with `odk oma install` (opening a Bundle file that is not installed is not built yet, issue #14)"
+    )]
+    NotInstalledFile { app: Identifier },
 }
 
 /// What the Bundle's consent record does not cover yet.
@@ -130,6 +134,19 @@ pub fn run(
     wait: bool,
     ask: Ask,
 ) -> Result<i32, Error> {
+    // A Bundle file: the path given, or the installed one for an Identifier with no installed
+    // directory Bundle.
+    let file = match target.parse::<Identifier>() {
+        Ok(id) if install::find(layout, &id).is_none() => install::find_file(layout, &id),
+        Ok(_) => None,
+        Err(_) => Some(PathBuf::from(target)).filter(|p| p.is_file()),
+    };
+    if let Some(file) = file {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64);
+        return run_file(layout, host, &file, wait, now);
+    }
     let bundle = launch::resolve(layout, target)?;
     launch::preflight(&bundle)?;
     let missing = missing(layout, &bundle)?;
@@ -570,6 +587,49 @@ pub fn install_file(
     pair.mark = Some(mark);
     grants::save_pair(layout, app, &pair)?;
     Ok(target)
+}
+
+/// `odk oma run` of an installed Bundle file (ADR 0060, sections 4 and 5; ADR 0067). It is
+/// sealed and checked again, its image read, and it runs only as exactly the file its install
+/// accepted: its pin is there, and its version and payload digest are the mark's. That ties the
+/// launch to bytes whose release key was authorized then, with no key set fetched and no
+/// network. Past its signature window it says so in one line and runs. A file that is not
+/// installed, or another version of one that is, is not run yet: opening one is the
+/// first-install or upgrade flow, which is not built (issue #14).
+pub fn run_file(
+    layout: &Layout,
+    host: &HostEnv,
+    path: &Path,
+    wait: bool,
+    now: i64,
+) -> Result<i32, Error> {
+    let sealed = Sealed::memfd(path)?;
+    let checked = trust::check(&sealed)?;
+    let image = Image::read(&checked)?;
+    let signed = checked.signed().manifest();
+    let app = &signed.app_id;
+    let pair = grants::load_pair(layout, &signed.root_key_id, app)?
+        .filter(|pair| !pair.denied && pair.root.key_id() == signed.root_key_id)
+        .ok_or_else(|| Error::NotInstalledFile { app: app.clone() })?;
+    let mark = Mark {
+        version: signed.version,
+        payload_sha256: signed.payload_sha256,
+    };
+    if pair.mark != Some(mark) {
+        return Err(Error::NotInstalledFile { app: app.clone() });
+    }
+    if signed.expires_at.unix_seconds() < now {
+        eprintln!("odk oma: {app} is past its signature window and keeps running.");
+    }
+    let granted = pair.permissions.unwrap_or_default();
+    Ok(launch::run_file(
+        layout,
+        &image,
+        &signed.root_key_id,
+        &granted,
+        host,
+        wait,
+    )?)
 }
 
 /// The host of an `https` URL: what comes after `https://` and before the path, query or
@@ -1674,6 +1734,45 @@ mod signed_tests {
             });
         }
         assert!(!layout.applications().join("Notes.oma").exists());
+    }
+
+    #[test]
+    fn only_the_installed_file_runs_under_its_pin() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let path = bundle_file(&dir, |t| t, |_| {});
+        let host = HostEnv {
+            uid: 1000,
+            gid: 1000,
+            runtime_dir: None,
+            wayland_display: None,
+        };
+        // Not installed at all.
+        assert!(matches!(
+            run_file(&layout, &host, &path, true, soon()),
+            Err(Error::NotInstalledFile { .. })
+        ));
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let installed = install_with(
+            &layout,
+            &path,
+            false,
+            soon(),
+            &Dialog::answering(&[Button::Install]),
+            &site,
+        )
+        .unwrap();
+        // Another version under the same pin is not the installed one.
+        let newer = bundle_file(&dir, |t| t, |m| m.version = 8);
+        assert!(matches!(
+            run_file(&layout, &host, &newer, true, soon()),
+            Err(Error::NotInstalledFile { .. })
+        ));
+        // The installed one gets as far as the launch, which needs a runtime directory.
+        assert!(!matches!(
+            run_file(&layout, &host, &installed, true, soon()),
+            Err(Error::NotInstalledFile { .. })
+        ));
     }
 
     #[test]

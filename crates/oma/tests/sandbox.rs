@@ -542,3 +542,34 @@ fn the_application_hears_odkd_through_a_read_only_directory_and_sees_none_of_oma
         "{r:?}"
     );
 }
+
+#[test]
+fn an_installed_bundle_file_runs_from_a_read_only_tmpfs_at_app() {
+    if !supported() {
+        return;
+    }
+    let w = World::new();
+    let data = w.install_file("");
+    let (out, r) = w.run_wait();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(r["exe"], "/app/probe");
+    assert_eq!(r["write_app"], "30", "the tree is read-only");
+    assert_eq!(r["root"], "app,bin,dev,etc,lib,lib64,proc,run,sbin,tmp,usr");
+    // Its data is the pair's (ADR 0060, section 2), not the Identifier's.
+    assert!(data.join("written-by-probe").exists());
+    assert!(!w.data.join("written-by-probe").exists());
+
+    // Another file under the same name is not the installed one, and does not run.
+    let apps = w.home.join("Applications/Probe.oma");
+    let mut bytes = fs::read(&apps).unwrap();
+    *bytes.last_mut().unwrap() ^= 1;
+    fs::write(&apps, bytes).unwrap();
+    let (out, _) = w.run_wait();
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("payload digest"), "{err}");
+}
