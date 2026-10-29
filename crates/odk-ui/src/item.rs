@@ -115,6 +115,7 @@ impl RenderOnce for Item {
                         let part = part.clone();
                         move || part("title")
                     })
+                    .min_w_0()
                     .text_role(s.title_role)
                     .text_color(colour(s.title))
                     .child(self.title.clone()),
@@ -126,6 +127,7 @@ impl RenderOnce for Item {
                         let part = part.clone();
                         move || part("description")
                     })
+                    .min_w_0()
                     .text_role(s.description_role)
                     .text_color(colour(s.description))
                     .child(text),
