@@ -53,17 +53,30 @@ pub struct KeySet {
     pub signature: Vec<u8>,
 }
 
-/// The one agent `odk-oma` fetches with (ADR 0066): HTTPS only, no redirect followed, three
-/// seconds, no proxy, the system's roots, and names looked up by [`Names`] (ADR 0077).
+/// How long a release's `install.sh` or tarball may go without progress (ADR 0086).
+pub const STALL: Duration = Duration::from_secs(30);
+
+/// The one agent `odk-oma` fetches documents with (ADR 0066): HTTPS only, no redirect followed,
+/// three seconds, no proxy, the system's roots, and names looked up by [`Names`] (ADR 0077).
 pub fn agent() -> Agent {
-    Agent::with_parts(config(), DefaultConnector::new(), Names)
+    Agent::with_parts(config(Some(TIMEOUT), None), DefaultConnector::new(), Names)
 }
 
-fn config() -> Config {
+/// The agent for a release's `install.sh` and tarball (ADR 0086): [`agent`]'s rules, except that
+/// in place of three seconds in all, no step may go [`STALL`] without progress.
+pub fn release_agent() -> Agent {
+    Agent::with_parts(config(None, Some(STALL)), DefaultConnector::new(), Names)
+}
+
+fn config(global: Option<Duration>, stall: Option<Duration>) -> Config {
     Agent::config_builder()
         .https_only(true)
         .max_redirects(0)
-        .timeout_global(Some(TIMEOUT))
+        .timeout_global(global)
+        .timeout_resolve(stall)
+        .timeout_connect(stall)
+        .timeout_per_read(stall)
+        .timeout_per_write(stall)
         .proxy(None)
         .tls_config(
             TlsConfig::builder()
@@ -77,6 +90,16 @@ fn config() -> Config {
 /// Fetches `oma-keys` and `oma-keys.sig` from the publisher's host and nowhere else.
 pub fn oma_keys(agent: &Agent, publisher: &Publisher) -> Result<KeySet, Failure> {
     let host = publisher.as_str();
+    let get = |name: &str| get(agent, host, &format!("/.well-known/{name}"), LIMIT);
+    Ok(KeySet {
+        body: get("oma-keys")?,
+        signature: get("oma-keys.sig")?,
+    })
+}
+
+/// `https://<host><path>`, answered 200, of at most `limit` bytes; a longer body is a failed
+/// fetch.
+pub fn get(agent: &Agent, host: &str, path: &str, limit: u64) -> Result<Vec<u8>, Failure> {
     let failure = |e: ureq::Error| match e {
         ureq::Error::HostNotFound => Failure::HostNotFound {
             host: host.to_owned(),
@@ -86,29 +109,23 @@ pub fn oma_keys(agent: &Agent, publisher: &Publisher) -> Result<KeySet, Failure>
             reason: e.to_string(),
         },
     };
-    let get = |name: &str| -> Result<Vec<u8>, Failure> {
-        let url = format!("https://{host}/.well-known/{name}");
-        let mut response = agent.get(&url).call().map_err(failure)?;
-        if response.status() != 200 {
-            return Err(Failure::Unreachable {
-                host: host.to_owned(),
-                reason: format!("{url} answered {}", response.status()),
-            });
-        }
-        // `ureq`'s limit fails the read that would find the end of a body exactly the limit
-        // long, so the reader is given one byte more: a body of `LIMIT` bytes is read whole,
-        // and one byte more is refused.
-        response
-            .body_mut()
-            .with_config()
-            .limit(LIMIT + 1)
-            .read_to_vec()
-            .map_err(failure)
-    };
-    Ok(KeySet {
-        body: get("oma-keys")?,
-        signature: get("oma-keys.sig")?,
-    })
+    let url = format!("https://{host}{path}");
+    let mut response = agent.get(&url).call().map_err(failure)?;
+    if response.status() != 200 {
+        return Err(Failure::Unreachable {
+            host: host.to_owned(),
+            reason: format!("{url} answered {}", response.status()),
+        });
+    }
+    // `ureq`'s limit fails the read that would find the end of a body exactly the limit long,
+    // so the reader is given one byte more: a body of `limit` bytes is read whole, and one byte
+    // more is refused.
+    response
+        .body_mut()
+        .with_config()
+        .limit(limit + 1)
+        .read_to_vec()
+        .map_err(failure)
 }
 
 /// Names looked up with `getaddrinfo` itself (ADR 0077). The standard library, and with it
@@ -359,7 +376,7 @@ mod tests {
     }
 
     fn fetch(server: &Server, host: &str) -> Result<KeySet, Failure> {
-        let agent = Agent::with_parts(config(), server.clone(), FakeNames);
+        let agent = Agent::with_parts(config(Some(TIMEOUT), None), server.clone(), FakeNames);
         oma_keys(&agent, &Publisher::parse(host).unwrap())
     }
 
@@ -370,7 +387,7 @@ mod tests {
     fn the_agent_is_set_up_as_adr_0066_says() {
         // The production agent is built as `install` builds it, with nothing installed first.
         let _ = agent();
-        let c = config();
+        let c = config(Some(TIMEOUT), None);
         assert!(c.https_only());
         assert_eq!(c.max_redirects(), 0);
         assert_eq!(c.timeouts().global, Some(TIMEOUT));
@@ -380,6 +397,32 @@ mod tests {
             c.tls_config().root_certs(),
             RootCerts::PlatformVerifier
         ));
+    }
+
+    #[test]
+    fn a_releases_files_wait_only_for_a_stall_and_follow_no_redirect() {
+        // ADR 0086: the same rules, with thirty seconds without progress in place of three in all.
+        let _ = release_agent();
+        let c = config(None, Some(STALL));
+        assert!(c.https_only());
+        assert_eq!(c.max_redirects(), 0);
+        assert!(c.proxy().is_none());
+        assert_eq!(c.timeouts().global, None);
+        assert_eq!(c.timeouts().resolve, Some(STALL));
+        assert_eq!(c.timeouts().connect, Some(STALL));
+        assert_eq!(c.timeout_per_read(), Some(STALL));
+    }
+
+    #[test]
+    fn a_file_is_read_up_to_its_length_and_no_further() {
+        let server = Server::with(&[("/odk.tar.gz", ok(&[9; 100]))]);
+        let agent = Agent::with_parts(config(None, Some(STALL)), server.clone(), FakeNames);
+        assert_eq!(
+            get(&agent, "odk.example", "/odk.tar.gz", 100).unwrap(),
+            [9; 100]
+        );
+        let e = get(&agent, "odk.example", "/odk.tar.gz", 99).unwrap_err();
+        assert!(matches!(e, Failure::Unreachable { .. }), "{e}");
     }
 
     #[test]

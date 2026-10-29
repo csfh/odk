@@ -11,6 +11,8 @@ Facts the design depends on that have not been proven. Do not assume them. Each 
 
 ## Smaller unverified items
 
+- `odk oma self-upgrade` and a signed `install.sh` were run only against a release made by `tools/package-release` from stand-in programs and signed with a fixture root, served from a directory, in a throwaway home with a stub `systemctl` (`crates/oma/tests/release.rs`). Nothing is published at `https://odk.csfh.dev` yet and no release root is compiled in, so neither has met the real host, Cloudflare's TLS, or the owner's key (ADR 0086).
+
 - Whether the `/etc` entries tied to `audio`, `gpu` and `dbus` are complete (sandbox baseline spec).
 - Whether common applications run with the minimal `/dev` and `/run`, including ones that need a pseudo-terminal (sandbox baseline spec).
 - Whether the fresh `/proc` mount works on other kernels and inside containers such as Distrobox (ADR 0024).

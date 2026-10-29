@@ -39,7 +39,9 @@ Until the owner's public key is compiled into `odk-oma`, step 4 refuses, and say
 1. `gpg --decrypt <root seed>.gpg | target/release/odk-oma sign-release <any dir>`. It refuses, and prints the root's
    key id, its fingerprint, its PEM and the line `const RELEASE_ROOT: Option<&str> = Some("…");`.
 2. Put that line in `crates/oma/src/odk_release.rs`, in place of `None`, and change the test
-   `this_build_has_no_release_root_until_the_owners_key_is_in`, which says there is none.
+   `this_build_has_no_release_root_until_the_owners_key_is_in`, which says there is none. The test
+   `the_binary_with_no_release_root_refuses_to_self_upgrade` (`crates/oma/tests/release.rs`) then skips itself, so that no
+   test fetches from `odk.csfh.dev`.
 3. Publish the fingerprint and the PEM on the owner's own site, and the fingerprint in the repository's `README.md`.
 
 The installer's test builds a tarball with the same script, so the layout cannot drift.
@@ -57,6 +59,9 @@ signature covers it too. `crates/oma/tests/release.rs` runs these two commands a
 
 Before the tag, `version` in `[workspace.package]` of the root `Cargo.toml` is set to the tag without its `v`, with
 `Cargo.lock`, in a commit on `main`, and the built `odk --version` must say it (ADR 0064) before anything is uploaded.
+
+`odk oma self-upgrade` replaces an install with the release `odk.csfh.dev` serves, when its `release` verifies under the
+release root compiled into the running `odk-oma` and is newer than the receipt; it runs that release's own `install.sh`.
 
 `install.sh` is never run as root (ADR 0087): as root it writes nothing. It keeps the release's version in
 `~/.local/share/oma/runtime.toml` and refuses a release older than it, so an old signed script cannot take an install
