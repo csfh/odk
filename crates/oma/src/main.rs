@@ -62,6 +62,12 @@ enum Command {
         #[arg(long)]
         wait: bool,
     },
+    /// Sign the odk release `tools/package-release` made in DIR with the release root, whose
+    /// 32-byte seed is read on standard input (ADR 0086)
+    SignRelease {
+        /// The directory holding install.sh and the tarball
+        dir: PathBuf,
+    },
     /// Assemble `<Name>.oma/` from a built executable and a manifest.toml (compiles nothing)
     Bundle {
         /// The built x86_64 ELF executable
@@ -298,6 +304,65 @@ fn main() -> ExitCode {
                 Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
                 Err(e) => {
                     eprintln!("odk oma: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Command::SignRelease { dir } => {
+            use std::io::Read;
+            let mut seed = Vec::new();
+            if let Err(e) = std::io::stdin().take(64).read_to_end(&mut seed) {
+                eprintln!("odk oma: cannot read the seed on standard input: {e}");
+                return ExitCode::FAILURE;
+            }
+            let Some(root) = oma::trust::SigningKey::from_seed(&seed) else {
+                eprintln!(
+                    "odk oma: standard input is {} bytes; the release root is a 32-byte Ed25519 seed",
+                    seed.len()
+                );
+                return ExitCode::FAILURE;
+            };
+            let running = match std::env::current_exe() {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("odk oma: cannot find this program: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs() as i64);
+            let compiled = oma::odk_release::release_root();
+            match oma::odk_release::sign(&dir, &root, compiled.as_ref(), &running, now) {
+                Ok(release) => {
+                    let key = root.public_key();
+                    println!(
+                        "signed release {} under the release root {} (fingerprint {})",
+                        release.version,
+                        key.key_id(),
+                        key.fingerprint()
+                    );
+                    print!("{}", oma::odk_release::pem(&key));
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    // What the seed's public key is, all of it public, to compile in as the
+                    // release root and to publish.
+                    if matches!(
+                        e,
+                        oma::odk_release::Error::NoReleaseRoot
+                            | oma::odk_release::Error::NotThisRoot { .. }
+                    ) {
+                        let key = root.public_key();
+                        eprintln!(
+                            "odk oma: the key on standard input is the root {}, fingerprint {}. To compile it in, put this in crates/oma/src/odk_release.rs:\n{}\nIts public key:\n{}",
+                            key.key_id(),
+                            key.fingerprint(),
+                            oma::odk_release::constant_line(&key),
+                            oma::odk_release::pem(&key).trim_end()
+                        );
+                    }
                     ExitCode::FAILURE
                 }
             }

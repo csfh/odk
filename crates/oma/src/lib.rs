@@ -15,6 +15,7 @@ pub mod grants;
 pub mod image;
 pub mod install;
 pub mod layout;
+pub mod odk_release;
 pub mod sandbox;
 pub mod trust;
 pub mod userdirs;

@@ -1,5 +1,5 @@
-//! `install.sh` (ADR 0063), against a release built by `tools/package-release`, the same script CI
-//! uses, in a throwaway home. The programs are shell scripts, except `odk`, which is the real
+//! `install.sh` (ADR 0063, ADR 0086), against a release built by `tools/package-release`, the same
+//! script a release is made with, in a throwaway home. The programs are shell scripts, except `odk`, which is the real
 //! dispatcher so that the layout is shown to work. `systemctl` and `update-mime-database` are stubs
 //! that record their arguments; nothing here reaches the real user manager, the network or the
 //! real home.
@@ -112,6 +112,31 @@ impl World {
         self.root.join("install.sh")
     }
 
+    /// The script names the tarball now in `release/`, as `tools/package-release` would have
+    /// written it for that tarball: a test of what the script does with a tarball it trusts.
+    fn rename_tarball(&self) {
+        let tarball = self.root.join("release/odk-x86_64-linux.tar.gz");
+        let sum = Command::new("sha256sum").arg(&tarball).output().unwrap();
+        let sum = String::from_utf8(sum.stdout).unwrap();
+        let sha256 = sum.split(' ').next().unwrap().to_owned();
+        let length = fs::metadata(&tarball).unwrap().len();
+        let script = fs::read_to_string(self.script()).unwrap();
+        let named = script
+            .lines()
+            .map(|line| {
+                if line.starts_with("tarball_sha256=") {
+                    format!("tarball_sha256={sha256}")
+                } else if line.starts_with("tarball_length=") {
+                    format!("tarball_length={length}")
+                } else {
+                    line.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(self.script(), named + "\n").unwrap();
+    }
+
     fn install_with(&self, shell: &[&str], args: &[&str], extra: &[(&str, String)]) -> Output {
         let mut command = Command::new(shell[0]);
         command
@@ -211,7 +236,7 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
         assert!(o.status.success(), "{shell:?}: {}", out(&o));
         let text = out(&o);
         assert!(text.contains("installed odk 1.2.3"), "{text}");
-        assert!(text.contains("checksum ok"), "{text}");
+        assert!(text.contains("tarball ok"), "{text}");
 
         // Exactly these paths, and nothing else, under the home.
         let tree = w.tree();
@@ -320,7 +345,7 @@ fn running_it_again_upgrades_and_starts_every_socket_while_odkd_runs() {
 }
 
 #[test]
-fn a_download_that_does_not_match_its_checksum_installs_nothing() {
+fn a_download_that_is_not_the_tarball_the_script_names_installs_nothing() {
     if skip_as_root() {
         return;
     }
@@ -334,7 +359,7 @@ fn a_download_that_does_not_match_its_checksum_installs_nothing() {
     let o = w.install(&[]);
     assert!(!o.status.success());
     assert!(
-        out(&o).contains("does not match its checksum"),
+        out(&o).contains("is not the tarball this script names"),
         "{}",
         out(&o)
     );
@@ -343,55 +368,53 @@ fn a_download_that_does_not_match_its_checksum_installs_nothing() {
 }
 
 #[test]
-fn a_checksum_line_for_another_file_is_not_a_checksum_of_the_download() {
+fn a_script_that_names_no_release_or_another_length_installs_nothing() {
     if skip_as_root() {
         return;
     }
     let w = World::new();
     w.publish("1.0.0");
-    let sums = w.root.join("release/odk-x86_64-linux.tar.gz.sha256");
-    // The sum of an empty file, for a file that is not the tarball: it verifies as itself.
-    for line in [
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /dev/null\n",
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  other.tar.gz\n",
-        "",
-    ] {
-        fs::write(&sums, line).unwrap();
-        let o = w.install(&[]);
-        assert!(!o.status.success(), "{line:?}");
-        let text = out(&o);
-        assert!(
-            text.contains("is for '") || text.contains("is empty"),
-            "{text}"
-        );
-        assert!(w.tree().is_empty());
-    }
+    // The repository's own script, which no release was written into.
+    fs::copy(repo().join("install.sh"), w.script()).unwrap();
+    let o = w.install(&[]);
+    assert!(!o.status.success());
+    assert!(out(&o).contains("names no release"), "{}", out(&o));
+    assert!(w.tree().is_empty());
+
+    // A tarball with a byte more than the script names.
+    w.publish("1.0.0");
+    let tarball = w.root.join("release/odk-x86_64-linux.tar.gz");
+    let mut bytes = fs::read(&tarball).unwrap();
+    bytes.push(0);
+    fs::write(&tarball, bytes).unwrap();
+    let o = w.install(&[]);
+    assert!(!o.status.success());
+    assert!(out(&o).contains("is not the tarball"), "{}", out(&o));
+    assert!(w.tree().is_empty());
 }
 
 #[test]
-fn a_missing_checksum_or_tarball_installs_nothing() {
-    if skip_as_root() {
-        return;
-    }
-    for missing in ["odk-x86_64-linux.tar.gz.sha256", "odk-x86_64-linux.tar.gz"] {
-        let w = World::new();
-        w.publish("1.0.0");
-        fs::remove_file(w.root.join("release").join(missing)).unwrap();
-        let o = w.install(&[]);
-        assert!(!o.status.success(), "{missing}");
-        assert!(out(&o).contains("cannot download"), "{}", out(&o));
-        assert!(w.tree().is_empty());
-    }
-}
-
-#[test]
-fn a_tarball_with_a_path_outside_odk_is_refused_even_with_a_matching_checksum() {
+fn a_missing_tarball_installs_nothing() {
     if skip_as_root() {
         return;
     }
     let w = World::new();
     w.publish("1.0.0");
-    // A tarball with the right checksum that reaches out of its directory.
+    fs::remove_file(w.root.join("release/odk-x86_64-linux.tar.gz")).unwrap();
+    let o = w.install(&[]);
+    assert!(!o.status.success());
+    assert!(out(&o).contains("cannot download"), "{}", out(&o));
+    assert!(w.tree().is_empty());
+}
+
+#[test]
+fn a_tarball_with_a_path_outside_odk_is_refused_even_when_the_script_names_it() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    // A tarball the script names that reaches out of its directory.
     let evil = w.root.join("evil");
     fs::create_dir_all(evil.join("odk")).unwrap();
     fs::write(evil.join("odk/VERSION"), "9\n").unwrap();
@@ -407,19 +430,10 @@ fn a_tarball_with_a_path_outside_odk_is_refused_even_with_a_matching_checksum() 
         .status()
         .unwrap();
     assert!(status.success());
-    let sums = Command::new("sha256sum")
-        .arg("odk-x86_64-linux.tar.gz")
-        .current_dir(w.root.join("release"))
-        .output()
-        .unwrap();
-    fs::write(
-        w.root.join("release/odk-x86_64-linux.tar.gz.sha256"),
-        sums.stdout,
-    )
-    .unwrap();
+    w.rename_tarball();
     let o = w.install(&[]);
     assert!(!o.status.success(), "{}", out(&o));
-    assert!(out(&o).contains("nothing was installed"), "{}", out(&o));
+    assert!(out(&o).contains("the tarball holds"), "{}", out(&o));
     assert!(w.tree().is_empty());
 }
 
@@ -455,16 +469,7 @@ fn a_tarball_missing_a_file_installs_nothing() {
             .unwrap()
             .success()
     );
-    let sums = Command::new("sha256sum")
-        .arg("odk-x86_64-linux.tar.gz")
-        .current_dir(w.root.join("release"))
-        .output()
-        .unwrap();
-    fs::write(
-        w.root.join("release/odk-x86_64-linux.tar.gz.sha256"),
-        sums.stdout,
-    )
-    .unwrap();
+    w.rename_tarball();
     let o = w.install(&[]);
     assert!(!o.status.success());
     assert!(out(&o).contains("has no lib/odk/odkd"), "{}", out(&o));
@@ -637,7 +642,7 @@ fn uninstall_removes_what_was_installed_and_nothing_else() {
 }
 
 #[test]
-fn a_download_is_https_only_and_a_named_release_has_its_own_address() {
+fn a_download_is_from_odk_csfh_dev_over_https_with_no_redirect() {
     if skip_as_root() {
         return;
     }
@@ -655,39 +660,28 @@ fn a_download_is_https_only_and_a_named_release_has_its_own_address() {
         w.root.join("curlstub").display(),
         w.root.join("stubs").display()
     );
-    let run = |args: &[&str]| {
-        w.install_with(
-            &["sh"],
-            args,
-            &[
-                ("ODK_BASE_URL", String::new()),
-                ("PATH", path.clone()),
-                ("CURL_LOG", log.display().to_string()),
-            ],
-        )
-    };
-    assert!(!run(&["--version", "v9.9.9"]).status.success());
-    assert!(!run(&[]).status.success());
+    let o = w.install_with(
+        &["sh"],
+        &[],
+        &[
+            ("ODK_BASE_URL", String::new()),
+            ("PATH", path),
+            ("CURL_LOG", log.display().to_string()),
+        ],
+    );
+    assert!(!o.status.success());
     let logged = fs::read_to_string(&log).unwrap();
     let lines: Vec<&str> = logged.lines().collect();
+    assert_eq!(lines.len(), 1, "{logged}");
     assert!(
-        lines[0].starts_with("--proto =https --proto-redir =https --tlsv1.2 -fsSL -o "),
-        "{}",
+        lines[0].starts_with("--proto =https --tlsv1.2 -fsS -o "),
+        "no -L: {}",
         lines[0]
     );
     assert!(
-        lines[0].ends_with(
-            "https://github.com/csfh/odk/releases/download/v9.9.9/odk-x86_64-linux.tar.gz"
-        ),
+        lines[0].ends_with(" https://odk.csfh.dev/odk-x86_64-linux.tar.gz"),
         "{}",
         lines[0]
-    );
-    assert!(
-        lines[1].ends_with(
-            "https://github.com/csfh/odk/releases/latest/download/odk-x86_64-linux.tar.gz"
-        ),
-        "{}",
-        lines[1]
     );
     assert!(w.tree().is_empty());
 }
