@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0075
 ---
 
 # A chart is a canvas the application draws on, in named inks
