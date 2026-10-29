@@ -213,9 +213,10 @@ pub fn run(
     spawn(&plan, None, runtime, host, options.wait)
 }
 
-/// Runs an installed Bundle file whose envelope, image and pin the caller has checked
-/// (`flow::run_file`): its tree is unpacked at `/app` (ADR 0067), its data is the pair's
-/// (`root`, its app id; ADR 0060 section 2), and `granted` is what its install recorded.
+/// Runs a Bundle file whose envelope, image and pin, or Run once, the caller has settled
+/// (`flow`): its tree is unpacked at `/app` (ADR 0067), its data is the pair's (`root`, its app
+/// id; ADR 0060 section 2), and `granted` is what its install recorded or what Run once allows.
+/// Run once gives it a private tmpfs for data, no inbox, and writes nothing (ADR 0018).
 pub fn run_file(
     layout: &Layout,
     image: &Image<'_>,
@@ -223,6 +224,7 @@ pub fn run_file(
     granted: &fmt::Permissions,
     host: &HostEnv,
     wait: bool,
+    run_once: bool,
 ) -> Result<i32, Error> {
     let manifest = image.manifest();
     let id = &manifest.identifier;
@@ -240,17 +242,19 @@ pub fn run_file(
     let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
     let data_dir = layout.pair_data_dir(root, id);
     let inbox_dir = layout.pair_inbox_dir(root, id);
-    private_dir(&data_dir)?;
-    if manifest.permissions.updates {
-        private_dir(&inbox_dir)?;
+    if !run_once {
+        private_dir(&data_dir)?;
+        if manifest.permissions.updates {
+            private_dir(&inbox_dir)?;
+        }
     }
     let env = |name: &str| std::env::var(name).ok();
     let plan = Plan::new(&Inputs {
         app: App::Image,
         executable: &manifest.executable,
         permissions: &manifest.permissions,
-        data_dir: Some(data_dir.as_path()),
-        inbox_dir: Some(inbox_dir.as_path()),
+        data_dir: (!run_once).then_some(data_dir.as_path()),
+        inbox_dir: (!run_once).then_some(inbox_dir.as_path()),
         home: layout.home(),
         uid: host.uid,
         runtime_dir: host.runtime_dir.as_deref(),

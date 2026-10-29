@@ -159,6 +159,13 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   - a lower version, or the same version with another payload, is refused;
   - an upgrade asks Install or Cancel only for permissions not allowed yet, and Cancel there writes no denial;
   - the replaced file is kept as `previous.oma`.
+- `odk oma run <path>` of a Bundle file that is not installed opens it:
+  - the same checks as an install, then Install, Run once or Cancel;
+  - Install installs it and runs the installed copy;
+  - Run once runs it with a private data directory and writes nothing;
+  - Cancel is remembered, and a later launch neither asks nor fetches;
+  - the installed version runs as installed;
+  - a newer version of an installed app is not run by opening it, since the upgrade dialog is not built.
 - `odk oma rollback <app id>` swaps the installed file and `previous.oma`, after checking the previous one, and leaves the mark; the pair records which file is installed (`installed`), so `run` runs exactly that one. `odk oma purge <app id>` refuses while the app is in `~/Applications`, then deletes each of its pairs' data, previous file, inbox, held file and record.
 
 ### 6. Bootstrap and self-upgrade
