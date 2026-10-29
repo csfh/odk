@@ -176,6 +176,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   - it does not touch directory Bundles.
 - The launch of an installed file that asks for more than was allowed shows the upgrade screen: Allow, Keep previous version (when there is one) or Cancel. Only the new permissions are listed. Allow records them, Keep previous version rolls back and runs that, and Cancel runs nothing.
 - Offline upgrades (ADR 0082): each pinned root's last accepted key set is kept. When a fetch fails, an upgrade already in hand from `install`, `--register` or an inbox is authorized by that set, verified again under the pin and only at the version kept. A first contact still needs the fetch.
+- A Bundle file's daemon runs from its program, written out of the verified image into `apps/<root>/<app>/daemon/` at each launch, and only when it changed (ADR 0084).
 - `odk oma rollback <app id>` swaps the installed file and `previous.oma`, after checking the previous one, and leaves the mark; the pair records which file is installed (`installed`), so `run` runs exactly that one. `odk oma purge <app id>` refuses while the app is in `~/Applications`, then deletes each of its pairs' data, previous file, inbox, held file and record.
 
 ### 6. Bootstrap and self-upgrade

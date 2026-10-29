@@ -257,3 +257,52 @@ fn a_copy_of_an_installed_bundle_never_starts_its_own_daemon() {
     );
     assert!(report.contains_key("pid"));
 }
+
+/// A Bundle file's daemon runs from its program written out of the verified image into the
+/// pair's own directory, never from the image or `/app` (ADR 0084).
+#[test]
+fn a_bundle_files_daemon_runs_from_its_program_written_out_of_the_image() {
+    if !supported() {
+        return;
+    }
+    let w = World::new();
+    let data = w.install_file_with("", Some(DAEMON));
+    // The probe reads its instructions from its data directory, which is the pair's.
+    fs::create_dir_all(&data).unwrap();
+    fs::write(data.join("daemon-socket"), "probe/d.sock").unwrap();
+    let fakes = w.fake_systemd_run();
+    let socket = w.runtime.join("probe/d.sock");
+    let argv = fakes.join("argv");
+    let waiter = thread::spawn({
+        let (argv, socket) = (argv.clone(), socket.clone());
+        move || {
+            wait_for_file(&argv);
+            serve(&socket);
+        }
+    });
+
+    let (out, report) = w.run_wait_with_path(&format!("{}:/usr/bin", fakes.display()));
+    waiter.join().unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert_eq!(report["daemon_socket"], "pong", "{err}");
+
+    let args: Vec<String> = fs::read_to_string(&argv)
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let dashes = args.iter().position(|a| a == "--").unwrap();
+    let program = Path::new(&args[dashes + 1]);
+    // `data` is `apps/<root>/<app>/data`; the program is beside it, in `daemon/`.
+    assert_eq!(program, data.parent().unwrap().join("daemon/d"), "{args:?}");
+    assert_eq!(
+        fs::read(program).unwrap(),
+        fs::read(probe_binary()).unwrap()
+    );
+    use std::os::unix::fs::PermissionsExt;
+    assert_eq!(
+        fs::metadata(program).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
+}

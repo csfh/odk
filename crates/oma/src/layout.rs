@@ -77,6 +77,11 @@ impl Layout {
         self.pair_dir(root, app).join("data")
     }
 
+    /// Where a Bundle file's daemon program is written out to run outside the sandbox (ADR 0084).
+    pub fn pair_daemon_dir(&self, root: &KeyId, app: &Identifier) -> PathBuf {
+        self.pair_dir(root, app).join("daemon")
+    }
+
     pub fn pair_previous_file(&self, root: &KeyId, app: &Identifier) -> PathBuf {
         self.pair_dir(root, app).join("previous.oma")
     }

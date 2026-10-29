@@ -47,10 +47,6 @@ pub enum Error {
         "this application declares a daemon, which runs outside the sandbox, so only the installed copy of it can be run: use `odk oma run <identifier>`, or install this one"
     )]
     DaemonOnlyFromTheInstalledCopy,
-    #[error(
-        "this application declares a daemon, which runs outside the sandbox from the installed files, and a Bundle file has none on disk yet (issue #14)"
-    )]
-    DaemonFromFile,
     #[error(transparent)]
     Landlock(#[from] landlock::Error),
     #[error("cannot create the sandbox: {0}")]
@@ -233,10 +229,28 @@ pub fn run_file(
         return Err(Error::ConsentRequired(fmt::permission_lines(&missing)));
     }
     preflight_permissions(&manifest.permissions)?;
-    // A daemon runs outside the sandbox from the installed tree (ADR 0050), and a Bundle file
-    // has no tree on disk to run it from.
-    if manifest.permissions.daemon.is_some() {
-        return Err(Error::DaemonFromFile);
+    // A daemon runs outside the sandbox (ADR 0050), so its program, from the verified image, is
+    // written out into the pair's own directory and started from there (ADR 0084). It outlives
+    // the launch, which a run once must not.
+    if let Some(daemon) = &manifest.permissions.daemon {
+        if run_once {
+            return Err(Error::DaemonNeedsInstall);
+        }
+        let file_name = Path::new(&daemon.executable)
+            .file_name()
+            .expect("a daemon's executable names a file");
+        let program = layout.pair_daemon_dir(root, id).join(file_name);
+        image
+            .write_out(&daemon.executable, &program)
+            .map_err(|e| io_error(&program, e))?;
+        if let Some(runtime) = host.runtime_dir.as_deref() {
+            let env = |name: &str| std::env::var(name).ok();
+            let started =
+                crate::daemon::ensure_program_for_run(id, daemon, &program, runtime, &env)?;
+            if started == crate::daemon::Outcome::Started {
+                eprintln!("odk oma: note: started the application's daemon");
+            }
+        }
     }
 
     let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
@@ -264,6 +278,11 @@ pub fn run_file(
         host_root: Path::new("/"),
         host_env: &env,
     })?;
+    if plan.daemon_socket_missing {
+        eprintln!(
+            "odk oma: note: the application's daemon has no socket yet, so the application starts without it"
+        );
+    }
     for (dir, why) in &plan.unavailable {
         eprintln!(
             "odk oma: note: the {} folder is not available ({why:?}), so the application starts without it",
