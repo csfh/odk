@@ -16,6 +16,9 @@ mod erofs;
 pub(crate) mod fixture;
 #[cfg(test)]
 mod tests;
+mod writer;
+
+pub use writer::{WriteError, write};
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, OpenOptions, Permissions};
@@ -28,11 +31,12 @@ use erofs::{BLOCK, Data, Dirent, FT_DIR, FT_REG, META_START};
 use crate::fmt::{self, ELF_HEADER_CHECKED, Manifest, check_elf_header};
 use crate::trust::{Checked, Sealed, SignedManifest};
 
-/// More entries than this is not a Bundle.
-const MAX_NODES: usize = 65_536;
-const MAX_DEPTH: usize = 64;
-const MAX_PATH: usize = 4095;
-const MAX_DIRECTORY: u64 = 4 << 20;
+// The limits of a Bundle's tree (`docs/spec/oma-image.md`, "The tree"). The writer holds a tree
+// to the same ones, so `odk oma bundle` never makes a file `odk-oma` cannot read.
+pub(crate) const MAX_NODES: usize = 65_536;
+pub(crate) const MAX_DEPTH: usize = 64;
+pub(crate) const MAX_PATH: usize = 4095;
+pub(crate) const MAX_DIRECTORY: u64 = 4 << 20;
 const MAX_MANIFEST: u64 = 64 << 10;
 const MANIFEST_FILE: &str = "manifest.toml";
 
@@ -396,7 +400,7 @@ fn walk(file: &Sealed) -> Result<Vec<Node>, Error> {
             }
             let child = erofs::child(&path, &entry.name);
             if depth + 1 > MAX_DEPTH {
-                return Err(Error::Limit("directories nested more than 64 deep"));
+                return Err(Error::Limit("an entry nested more than 64 deep"));
             }
             if child.as_os_str().len() > MAX_PATH {
                 return Err(Error::Limit("a path longer than 4095 bytes"));

@@ -9,22 +9,23 @@ use super::Error;
 use crate::trust::Sealed;
 
 pub(super) const BLOCK: u64 = 4096;
-const SUPER_OFFSET: u64 = 1024;
+pub(super) const SUPER_OFFSET: u64 = 1024;
 const SUPER_LEN: usize = 128;
 /// The first byte after the superblock: nothing before it is the image's metadata or data.
 pub(super) const META_START: u64 = SUPER_OFFSET + SUPER_LEN as u64;
 const MAGIC: u32 = 0xE0F5_E1E2;
-const BLOCK_BITS: u8 = 12;
+pub(super) const BLOCK_BITS: u8 = 12;
 /// The superblock checksum and the mtime field, which `mkfs.erofs` sets. Neither changes how a
 /// file reads, and the signature already covers every byte, so both are allowed and ignored.
 const COMPAT_ALLOWED: u32 = 0x1 | 0x2;
-const INODE_LEN: u64 = 32;
-const DIRENT_LEN: usize = 12;
-const NAME_MAX: usize = 255;
+pub(super) const MAGIC_BYTES: [u8; 4] = MAGIC.to_le_bytes();
+pub(super) const INODE_LEN: u64 = 32;
+pub(super) const DIRENT_LEN: usize = 12;
+pub(super) const NAME_MAX: usize = 255;
 
-const LAYOUT_PLAIN: u16 = 0;
+pub(super) const LAYOUT_PLAIN: u16 = 0;
 const LAYOUT_COMPRESSED_LEGACY: u16 = 1;
-const LAYOUT_INLINE: u16 = 2;
+pub(super) const LAYOUT_INLINE: u16 = 2;
 const LAYOUT_COMPRESSED: u16 = 3;
 
 const S_IFMT: u16 = 0o170_000;
