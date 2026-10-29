@@ -5,11 +5,8 @@ use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window};
 use odk_a11y::{Accessible, Describe};
 use odk_theme::foundation::Density;
 
-use crate::Input;
 use crate::button::Size;
-
-/// The search icon. ODK has no icon set yet, so it is a character.
-const SEARCH_GLYPH: &str = "⌕";
+use crate::{Icon, Input};
 
 /// A field for a search: a search icon before the text, and a clear button after it while
 /// there is text.
@@ -33,7 +30,7 @@ impl SearchInput {
     /// A search field named `name` for assistive technology, such as "Search settings".
     pub fn new(id: impl Into<ElementId>, name: impl Into<SharedString>) -> Self {
         let mut input = Input::new(id, name)
-            .leading_icon(SEARCH_GLYPH)
+            .leading_icon(Icon::Search)
             .clearable(true);
         input.extras.escape_clears = true;
         Self { input }

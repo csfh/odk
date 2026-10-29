@@ -18,20 +18,22 @@ use gpui::{
 };
 use odk_a11y::{Accessible, Describe, Role};
 
+use odk_theme::Color;
 use odk_theme::component::{
     ButtonVariant, ComponentTokens, FIELD_INVALID_MARK, FieldStyle, States,
 };
 use odk_theme::foundation::Density;
 
-use crate::button::{Mark, Size};
+use crate::button::Size;
 use crate::editor::Editor;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
+use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, focus_ring, pointer_states};
 use crate::layout::{StyledExt, h_flex, truncate_end, truncate_lines, v_flex};
 use crate::number::Rules;
 use crate::text_layout::{Shown, TextLayout};
 use crate::theme::{colour, mono};
-use crate::{Button, Kbd, Spinner, components};
+use crate::{Button, Icon, Kbd, Spinner, components};
 
 actions!(
     odk_text,
@@ -186,8 +188,8 @@ pub struct Input {
     masked: bool,
     invalid: bool,
     required: bool,
-    leading: Option<SharedString>,
-    trailing: Option<SharedString>,
+    leading: Option<Glyph>,
+    trailing: Option<Glyph>,
     clearable: bool,
     /// How many rows high the field is: `None` for the one line of an `Input`.
     pub(crate) rows: Option<usize>,
@@ -323,14 +325,14 @@ impl Input {
     }
 
     /// An icon before the text, at the density's icon size and gap, in the field's icon
-    /// colour. ODK has no icon set yet, so an icon is a character, such as `"⌕"`.
-    pub fn leading_icon(mut self, icon: impl Into<SharedString>) -> Self {
+    /// colour: one of ODK's icons, such as `Icon::Search`, or a character.
+    pub fn leading_icon(mut self, icon: impl Into<Glyph>) -> Self {
         self.leading = Some(icon.into());
         self
     }
 
     /// An icon after the text, such as a unit's symbol.
-    pub fn trailing_icon(mut self, icon: impl Into<SharedString>) -> Self {
+    pub fn trailing_icon(mut self, icon: impl Into<Glyph>) -> Self {
         self.trailing = Some(icon.into());
         self
     }
@@ -1366,15 +1368,10 @@ const REVEAL: &str = "reveal";
 const DECREMENT: &str = "decrement";
 const INCREMENT: &str = "increment";
 
-/// The glyphs of a field's own buttons and marks. ODK has no icon set yet, so they are
-/// characters, like a button's icons; a number field's steppers paint theirs (ADR 0078).
-const CLEAR_GLYPH: &str = "×";
+/// The marks of a field's own buttons are ODK's icons (ADR 0080); its other marks, such as the
+/// one of a wrong value, are characters.
 /// What a number field says when its text is not a number, once the user has left it.
 pub(crate) const NUMBER_ERROR: &str = "Enter a number";
-/// A password field's show button shows an open eye while the text is hidden, a closed one
-/// while it shows.
-const SHOW_GLYPH: &str = "◉";
-const HIDE_GLYPH: &str = "○";
 
 /// One glyph of `size`, centred in a square of that size, for a field's icons and marks.
 pub(crate) fn field_glyph(glyph: SharedString, size: f32, ink: Rgba) -> Div {
@@ -1390,6 +1387,21 @@ pub(crate) fn field_glyph(glyph: SharedString, size: f32, ink: Rgba) -> Div {
         .line_height(size)
         .text_color(ink)
         .child(glyph)
+}
+
+/// A character or one of ODK's icons, `size` square, in `ink`: a field's leading or trailing
+/// icon, a select's indicator, a list's check.
+pub(crate) fn field_mark(glyph: impl Into<Glyph>, size: f32, ink: Color) -> Div {
+    match glyph.into() {
+        Glyph::Text(text) => field_glyph(text, size, colour(ink)),
+        Glyph::Icon(icon) => div()
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .size(px(size))
+            .child(icon::still(icon, size, ink)),
+    }
 }
 
 /// Puts a field's box on `el`: its height, padding, corners, border and type from `s`, its
@@ -1579,9 +1591,9 @@ impl RenderOnce for Input {
             });
         }
 
-        let icon = |glyph: SharedString, part: &str, ink| {
+        let icon = |glyph: Glyph, part: &str, ink| {
             let name = part_name(&self.id, part);
-            field_glyph(glyph, g.icon_size, colour(ink)).debug_selector(|| name)
+            field_mark(glyph, g.icon_size, ink).debug_selector(|| name)
         };
         let key_context = match (multiline, rules.is_some()) {
             (true, _) => MULTILINE_CONTEXTS,
@@ -1646,8 +1658,8 @@ impl RenderOnce for Input {
                     .in_field()
                     .keep_focus()
             };
-            let button = |part: &'static str, glyph: &'static str, name: &'static str| {
-                field_action(Button::icon(child_id(&self.id, part), glyph, name))
+            let button = |part: &'static str, icon: Icon, name: &'static str| {
+                field_action(Button::icon(child_id(&self.id, part), icon, name))
             };
             let mut ends: Vec<&'static str> = Vec::new();
             let mut end = end_buttons(&self.id).gap(px(c.foundation().geometry.thumb_gap));
@@ -1656,7 +1668,7 @@ impl RenderOnce for Input {
                 let state = state.clone();
                 let focus = focus.clone();
                 ends.push(CLEAR);
-                end = end.child(button(CLEAR, CLEAR_GLYPH, "Clear").skip_tab().on_click(
+                end = end.child(button(CLEAR, Icon::Close, "Clear").skip_tab().on_click(
                     move |_, window, cx| {
                         state.update(cx, |s, cx| s.clear(window, cx));
                         move_focus(&focus, window);
@@ -1666,9 +1678,9 @@ impl RenderOnce for Input {
             }
             if self.extras.reveal && self.masked {
                 let (glyph, name) = if revealed {
-                    (HIDE_GLYPH, "Hide password")
+                    (Icon::EyeOff, "Hide password")
                 } else {
-                    (SHOW_GLYPH, "Show password")
+                    (Icon::Eye, "Show password")
                 };
                 let state = state.clone();
                 ends.push(REVEAL);
@@ -1684,21 +1696,18 @@ impl RenderOnce for Input {
             }
             if let Some(r) = rules {
                 let text = state.read(cx).editor.text().to_owned();
-                for (part, mark, name, steps) in [
-                    (DECREMENT, Mark::Minus, "Decrease", -1.0),
-                    (INCREMENT, Mark::Plus, "Increase", 1.0),
+                for (part, icon, name, steps) in [
+                    (DECREMENT, Icon::Minus, "Decrease", -1.0),
+                    (INCREMENT, Icon::Plus, "Increase", 1.0),
                 ] {
                     let state = state.clone();
                     let can = editable && r.can_step(&text, steps > 0.0);
                     ends.push(part);
-                    end = end.child(
-                        field_action(Button::mark(child_id(&self.id, part), mark, name))
-                            .disabled(!can)
-                            .skip_tab()
-                            .on_click(move |_, window, cx| {
-                                state.update(cx, |s, cx| s.step(steps, window, cx));
-                            }),
-                    );
+                    end = end.child(button(part, icon, name).disabled(!can).skip_tab().on_click(
+                        move |_, window, cx| {
+                            state.update(cx, |s, cx| s.step(steps, window, cx));
+                        },
+                    ));
                     buttons += 1;
                 }
             }

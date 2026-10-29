@@ -6,12 +6,11 @@ use std::rc::Rc;
 
 use gpui::{Modifiers, ParentElement, TestAppContext, VisualTestContext, px};
 use odk_a11y::Describe;
-use odk_theme::Color;
 
 use super::stability::{Step, assert_still};
 use super::{open, press, redraw};
 use crate::input::{drawn, probe};
-use crate::{Button, FormField, NumberInput, v_flex};
+use crate::{Button, FormField, Icon, NumberInput, v_flex};
 
 type Seen = Rc<RefCell<Vec<Option<f64>>>>;
 
@@ -365,65 +364,44 @@ fn a_given_number_is_not_a_commit(cx: &mut TestAppContext) {
     assert_eq!(*committed.borrow(), [3.0]);
 }
 
-/// The steppers paint their marks (ADR 0078), so a font cannot draw them at two sizes: the
-/// minus is the plus's bar across, the plus's upright bar is that bar turned, the two cross at
-/// their middles, and each mark sits in the middle of its button on whole pixels.
+/// The steppers draw ODK's minus and plus icons (ADR 0080), which a font cannot draw at two
+/// sizes, each in the middle of its button.
 #[gpui::test]
-fn the_steppers_marks_match(cx: &mut TestAppContext) {
+fn the_steppers_draw_the_minus_and_plus_icons(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| quantity().default_value(3.0));
-    let bar = |cx: &mut VisualTestContext, part: &'static str| cx.debug_bounds(part).unwrap();
-    let minus = bar(cx, "n/decrement/mark");
-    let across = bar(cx, "n/increment/mark");
-    let upright = bar(cx, "n/increment/mark-upright");
-    assert!(cx.debug_bounds("n/decrement/mark-upright").is_none());
-    assert_eq!(minus.size, across.size, "a minus is a plus's bar across");
-    assert!(across.size.width > across.size.height);
-    assert_eq!(
-        (upright.size.width, upright.size.height),
-        (across.size.height, across.size.width),
-        "the upright bar is the bar across, turned"
-    );
-    assert_eq!(
-        upright.center(),
-        across.center(),
-        "the bars cross at their middles"
-    );
-    for (button, mark) in [
-        ("n/decrement/button", minus),
-        ("n/increment/button", across),
-    ] {
-        let off = bar(cx, button).center() - mark.center();
+    redraw(cx);
+    crate::drawn::last_icon(Icon::Minus);
+    crate::drawn::last_icon(Icon::Plus);
+    for part in ["n/decrement", "n/increment"] {
+        let slot: &'static str = Box::leak(format!("{part}/icon").into_boxed_str());
+        let button: &'static str = Box::leak(format!("{part}/button").into_boxed_str());
+        let off =
+            cx.debug_bounds(button).unwrap().center() - cx.debug_bounds(slot).unwrap().center();
         assert!(
             off.x.abs() <= px(0.5) && off.y.abs() <= px(0.5),
-            "{button}'s mark is off its middle by {off:?}"
+            "{part}'s icon is off its middle by {off:?}"
         );
-    }
-    for b in [minus, across, upright] {
-        for edge in [b.left(), b.top(), b.right(), b.bottom()] {
-            assert_eq!(f32::from(edge).fract(), 0.0, "{b:?} is not on whole pixels");
-        }
     }
 }
 
-/// A painted mark takes its button's text colour in each state, as a character would, so the
-/// stepper that cannot move shows its mark dimmed.
+/// An icon takes its button's text colour in each state, as a character would, so the stepper
+/// that cannot move shows its icon dimmed.
 #[gpui::test]
-fn a_painted_mark_takes_its_buttons_colours(cx: &mut TestAppContext) {
+fn a_stepper_icon_takes_its_buttons_colours(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| quantity().default_value(10.0));
     redraw(cx);
-    let ink = |part: &str| crate::drawn::last::<[Color; 3]>(&format!("{part}/mark"));
-    for part in ["n/decrement", "n/increment"] {
+    for (part, icon) in [("n/decrement", Icon::Minus), ("n/increment", Icon::Plus)] {
         let c = crate::button::probe::last(part).style.colours;
         assert_eq!(
-            ink(part),
+            crate::drawn::last_icon(icon),
             [c.default, c.hover, c.pressed].map(|t| t.foreground),
             "{part}"
         );
     }
     assert!(!crate::button::probe::last("n/increment").style.responds);
     assert_ne!(
-        ink("n/increment")[0],
-        ink("n/decrement")[0],
+        crate::drawn::last_icon(Icon::Plus)[0],
+        crate::drawn::last_icon(Icon::Minus)[0],
         "held at the top, the plus is dimmed and the minus is not"
     );
 }

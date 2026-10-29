@@ -20,7 +20,7 @@ use gpui::{
 use crate::focus::{FocusNext, FocusPrevious, child_id, focus_handle, move_focus, part_name};
 use crate::layout::h_flex;
 use crate::theme::colour;
-use crate::{Button, Heading, Size, components};
+use crate::{Button, Heading, Icon, Size, components};
 use odk_theme::component::ButtonVariant;
 use odk_theme::foundation::MotionDuration;
 
@@ -683,7 +683,7 @@ pub(crate) fn modal_header(
                 .child(heading),
         )
         .children(closable.then(|| {
-            Button::icon(child_id(id, "close"), "×", "Close")
+            Button::icon(child_id(id, "close"), Icon::Close, "Close")
                 .variant(ButtonVariant::Ghost)
                 .size(Size::Sm)
                 .on_click(move |_, window, cx| close(window, cx))

@@ -12,7 +12,7 @@ use odk_theme::semantic::Emphasis;
 use crate::focus::{child_id, part_name};
 use crate::layout::{StyledExt, h_flex, v_flex};
 use crate::theme::{colour, mono};
-use crate::{Button, Size, Tone, components};
+use crate::{Button, Icon, Size, Tone, components};
 
 type Handler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
@@ -171,7 +171,7 @@ impl RenderOnce for Alert {
         if let Some(handler) = self.on_dismiss {
             alert = alert.child(
                 div().flex_shrink_0().mt(lift).mb(lift).child(
-                    Button::icon(child_id(&self.id, "dismiss"), "×", "Dismiss")
+                    Button::icon(child_id(&self.id, "dismiss"), Icon::Close, "Dismiss")
                         .variant(ButtonVariant::Ghost)
                         .density(dismiss_size)
                         .on_click(handler),

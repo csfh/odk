@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0080
 ---
 
 # A number field's steppers are painted

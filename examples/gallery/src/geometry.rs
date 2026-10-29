@@ -117,7 +117,7 @@ impl Render for GeometryPage {
                             )
                             .child(
                                 Button::new(("geometry-outline", density as usize))
-                                    .leading_icon("✓")
+                                    .leading_icon(Icon::Check)
                                     .label("Apply")
                                     .variant(ButtonVariant::Outline)
                                     .density(density),

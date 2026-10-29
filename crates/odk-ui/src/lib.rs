@@ -21,6 +21,7 @@ mod files;
 mod focus;
 mod form_field;
 mod hover_card;
+mod icon;
 mod image;
 mod input;
 mod input_group;
@@ -86,6 +87,7 @@ pub use files::{FileChooser, FileChooserError, StartFolder};
 pub use focus::{FocusNext, FocusPrevious, focused_component};
 pub use form_field::{FieldControl, Fielded, FormField, form};
 pub use hover_card::HoverCard;
+pub use icon::{Glyph, Icon};
 pub use image::{Image, ImageFit};
 pub use input::Input;
 pub use input_group::InputGroup;
@@ -144,8 +146,8 @@ pub mod prelude {
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Chart,
         ChartHeight, ChartPath, Checkbox, Chord, Clamp, Column, Command, CommandItem, ContextMenu,
         DataTable, Density, Dialog, DropdownMenu, Emphasis, EndEllipsis, FileChooser, FixedWidth,
-        FormField, Heading, HoverCard, Image, ImageFit, Ink, Input, InputGroup, Kbd, Menu,
-        MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
+        FormField, Glyph, Heading, HoverCard, Icon, Image, ImageFit, Ink, Input, InputGroup, Kbd,
+        Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
         RadioGroup, Resizable, ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side,
         Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
         StatusIndicator, StrokeWidth, StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline,

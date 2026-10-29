@@ -13,22 +13,19 @@ use odk_theme::component::States;
 use odk_theme::foundation::Density;
 
 use crate::button::Size;
-use crate::components;
 use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, part_name};
-use crate::input::{field_box, field_glyph};
+use crate::input::{field_box, field_glyph, field_mark};
 use crate::layout::{bounds_probe, h_flex};
 use crate::menu_list::{Fit, Menu, MenuItem, Surface, Typeahead, surface};
 use crate::theme::colour;
+use crate::{Icon, components};
 
 type ChangeHandler = Rc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
 
 /// How long a pause ends what the user has typed so far, so the next key starts a new search.
 /// ODK's own (ADR 0035); it matches the 1 s that browsers and toolkits use.
 const TYPEAHEAD_RESET: Duration = Duration::from_millis(1000);
-
-/// The indicator at the box's end. ODK has no icon set yet, so it is a character.
-const INDICATOR: &str = "▾";
 
 struct Item {
     value: SharedString,
@@ -498,7 +495,7 @@ impl RenderOnce for Select {
             );
         }
         field = field.child(
-            field_glyph(INDICATOR.into(), g.icon_size, colour(style.indicator))
+            field_mark(Icon::ChevronDown, g.icon_size, style.indicator)
                 .debug_selector(|| part_name(&id, "indicator")),
         );
         field = field_box(field, &s, None);
