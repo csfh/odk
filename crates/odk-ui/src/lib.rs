@@ -26,6 +26,7 @@ mod image;
 mod input;
 mod input_group;
 mod interaction;
+mod item;
 mod kbd;
 mod layout;
 mod link;
@@ -91,6 +92,7 @@ pub use icon::{Glyph, Icon};
 pub use image::{Image, ImageFit};
 pub use input::Input;
 pub use input_group::InputGroup;
+pub use item::Item;
 pub use kbd::Kbd;
 pub use layout::{
     Space, StyledExt, content_column, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame,
@@ -146,10 +148,10 @@ pub mod prelude {
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Chart,
         ChartHeight, ChartPath, Checkbox, Chord, Clamp, Column, Command, CommandItem, ContextMenu,
         DataTable, Density, Dialog, DropdownMenu, Emphasis, EndEllipsis, FileChooser, FixedWidth,
-        FormField, Glyph, Heading, HoverCard, Icon, Image, ImageFit, Ink, Input, InputGroup, Kbd,
-        Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
-        RadioGroup, Resizable, ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side,
-        Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
+        FormField, Glyph, Heading, HoverCard, Icon, Image, ImageFit, Ink, Input, InputGroup, Item,
+        Kbd, Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover,
+        Progress, RadioGroup, Resizable, ResizablePanel, Scene, SearchInput, Select, Separator,
+        Sheet, Side, Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
         StatusIndicator, StrokeWidth, StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline,
         Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column, form,
         h_flex, middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end,

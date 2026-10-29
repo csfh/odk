@@ -113,6 +113,10 @@ _Avoid_: form field (for the box alone), text box, entry, control (for a field i
 A control in a form together with its label, an optional description and an optional message, such as an error.
 _Avoid_: field (for the whole), form item, form row
 
+**Item**:
+A row of content: a title, an optional description and lines under them, actions at its end, and optionally something across it under its words. Unlike a Form field, what it holds at its end can be anything, not only a form control; the entries of a menu, a select, a command palette or a table are not Items.
+_Avoid_: list item, settings row, row (for this), cell
+
 **Field action**:
 A button drawn inside a Field, lower than it, that acts on the Field's value: clearing it, showing a password, stepping a number.
 _Avoid_: adornment, addon (for a button), inline button

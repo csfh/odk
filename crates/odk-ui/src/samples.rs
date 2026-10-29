@@ -266,6 +266,13 @@ pub static SAMPLES: &[Sample] = &[
             .default_value("example")
             .into_any_element()
     }),
+    sample("Item", 20, |n| {
+        Item::new(format!("Natural scroll {n}"))
+            .description("Content moves with your fingers, the way a phone does.")
+            .child(Text::new("~/.config/hypr/input.lua").mono().muted())
+            .action(Switch::new(("item-switch", n), "Natural scroll"))
+            .into_any_element()
+    }),
     sample("Kbd", 60, |_| Kbd::new("Ctrl+Shift+K").into_any_element()),
     sample("NavList", 10, |n| {
         NavList::new(("nav-list", n), "Settings")

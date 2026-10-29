@@ -1,5 +1,5 @@
 //! Data and layout: a resizable group's handle (ADR 0069), a data table (ADR 0070), a chart's
-//! inks (ADR 0071) and an image (ADR 0072).
+//! inks (ADR 0071), an image (ADR 0072) and an item.
 
 use super::catalogue::{Entry, Measure, Summary, Template};
 use super::geometry::{self, ControlGeometry, FocusRing, Shape};
@@ -297,6 +297,57 @@ const IMAGE_PLACEHOLDER: C = C::Treatment(
     Part::Background,
 );
 
+/// An item (`Item`): a row of content whose title and description read as a form field's label
+/// and description, padded above and below by its density and not at all at its sides, so its
+/// text lines up with the headings over it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ItemStyle {
+    pub title: Color,
+    pub title_role: TypeRole,
+    pub description: Color,
+    pub description_role: TypeRole,
+    /// Above and below it: the foundation's `s1`, `s2` or `s3` by density.
+    pub padding_y: f32,
+    /// Between its title, its description and the lines under them: `s1`.
+    pub line_gap: f32,
+    /// Between its words and its actions, and between one action and the next: `s3`.
+    pub gap: f32,
+    /// Between its words and its footer: `s2`.
+    pub footer_gap: f32,
+}
+
+impl ComponentTokens {
+    /// An item at `density`, its own or the application's ([`Self::density`]).
+    pub fn item(&self, density: Density) -> ItemStyle {
+        let s = &self.foundation.spacing;
+        ItemStyle {
+            title: self.colour(C::Text(T::Primary)),
+            title_role: TypeRole::BodyStrong,
+            description: self.colour(C::Text(T::Secondary)),
+            description_role: TypeRole::Small,
+            padding_y: match density {
+                Density::Compact => s.s1,
+                Density::Default => s.s2,
+                Density::Comfortable => s.s3,
+            },
+            line_gap: s.s1,
+            gap: s.s3,
+            footer_gap: s.s2,
+        }
+    }
+}
+
+/// An item has no box: as high as its content, square, its title `body_strong`.
+fn item_summary(f: &FoundationTokens, _: Density) -> Summary {
+    Summary {
+        height: None,
+        shape: Shape::Rect {
+            radius: f.geometry.radius.none,
+        },
+        type_role: Some(TypeRole::BodyStrong),
+    }
+}
+
 pub(super) fn catalogue(out: &mut Vec<Entry>) {
     let t = Template::new("resize handle", "", |f, _| Summary {
         height: Some(f.geometry.border_width),
@@ -407,5 +458,18 @@ pub(super) fn catalogue(out: &mut Vec<Entry>) {
         "placeholder",
         &[Measure::Text],
         TreatmentRef::new(IMAGE_PLACEHOLDER, C::Text(T::Tertiary), C::None),
+    );
+    let item = Template::new("item", "", item_summary);
+    item.entry(
+        out,
+        "title",
+        &[Measure::Text],
+        TreatmentRef::new(C::None, C::Text(T::Primary), C::None),
+    );
+    item.entry(
+        out,
+        "description",
+        &[Measure::Text],
+        TreatmentRef::new(C::None, C::Text(T::Secondary), C::None),
     );
 }

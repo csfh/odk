@@ -151,6 +151,8 @@ pub fn section(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div
         .child(charts(g, cx))
         .child(group("Images"))
         .child(images(g))
+        .child(group("Items"))
+        .child(items(c))
 }
 
 /// A panel's content: a title over a paragraph, which wraps and is cut at the panel's edge.
@@ -515,6 +517,73 @@ fn charts(g: &mut DataPage, cx: &mut Context<DataPage>) -> Div {
             "Drag, Shift and the wheel, or the arrow keys pan; the wheel or + and - zoom; Enter presses the middle. Pressed {pressed}."
         )))
         .child(chart_box(view))
+}
+
+/// How wide the column of items is here, as a settings page's column might be.
+const ITEMS_WIDTH: f32 = 640.0;
+
+/// Items as a settings page draws its rows: each with what it controls at its end, or across it
+/// when the control needs the room, divided by separators.
+fn items(c: &Content) -> Div {
+    let [scroll, accel, speed] = c.items;
+    let line = |text: &'static str| (!text.is_empty()).then(|| Text::new(text).mono().muted());
+    v_flex()
+        .gap(Space::Sm)
+        .child(caption(
+            "A title, a description and lines under them, actions at the end and a footer across. Padded above and below by the density and not at the sides, so its text lines up with the heading over it. Not a tab stop: Tab reaches its actions.",
+        ))
+        .child(
+            v_flex()
+                .w_full()
+                .max_w(px(ITEMS_WIDTH))
+                .child(
+                    Item::new(scroll.0)
+                        .description(scroll.1)
+                        .children(line(scroll.2))
+                        .action(Switch::new("data-item-switch", scroll.0).default_checked(true)),
+                )
+                .child(Separator::horizontal())
+                .child(
+                    Item::new(accel.0)
+                        .description(accel.1)
+                        .children(line(accel.2))
+                        .action(
+                            Select::new("data-item-select", accel.0)
+                                .item("default", "Default")
+                                .item("flat", "Flat")
+                                .item("adaptive", "Adaptive")
+                                .default_value("default"),
+                        ),
+                )
+                .child(Separator::horizontal())
+                .child(
+                    Item::new(speed.0)
+                        .description(speed.1)
+                        .children(line(speed.2))
+                        .footer(
+                            NumberInput::new("data-item-number", speed.0)
+                                .min(-1.0)
+                                .max(1.0)
+                                .step(0.1)
+                                .default_value(-0.6),
+                        ),
+                )
+                .child(Separator::horizontal())
+                .child(
+                    Item::new("Work")
+                        .description("A profile with two actions at its end.")
+                        .action(Button::new("data-item-apply").label("Apply"))
+                        .action(
+                            Button::icon("data-item-star", Icon::Star, "Add to favorites")
+                                .variant(ButtonVariant::Ghost),
+                        ),
+                )
+                .child(Separator::horizontal())
+                .child(
+                    Item::new("Keyboard layout")
+                        .action(Badge::new("Unknown").tone(Tone::Warning).marked()),
+                ),
+        )
 }
 
 /// Two pictures made for the gallery: a landscape and a portrait.
