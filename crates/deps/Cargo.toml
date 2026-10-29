@@ -38,6 +38,11 @@ event-listener = { version = "5", features = ["default", "parking", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "default", "std"] }
 smallvec = { version = "1", features = ["const_generics", "const_new", "union", "write"] }
 concurrent-queue = { version = "2", features = ["default", "std"] }
+# What `ureq` (ADR 0066) shares with GPUI's HTTP client and TLS.
+http = { version = "1", features = ["default", "std"] }
+httparse = { version = "1", features = ["default", "std"] }
+rustls = { version = "0.23", default-features = false, features = ["log", "logging", "ring", "std", "tls12"] }
+zeroize = { version = "1", features = ["aarch64", "alloc", "default", "zeroize_derive"] }
 # Through crrl and sha2 in oma (ADR 0061). Two names are renamed, since other versions of
 # getrandom and digest are in the tree as well.
 rand_core = { version = "0.6", features = ["alloc", "getrandom", "std"] }
@@ -107,6 +112,8 @@ ignored = [
     "futures-util",
     "getrandom_02",
     "hashbrown",
+    "http",
+    "httparse",
     "idna",
     "indexmap",
     "libc",
@@ -120,6 +127,7 @@ ignored = [
     "quote",
     "rand_core",
     "rustix",
+    "rustls",
     "semver",
     "serde",
     "serde_core",
@@ -139,6 +147,7 @@ ignored = [
     "zbus_macros",
     "zbus_names",
     "zerocopy",
+    "zeroize",
     "zvariant",
     "zvariant_derive",
     "zvariant_utils",

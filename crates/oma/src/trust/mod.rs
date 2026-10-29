@@ -5,8 +5,8 @@
 //! Nothing here decides that a publisher is trusted. [`check`] says a file is signed by the
 //! release key in its own header and that its digests hold; whether that key is the pinned
 //! root's is for the pin and the key set, which the consent and install phases add
-//! (`docs/oma-trust-plan.md`). Only the `binfmt_misc` entry calls it yet, and it still refuses the
-//! file.
+//! (`docs/oma-trust-plan.md`). The `binfmt_misc` entry calls it and still refuses the file;
+//! `odk oma install <file>` calls it at first contact with a root (`flow::install_file`).
 
 pub mod canonical;
 pub mod container;

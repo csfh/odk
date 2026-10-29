@@ -32,6 +32,7 @@ For an upgrade, only the **new** permissions are listed. The ones already in the
 |---|---|
 | First open of a Bundle outside `~/Applications`, under a root already pinned for that app id | Install, Run once, Cancel |
 | A publisher root that is not pinned for that app id (ADR 0060) | Install, Run once, Cancel |
+| `odk oma install` of a Bundle file under a publisher root that is not pinned for that app id | Install, Cancel: the command installs or does nothing, as `docs/spec/oma-cli.md` says |
 | Before that, when its host is confusable with a host pinned for a different root | Confirm, Cancel: the note alone, with nothing that installs. Install and Run once are offered only after Confirm, in their own dialog |
 | An upgrade that verifies under the pinned root and requests something new, with a previous version kept | Allow, Keep previous version, Cancel |
 | Any other installed Bundle that requests something new | Allow, Cancel |
@@ -86,7 +87,7 @@ lines = ["Can use the graphics card directly"]
 notes = ["Desktop: you have no such folder, so this will not be available"]
 ```
 
-`lines` are the permission lines, already worded; `notes` are the unavailable-folder notes. `buttons` are the offered answers in the order shown: `install`, `run-once`, `allow`, `keep-previous`, `confirm` and `cancel`. For a signed file (ADR 0060), `name` and `identifier` are both the signed app id and `version` is the monotonic version: the image is not read for them, and `lines` is empty until the open question of how permission lines are read is settled (`docs/oma-trust-plan.md`, question 12).
+`lines` are the permission lines, already worded; `notes` are the unavailable-folder notes. `buttons` are the offered answers in the order shown: `install`, `run-once`, `allow`, `keep-previous`, `confirm` and `cancel`. For a signed file (ADR 0060), `name` and `identifier` are both the signed app id and `version` is the monotonic version: the image is not read for them. `lines` are the permissions in the image's `manifest.toml`, read with `odk-oma`'s own reader once the envelope has held (ADR 0067, which settles `docs/oma-trust-plan.md`'s question 12).
 
 **Answer**, one line on standard output: exactly one of the offered words, and exit status 0. Closing the window or pressing Escape is `cancel`.
 

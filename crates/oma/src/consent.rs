@@ -80,19 +80,24 @@ impl Request {
             situation: "new",
             buttons: buttons.iter().map(|b| b.word()).collect(),
             lines: permission_lines(missing),
-            notes: missing
-                .filesystem
-                .iter()
-                .filter(|g| named_dirs.get(g.dir).is_err())
-                .map(|g| {
-                    format!(
-                        "{}: you have no such folder, so this will not be available",
-                        folder_title(g.dir)
-                    )
-                })
-                .collect(),
+            notes: unavailable(missing, named_dirs),
         }
     }
+}
+
+/// A note for each named folder asked for that this person does not have.
+fn unavailable(permissions: &Permissions, named_dirs: &Resolved) -> Vec<String> {
+    permissions
+        .filesystem
+        .iter()
+        .filter(|g| named_dirs.get(g.dir).is_err())
+        .map(|g| {
+            format!(
+                "{}: you have no such folder, so this will not be available",
+                folder_title(g.dir)
+            )
+        })
+        .collect()
 }
 
 /// Who a signed file says it is: the signed fields the first-install dialog shows, and the URL
@@ -112,10 +117,14 @@ pub struct Identity<'a> {
 impl Request {
     /// The first-install dialog for a root that is not pinned for this app id. `also_for` is an
     /// app id the root is already pinned for, which the dialog names beside this one.
+    /// `requested` is what the verified image's `manifest.toml` asks for, which the dialog lists
+    /// (ADR 0067, which settles `docs/oma-trust-plan.md`'s question 12).
     pub fn new_root(
         identity: &Identity<'_>,
         also_for: Option<&Identifier>,
         buttons: &[Button],
+        requested: &Permissions,
+        named_dirs: &Resolved,
     ) -> Self {
         let (unicode, punycode) = host_forms(identity.publisher);
         let mut notes = vec![format!(
@@ -133,7 +142,11 @@ impl Request {
         if let Some(url) = identity.fetched {
             notes.push(format!("It was fetched from {url}."));
         }
-        Self::signed(identity, buttons, notes)
+        notes.extend(unavailable(requested, named_dirs));
+        Self {
+            lines: permission_lines(requested),
+            ..Self::signed(identity, buttons, notes)
+        }
     }
 
     /// The confusable-host note on its own: Confirm or Cancel, and nothing that installs.
@@ -416,6 +429,8 @@ mod tests {
             &identity,
             None,
             &[Button::Install, Button::RunOnce, Button::Cancel],
+            &Permissions::default(),
+            &userdirs::resolve(Path::new("/nonexistent"), Path::new("/nonexistent/dirs")),
         );
         let fp = root.fingerprint().to_string();
         assert_eq!(

@@ -7,13 +7,18 @@ use std::path::{Path, PathBuf};
 use crate::consent::{self, Button, Identity, Request};
 use crate::daemon::{self, Stopper};
 use crate::fmt::{Bundle, Identifier, Permissions};
+use crate::image::Image;
 use crate::layout::Layout;
 use crate::sandbox::launch::{self, HostEnv, Options};
-use crate::trust::{KeyId, Publisher, SelfSigned, VerifiedKeys};
-use crate::{dev, grants, install, userdirs};
+use crate::trust::keys::Signer;
+use crate::trust::{self, KeyId, Mark, Publisher, Sealed, SelfSigned, Timestamp, VerifiedKeys};
+use crate::{dev, fetch, grants, image, install, userdirs};
 
 /// Shows the dialog. The real one is [`consent::ask`].
 pub type Ask<'a> = &'a dyn Fn(&Request) -> Result<Button, consent::Error>;
+
+/// Fetches a publisher's key set. The real one is [`fetch::oma_keys`] with [`fetch::agent`].
+pub type Fetch<'a> = &'a dyn Fn(&Publisher) -> Result<fetch::KeySet, fetch::Failure>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -61,6 +66,28 @@ pub enum Error {
         "the pinned key with id {0} is another key than this file's root; two keys with one id have no rule yet (docs/oma-trust-plan.md, question 11)"
     )]
     KeyIdCollision(KeyId),
+    #[error(
+        "{app} asks for more than its publisher's pin allows; asking for more under a pinned root is not built yet (issue #14)"
+    )]
+    MoreThanAllowed { app: Identifier },
+    #[error(transparent)]
+    Trust(#[from] trust::Error),
+    #[error(transparent)]
+    Image(#[from] image::Error),
+    #[error("{0}; nothing was installed, and no publisher key was pinned")]
+    Fetch(fetch::Failure),
+    #[error("{app}'s signature expired at {}; it is not installed", .at.as_str())]
+    Expired { app: Identifier, at: Timestamp },
+    #[error("{app}'s release key {key} expired at {}; it does not authorize an install", .at.as_str())]
+    ReleaseKeyExpired {
+        app: Identifier,
+        key: KeyId,
+        at: Timestamp,
+    },
+    #[error(
+        "{app}'s publisher key is already pinned; installing again under a pinned key is not built yet (issue #14)"
+    )]
+    PinnedRootNotBuilt { app: Identifier },
 }
 
 /// What the Bundle's consent record does not cover yet.
@@ -302,19 +329,23 @@ pub enum Admission {
 ///
 /// `file` has passed [`crate::trust::check`]. `keys` is its root's key set, verified on first
 /// contact or under the pin. `fetched` is the URL the file was downloaded from, or `None` for a
-/// file opened from disk, which has no download host. Consent for the image's permissions is not
-/// asked here: how those lines are read is open (`docs/oma-trust-plan.md`, question 12).
+/// file opened from disk, which has no download host. `requested` is what the file's verified
+/// image asks for (`crate::image`), which the dialog lists (ADR 0067, which settles
+/// `docs/oma-trust-plan.md`'s question 12).
 ///
-/// A root not pinned for this app id is asked about even when nothing else would be. Install
-/// writes the pin, and Cancel writes a denial. Run once writes nothing. A host one edit away
+/// A root not pinned for this app id is asked about even when nothing else would be: Install,
+/// Run once and Cancel, or Install and Cancel for `odk oma install`. Install writes the pin and
+/// the permissions, and Cancel writes a denial. Run once writes nothing. A host one edit away
 /// from a host pinned for another root is confirmed on its own first. Matching a Unicode
-/// confusable is open (question 15).
+/// confusable is open (question 15). A pinned root whose file asks for more than was allowed is
+/// refused for now: asking about that is not built.
 pub fn admit(
     layout: &Layout,
     file: &SelfSigned,
     keys: &VerifiedKeys,
     fetched: Option<&str>,
     occasion: Occasion,
+    requested: &Permissions,
     ask: Ask,
 ) -> Result<Admission, Error> {
     let manifest = file.manifest();
@@ -351,7 +382,11 @@ pub fn admit(
             return Err(Error::KeyIdCollision(root_id));
         }
         if !pair.denied {
-            return Ok(Admission::Pinned);
+            let granted = pair.permissions.clone().unwrap_or_default();
+            if grants::is_empty(&grants::missing(&granted, requested)) {
+                return Ok(Admission::Pinned);
+            }
+            return Err(Error::MoreThanAllowed { app: app.clone() });
         }
     }
     let denied = || Error::Denied {
@@ -414,17 +449,18 @@ pub fn admit(
         .iter()
         .find(|(other_app, other)| other.root == *root && other_app != app)
         .map(|(other_app, _)| other_app);
-    let request = Request::new_root(
-        &identity,
-        also_for,
-        &[Button::Install, Button::RunOnce, Button::Cancel],
-    );
+    let buttons: &[Button] = match occasion {
+        Occasion::Install { .. } => &[Button::Install, Button::Cancel],
+        _ => &[Button::Install, Button::RunOnce, Button::Cancel],
+    };
+    let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
+    let request = Request::new_root(&identity, also_for, buttons, requested, &named_dirs);
     match ask(&request).map_err(Error::Dialog)? {
         Button::Install => {
             let pair = grants::Pair {
                 root: *root,
                 publisher: manifest.publisher.clone(),
-                permissions: existing.as_ref().and_then(|p| p.permissions.clone()),
+                permissions: Some(requested.clone()),
                 mark: existing.as_ref().and_then(|p| p.mark),
                 denied: false,
             };
@@ -434,6 +470,106 @@ pub fn admit(
         Button::RunOnce => Ok(Admission::RunOnce),
         _ => refuse(layout),
     }
+}
+
+/// `odk oma install <file>` for a Bundle file (ADR 0052), at first contact with its publisher's
+/// root (ADR 0060, sections 2 to 7). `now` is the time in Unix seconds.
+///
+/// Everything that can refuse the file does so before the dialog: its envelope and its image,
+/// its signature window, an install name that is taken, and its root's key set, fetched from
+/// the publisher, verified on first contact, and naming the file's release key inside its
+/// `not_after`. Then the person is asked, Install or Cancel, with the image's permissions listed.
+/// Install pins the root and records the permissions; then the sealed bytes are placed in
+/// `~/Applications`, and only then is the high-water mark written. A failure after the dialog
+/// leaves the pin, which the person gave.
+///
+/// A root that is already pinned, for this app id or another, is not built yet: a key set
+/// fetched for it would have to be held to the version stored for the root (section 3), and
+/// nothing stores that yet. The same file again is a no-op. A revoked release key is not
+/// checked: the revocation document has no schema yet (`docs/oma-trust-plan.md`, question 2).
+pub fn install_file(
+    layout: &Layout,
+    path: &Path,
+    accept_permissions: bool,
+    now: i64,
+    ask: Ask,
+    fetch: Fetch,
+) -> Result<PathBuf, Error> {
+    let sealed = Sealed::memfd(path)?;
+    let checked = trust::check(&sealed)?;
+    let image = Image::read(&checked)?;
+    let file = checked.signed();
+    let signed = file.manifest();
+    let app = &signed.app_id;
+    if signed.expires_at.unix_seconds() < now {
+        return Err(Error::Expired {
+            app: app.clone(),
+            at: signed.expires_at.clone(),
+        });
+    }
+    let target = layout
+        .applications()
+        .join(format!("{}.oma", image.manifest().name.replace('/', "-")));
+    let mark = Mark {
+        version: signed.version,
+        payload_sha256: signed.payload_sha256,
+    };
+
+    let pinned: Vec<_> = grants::pairs(layout)?
+        .into_iter()
+        .filter(|(_, pair)| pair.root.key_id() == signed.root_key_id && !pair.denied)
+        .collect();
+    let same_again = pinned
+        .iter()
+        .any(|(other, pair)| other == app && pair.mark == Some(mark));
+    if same_again && target.is_file() {
+        return Ok(target);
+    }
+    if !pinned.is_empty() {
+        return Err(Error::PinnedRootNotBuilt { app: app.clone() });
+    }
+    if target.symlink_metadata().is_ok() {
+        return Err(install::Error::Exists(target).into());
+    }
+
+    let fetched = fetch(&signed.publisher).map_err(Error::Fetch)?;
+    let keys = trust::keys::verify(&fetched.body, &fetched.signature, Signer::FirstContact)?;
+    if keys.root().key_id() != signed.root_key_id {
+        return Err(Error::OtherRoot {
+            app: app.clone(),
+            named: signed.root_key_id,
+            fetched: keys.root().key_id(),
+        });
+    }
+    let release_key = &file.header().release_key;
+    let Some(release) = keys.set().release_key(release_key) else {
+        return Err(Error::NotAuthorized {
+            app: app.clone(),
+            key: release_key.key_id(),
+        });
+    };
+    if release.not_after.unix_seconds() < now {
+        return Err(Error::ReleaseKeyExpired {
+            app: app.clone(),
+            key: release.id,
+            at: release.not_after.clone(),
+        });
+    }
+
+    let occasion = Occasion::Install { accept_permissions };
+    let requested = &image.manifest().permissions;
+    match admit(layout, file, &keys, None, occasion, requested, ask)? {
+        Admission::Installed => {}
+        Admission::Pinned | Admission::RunOnce => {
+            unreachable!("a root not pinned, asked with Install and Cancel only")
+        }
+    }
+    install::place_file(&sealed, &target)?;
+    let mut pair = grants::load_pair(layout, &signed.root_key_id, app)?
+        .expect("Install wrote the pair's record");
+    pair.mark = Some(mark);
+    grants::save_pair(layout, app, &pair)?;
+    Ok(target)
 }
 
 /// The host of an `https` URL: what comes after `https://` and before the path, query or
@@ -717,8 +853,15 @@ mod signed_tests {
     /// The root of `root_seed`'s key set, naming the fixture release key, verified on first
     /// contact.
     fn key_set(root_seed: u8) -> VerifiedKeys {
+        let set = key_set_bytes(root_seed, &release_key());
+        keys::verify(&set.body, &set.signature, Signer::FirstContact).unwrap()
+    }
+
+    /// The root of `root_seed`'s key set naming `release` until 2027-01-01, as a publisher
+    /// serves it: the body and the root's signature.
+    fn key_set_bytes(root_seed: u8, release: &SigningKey) -> fetch::KeySet {
         let root = root(root_seed);
-        let release = release_key().public_key();
+        let release = release.public_key();
         let set = OmaKeys {
             root_public_key: root.public_key(),
             root_key_id: root.public_key().key_id(),
@@ -730,8 +873,8 @@ mod signed_tests {
             }],
         };
         let body = set.to_canonical().unwrap();
-        let signature = root.sign(Context::KEYS, &body);
-        keys::verify(&body, &signature.0, Signer::FirstContact).unwrap()
+        let signature = root.sign(Context::KEYS, &body).0.to_vec();
+        fetch::KeySet { body, signature }
     }
 
     /// A dialog that answers `answers` in turn and keeps every request it was shown.
@@ -765,7 +908,15 @@ mod signed_tests {
         occasion: Occasion,
         dialog: &Dialog,
     ) -> Result<Admission, Error> {
-        admit(layout, file, keys, None, occasion, &|r| dialog.ask(r))
+        admit(
+            layout,
+            file,
+            keys,
+            None,
+            occasion,
+            &Permissions::default(),
+            &|r| dialog.ask(r),
+        )
     }
 
     const APP: &str = "dev.csfh.notes";
@@ -815,7 +966,9 @@ mod signed_tests {
         .unwrap()
         .unwrap();
         assert_eq!(pair.root, root(1).public_key());
-        assert!(!pair.denied && pair.permissions.is_none() && pair.mark.is_none());
+        // Install records what the file asked for, here nothing beyond the baseline.
+        assert!(!pair.denied && pair.mark.is_none());
+        assert_eq!(pair.permissions, Some(Permissions::default()));
 
         // Pinned now: the same file is not asked about again.
         let again = Dialog::answering(&[]);
@@ -1025,7 +1178,8 @@ mod signed_tests {
         );
         let shown = confirm.shown.borrow();
         assert_eq!(shown.len(), 2);
-        assert_eq!(shown[1].buttons, ["install", "run-once", "cancel"]);
+        // `odk oma install` installs or does nothing: it offers no Run once.
+        assert_eq!(shown[1].buttons, ["install", "cancel"]);
     }
 
     #[test]
@@ -1083,6 +1237,7 @@ mod signed_tests {
                         &key_set(1),
                         Some(url),
                         Occasion::Launch,
+                        &Permissions::default(),
                         &|r| silent.ask(r)
                     ),
                     Err(Error::HostMismatch { .. })
@@ -1101,6 +1256,7 @@ mod signed_tests {
             &key_set(1),
             Some(url),
             Occasion::Launch,
+            &Permissions::default(),
             &|r| dialog.ask(r),
         )
         .unwrap();
@@ -1183,5 +1339,366 @@ mod signed_tests {
         ] {
             assert_eq!(edit_distance(a, b), d, "{a} {b}");
         }
+    }
+
+    #[test]
+    fn a_pinned_root_whose_file_asks_for_more_is_refused_for_now() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let f = file(&dir, APP, HOST, 1);
+        let network = Permissions {
+            network: true,
+            ..Permissions::default()
+        };
+        let admit_asking = |requested: &Permissions, dialog: &Dialog| {
+            admit(
+                &layout,
+                &f,
+                &key_set(1),
+                None,
+                Occasion::Launch,
+                requested,
+                &|r| dialog.ask(r),
+            )
+        };
+        let first = Dialog::answering(&[Button::Install]);
+        assert_eq!(
+            admit_asking(&network, &first).unwrap(),
+            Admission::Installed
+        );
+        assert_eq!(first.shown.borrow()[0].lines.len(), 1, "the network line");
+
+        let quiet = Dialog::answering(&[]);
+        assert_eq!(admit_asking(&network, &quiet).unwrap(), Admission::Pinned);
+        let more = Permissions {
+            gpu: true,
+            ..network.clone()
+        };
+        assert!(matches!(
+            admit_asking(&more, &quiet),
+            Err(Error::MoreThanAllowed { .. })
+        ));
+        assert!(quiet.shown.borrow().is_empty());
+    }
+
+    // `odk oma install <file>`.
+
+    use crate::image::fixture as image_fixture;
+
+    /// Two days after the sample manifest was issued: inside its window and its release key's.
+    fn soon() -> i64 {
+        Timestamp::parse("2026-10-29T00:00:00Z")
+            .unwrap()
+            .unix_seconds()
+    }
+
+    /// The tests' Bundle as a file under the root of seed 1, its `manifest.toml` changed by
+    /// `edit_manifest` and its signed manifest by `edit_signed`.
+    fn bundle_file(
+        dir: &TempDir,
+        edit_manifest: impl FnOnce(String) -> String,
+        edit_signed: impl FnOnce(&mut crate::trust::SignedManifest),
+    ) -> PathBuf {
+        let text = edit_manifest(image_fixture::MANIFEST.to_owned());
+        let tree =
+            image_fixture::notes_with("manifest.toml", Some(image_fixture::file(text, 0o644)));
+        let image = image_fixture::build(&tree).image;
+        let mut manifest = sample();
+        manifest.root_key_id = root(1).public_key().key_id();
+        edit_signed(&mut manifest);
+        let bytes = crate::trust::stamp(&image[1024..], manifest, &release_key()).unwrap();
+        let path = dir.path().join("Notes.oma");
+        std::fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    fn with_network(text: String) -> String {
+        text.replace("[permissions]\n", "[permissions]\nnetwork = true\n")
+    }
+
+    /// A publisher that serves `set`, or fails with `failure`, and counts the fetches.
+    struct Site {
+        served: Result<fetch::KeySet, fetch::Failure>,
+        fetches: std::cell::Cell<usize>,
+    }
+
+    impl Site {
+        fn serving(set: fetch::KeySet) -> Self {
+            Self {
+                served: Ok(set),
+                fetches: Default::default(),
+            }
+        }
+
+        fn failing(failure: fetch::Failure) -> Self {
+            Self {
+                served: Err(failure),
+                fetches: Default::default(),
+            }
+        }
+
+        fn fetch(&self, publisher: &Publisher) -> Result<fetch::KeySet, fetch::Failure> {
+            assert_eq!(
+                publisher.as_str(),
+                HOST,
+                "only the signed publisher is asked"
+            );
+            self.fetches.set(self.fetches.get() + 1);
+            self.served.clone()
+        }
+    }
+
+    fn install_with(
+        layout: &Layout,
+        path: &Path,
+        accept_permissions: bool,
+        now: i64,
+        dialog: &Dialog,
+        publisher: &Site,
+    ) -> Result<PathBuf, Error> {
+        install_file(
+            layout,
+            path,
+            accept_permissions,
+            now,
+            &|r| dialog.ask(r),
+            &|p| publisher.fetch(p),
+        )
+    }
+
+    fn pair_of(layout: &Layout) -> Option<grants::Pair> {
+        grants::load_pair(
+            layout,
+            &root(1).public_key().key_id(),
+            &APP.parse().unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_file_installs_at_first_contact_with_its_permissions_asked_and_its_mark_written() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let path = bundle_file(&dir, with_network, |_| {});
+        let dialog = Dialog::answering(&[Button::Install]);
+        let publisher = Site::serving(key_set_bytes(1, &release_key()));
+
+        let target = install_with(&layout, &path, false, soon(), &dialog, &publisher).unwrap();
+        assert_eq!(target, layout.applications().join("Notes.oma"));
+        assert_eq!(
+            std::fs::read(&target).unwrap(),
+            std::fs::read(&path).unwrap()
+        );
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o644,
+            "a Bundle file is inert"
+        );
+        assert_eq!(publisher.fetches.get(), 1);
+
+        let shown = dialog.shown.borrow();
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown[0].buttons, ["install", "cancel"]);
+        assert_eq!(
+            shown[0].name, APP,
+            "the signed app id, not the image's name"
+        );
+        assert_eq!(
+            shown[0].lines,
+            crate::fmt::permission_lines(&Permissions {
+                network: true,
+                ..Permissions::default()
+            })
+        );
+        assert!(!shown[0].lines.is_empty());
+
+        let pair = pair_of(&layout).unwrap();
+        assert!(!pair.denied);
+        assert!(pair.permissions.unwrap().network);
+        let mark = pair.mark.unwrap();
+        assert_eq!(mark.version, 7);
+
+        // The same file again does nothing, asks nothing and fetches nothing.
+        let again = Dialog::answering(&[]);
+        assert_eq!(
+            install_with(&layout, &path, false, soon(), &again, &publisher).unwrap(),
+            target
+        );
+        assert_eq!(publisher.fetches.get(), 1);
+        // A file in ~/Applications is not a directory Bundle, and listing them skips it.
+        assert!(crate::install::installed(&layout).is_empty());
+    }
+
+    #[test]
+    fn cancel_installs_nothing_and_remembers_the_denial() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let path = bundle_file(&dir, |t| t, |_| {});
+        let dialog = Dialog::answering(&[Button::Cancel]);
+        let publisher = Site::serving(key_set_bytes(1, &release_key()));
+        assert!(matches!(
+            install_with(&layout, &path, false, soon(), &dialog, &publisher),
+            Err(Error::Cancelled)
+        ));
+        assert!(!layout.applications().join("Notes.oma").exists());
+        assert!(pair_of(&layout).unwrap().denied);
+    }
+
+    #[test]
+    fn accept_permissions_never_pins_a_new_root() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let path = bundle_file(&dir, |t| t, |_| {});
+        let dialog = Dialog::answering(&[]);
+        let publisher = Site::serving(key_set_bytes(1, &release_key()));
+        assert!(matches!(
+            install_with(&layout, &path, true, soon(), &dialog, &publisher),
+            Err(Error::NewRootNotAccepted { .. })
+        ));
+        assert!(pair_of(&layout).is_none());
+        assert!(!layout.applications().join("Notes.oma").exists());
+    }
+
+    #[test]
+    fn what_is_known_before_the_dialog_refuses_before_it() {
+        let check = |what: &str,
+                     layout: &Layout,
+                     path: &Path,
+                     now: i64,
+                     publisher: &Site,
+                     refused: &dyn Fn(&Error) -> bool| {
+            let dialog = Dialog::answering(&[]);
+            let e = install_with(layout, path, false, now, &dialog, publisher).unwrap_err();
+            assert!(refused(&e), "{what}: {e}");
+            assert!(dialog.shown.borrow().is_empty(), "{what}: nothing asked");
+            assert!(pair_of(layout).is_none(), "{what}: nothing pinned");
+        };
+        let serving = || Site::serving(key_set_bytes(1, &release_key()));
+
+        // A changed byte: the envelope, and nothing fetched.
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let path = bundle_file(&dir, |t| t, |_| {});
+        let mut bytes = std::fs::read(&path).unwrap();
+        *bytes.last_mut().unwrap() ^= 1;
+        std::fs::write(&path, bytes).unwrap();
+        let p = serving();
+        check("tampered", &layout, &path, soon(), &p, &|e| {
+            matches!(e, Error::Trust(_))
+        });
+        assert_eq!(p.fetches.get(), 0);
+
+        // An image whose manifest names another publisher.
+        let path = bundle_file(
+            &dir,
+            |t| t.replace("apps.csfh.dev", "other.csfh.dev"),
+            |_| {},
+        );
+        let p = serving();
+        check("image", &layout, &path, soon(), &p, &|e| {
+            matches!(e, Error::Image(_))
+        });
+        assert_eq!(p.fetches.get(), 0);
+
+        // Past its signature window (well past: the boundary is question 7's).
+        let path = bundle_file(&dir, |t| t, |_| {});
+        let later = Timestamp::parse("2028-01-01T00:00:00Z")
+            .unwrap()
+            .unix_seconds();
+        let p = serving();
+        check("expired", &layout, &path, later, &p, &|e| {
+            matches!(e, Error::Expired { .. })
+        });
+        assert_eq!(p.fetches.get(), 0);
+
+        // Its name taken by a directory Bundle, which is left as it is.
+        let atmos = layout.applications().join("Notes.oma");
+        std::fs::create_dir_all(atmos.join("bin")).unwrap();
+        let p = serving();
+        check("name taken", &layout, &path, soon(), &p, &|e| {
+            matches!(e, Error::Install(install::Error::Exists(_)))
+        });
+        assert!(atmos.join("bin").is_dir());
+        assert_eq!(p.fetches.get(), 0);
+        std::fs::remove_dir_all(&atmos).unwrap();
+
+        // The release key past its `not_after`, though the manifest is inside its window.
+        let key_expired = Timestamp::parse("2027-06-01T00:00:00Z")
+            .unwrap()
+            .unix_seconds();
+        check(
+            "release key expired",
+            &layout,
+            &path,
+            key_expired,
+            &serving(),
+            &|e| matches!(e, Error::ReleaseKeyExpired { .. }),
+        );
+
+        // A key set that does not name the file's release key.
+        let other = Site::serving(key_set_bytes(
+            1,
+            &SigningKey::from_seed(&[0x43; 32]).unwrap(),
+        ));
+        check("not authorized", &layout, &path, soon(), &other, &|e| {
+            matches!(e, Error::NotAuthorized { .. })
+        });
+
+        // Another root's key set.
+        let other = Site::serving(key_set_bytes(2, &release_key()));
+        check("other root", &layout, &path, soon(), &other, &|e| {
+            matches!(e, Error::OtherRoot { .. })
+        });
+
+        // A host that does not resolve, and one that cannot be reached: two lines.
+        for (failure, said) in [
+            (
+                fetch::Failure::HostNotFound { host: HOST.into() },
+                "does not resolve",
+            ),
+            (
+                fetch::Failure::Unreachable {
+                    host: HOST.into(),
+                    reason: "timed out".into(),
+                },
+                "could not be reached",
+            ),
+        ] {
+            let p = Site::failing(failure);
+            check(said, &layout, &path, soon(), &p, &|e| {
+                let text = e.to_string();
+                matches!(e, Error::Fetch(_))
+                    && text.contains(said)
+                    && text.contains("nothing was installed")
+            });
+        }
+        assert!(!layout.applications().join("Notes.oma").exists());
+    }
+
+    #[test]
+    fn another_file_under_a_pinned_root_is_not_built_yet() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let path = bundle_file(&dir, |t| t, |_| {});
+        let publisher = Site::serving(key_set_bytes(1, &release_key()));
+        install_with(
+            &layout,
+            &path,
+            false,
+            soon(),
+            &Dialog::answering(&[Button::Install]),
+            &publisher,
+        )
+        .unwrap();
+        // A higher version of the same application.
+        let newer = bundle_file(&dir, |t| t, |m| m.version = 8);
+        let dialog = Dialog::answering(&[]);
+        assert!(matches!(
+            install_with(&layout, &newer, false, soon(), &dialog, &publisher),
+            Err(Error::PinnedRootNotBuilt { .. })
+        ));
+        assert_eq!(publisher.fetches.get(), 1, "no key set is fetched for it");
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 7);
     }
 }
