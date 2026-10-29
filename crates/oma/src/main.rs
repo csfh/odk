@@ -110,6 +110,11 @@ fn main() -> ExitCode {
         oma::sandbox::init::run(&config);
     }
 
+    // What the registration path units and the login run call (ADR 0009, ADR 0060 section 7).
+    if std::env::args().skip(1).eq(["--register"]) {
+        return register();
+    }
+
     if let Some(path) = oma::entry::single_file(std::env::args_os().skip(1), &subcommands()) {
         eprintln!("odk oma: {}", oma::entry::refusal(&path));
         return ExitCode::FAILURE;
@@ -344,4 +349,35 @@ fn by_identifier(
             ExitCode::FAILURE
         }
     }
+}
+
+/// `odk oma --register`: reconciles the Bundle files in `~/Applications`, with no dialog, and
+/// says on standard error what it did with any it did not keep.
+fn register() -> ExitCode {
+    let Some(layout) = oma::layout::Layout::from_env() else {
+        eprintln!("odk oma: $HOME is not set");
+        return ExitCode::FAILURE;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let agent = oma::fetch::agent();
+    let fetch = |publisher: &oma::trust::Publisher| oma::fetch::oma_keys(&agent, publisher);
+    use oma::flow::Registered;
+    for done in oma::flow::register(&layout, now, &fetch) {
+        match done {
+            Registered::Kept(_) => {}
+            Registered::Applied(path) => eprintln!("odk oma: installed {}", path.display()),
+            Registered::Held { app, .. } => {
+                eprintln!("odk oma: {app} is signed by a different publisher and is held")
+            }
+            Registered::Deleted { path, why } => {
+                eprintln!("odk oma: deleted {}: {why}", path.display())
+            }
+            Registered::Waiting { path, why } => {
+                eprintln!("odk oma: left {}: {why}", path.display())
+            }
+        }
+    }
+    ExitCode::SUCCESS
 }

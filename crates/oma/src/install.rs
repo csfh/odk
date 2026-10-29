@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::fmt::{self, Bundle, Identifier};
 use crate::grants;
 use crate::layout::Layout;
-use crate::trust::Sealed;
+use crate::trust::{Sealed, SignedManifest};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -95,26 +95,43 @@ pub fn place_file(file: &Sealed, target: &Path) -> Result<(), Error> {
         .map_err(|e| io(dir, e))
 }
 
-/// The Bundle file in `~/Applications` whose signed manifest names `id`. Only the prefix is read
-/// here, to find it; what is run is checked in full (`flow::run_file`).
-pub fn find_file(layout: &Layout, id: &Identifier) -> Option<PathBuf> {
-    use crate::trust::{Prefix, SignedManifest, container::PREFIX_LEN};
+/// Every regular file in `~/Applications` named `*.oma`, by name, with what its prefix says when
+/// the prefix parses. Nothing here is verified: it is for finding files, and what is run or
+/// installed is checked in full (`flow`).
+pub fn bundle_files(layout: &Layout) -> Vec<(PathBuf, Option<SignedManifest>)> {
+    use crate::trust::{Prefix, container::PREFIX_LEN};
     use std::io::Read;
-    let names = |path: &Path| -> Option<Identifier> {
+    let says = |path: &Path| -> Option<SignedManifest> {
         let mut file = fs::File::open(path).ok()?;
         let len = file.metadata().ok()?.len();
         let mut prefix = [0u8; PREFIX_LEN];
         file.read_exact(&mut prefix).ok()?;
         let prefix = Prefix::parse(&prefix, len).ok()?;
-        Some(SignedManifest::parse(&prefix.manifest).ok()?.app_id)
+        SignedManifest::parse(&prefix.manifest).ok()
     };
-    fs::read_dir(layout.applications())
-        .ok()?
+    let Ok(entries) = fs::read_dir(layout.applications()) else {
+        return Vec::new();
+    };
+    let mut files: Vec<_> = entries
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "oma"))
         .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_file()))
-        .find(|p| names(p).as_ref() == Some(id))
+        .map(|p| {
+            let signed = says(&p);
+            (p, signed)
+        })
+        .collect();
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    files
+}
+
+/// A Bundle file in `~/Applications` whose signed manifest names `id`, if there is one.
+pub fn find_file(layout: &Layout, id: &Identifier) -> Option<PathBuf> {
+    bundle_files(layout)
+        .into_iter()
+        .find(|(_, signed)| signed.as_ref().is_some_and(|s| s.app_id == *id))
+        .map(|(path, _)| path)
 }
 
 /// Every valid Bundle in `~/Applications`. Directories that are not valid Bundles are skipped.
