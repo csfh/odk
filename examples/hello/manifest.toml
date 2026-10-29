@@ -3,6 +3,7 @@ identifier = "com.example.hello"
 name = "Hello"
 version = "0.1.0"
 executable = "hello"
+publisher = "odk.csfh.dev"
 
 [permissions]
 gpu = true

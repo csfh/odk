@@ -91,19 +91,8 @@ impl World {
         )
         .unwrap();
         let out = self.home.join("out");
-        let made = self.oma(&[
-            "bundle",
-            probe_binary().to_str().unwrap(),
-            "--manifest",
-            manifest.to_str().unwrap(),
-            "-o",
-            out.to_str().unwrap(),
-        ]);
-        assert!(
-            made.status.success(),
-            "{}",
-            String::from_utf8_lossy(&made.stderr)
-        );
+        // A directory Bundle, which `install` and `run` still take as well as a file.
+        oma::bundle::assemble_with(&probe_binary(), &manifest, &out, &[]).unwrap();
         let installed = self.oma(&[
             "install",
             "--accept-permissions",
@@ -186,21 +175,14 @@ impl World {
         let out = self.home.join("out");
         let probe = probe_binary();
         let helper = format!("{}=bin/d", probe.display());
-        let made = self.oma(&[
-            "bundle",
-            probe.to_str().unwrap(),
-            "--manifest",
-            manifest.to_str().unwrap(),
-            "--include",
-            &helper,
-            "-o",
-            out.to_str().unwrap(),
-        ]);
-        assert!(
-            made.status.success(),
-            "{}",
-            String::from_utf8_lossy(&made.stderr)
-        );
+        // A directory Bundle, which `install` and `run` still take as well as a file.
+        oma::bundle::assemble_with(
+            &probe,
+            &manifest,
+            &out,
+            &[oma::bundle::Include::parse(&helper).unwrap()],
+        )
+        .unwrap();
         let installed = self.oma(&[
             "install",
             "--accept-permissions",
@@ -299,19 +281,8 @@ impl World {
         )
         .unwrap();
         let out = self.home.join("out");
-        let made = self.oma(&[
-            "bundle",
-            probe_binary().to_str().unwrap(),
-            "--manifest",
-            manifest.to_str().unwrap(),
-            "-o",
-            out.to_str().unwrap(),
-        ]);
-        assert!(
-            made.status.success(),
-            "{}",
-            String::from_utf8_lossy(&made.stderr)
-        );
+        // A directory Bundle, which `install` and `run` still take as well as a file.
+        oma::bundle::assemble_with(&probe_binary(), &manifest, &out, &[]).unwrap();
         out.join("Probe.oma")
     }
 
