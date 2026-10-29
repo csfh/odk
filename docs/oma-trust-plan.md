@@ -148,9 +148,9 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   2. It refuses an expired signature, a taken name or a key set that does not authorize the release key, before the dialog.
   3. It asks Install or Cancel, listing the image's permissions.
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
+- `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
 - Not yet:
   - an install under a root that is already pinned, which needs the root's key-set version stored (section 3, question 14);
-  - `run` of an installed file, which wires in `unpack_image`;
   - `--register`, held files, the inbox, `rollback` and `purge`;
   - revocation (question 2).
 - A pin made at first contact stores no key-set version yet. The PR that adds installs under a pinned root decides how such a pin is treated. It should take the version of the next set that verifies under the pin as the first one stored, and say so; it should not take it by accident.

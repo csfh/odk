@@ -112,8 +112,9 @@ fn make_dir(path: &Path, mode: u32) -> Result<(), Error> {
 }
 
 /// Builds the new root under `root` (an existing empty directory on the host) from `ops`, then
-/// makes it `/`. The old root is detached and unreachable afterwards.
-pub fn enter(root: &Path, ops: &[Op]) -> Result<(), Error> {
+/// makes it `/`. The old root is detached and unreachable afterwards. `image` is the Bundle
+/// file an [`Op::Image`] unpacks.
+pub fn enter(root: &Path, ops: &[Op], image: Option<&Image<'_>>) -> Result<(), Error> {
     mount(
         None,
         Path::new("/"),
@@ -132,7 +133,7 @@ pub fn enter(root: &Path, ops: &[Op]) -> Result<(), Error> {
     .map_err(|e| err("mounting the new root", e))?;
 
     for op in ops {
-        apply(root, op)?;
+        apply(root, op, image)?;
     }
 
     let root_c = c(root);
@@ -186,8 +187,17 @@ pub fn unpack_image(target: &Path, image: &Image<'_>) -> Result<(), Error> {
     .map_err(|e| err(format!("making {} read-only", target.display()), e))
 }
 
-fn apply(root: &Path, op: &Op) -> Result<(), Error> {
+fn apply(root: &Path, op: &Op, image: Option<&Image<'_>>) -> Result<(), Error> {
     match op {
+        Op::Image(dst) => {
+            let image = image.ok_or_else(|| {
+                err(
+                    format!("unpacking the Bundle at {}", dst.display()),
+                    io::Error::other("no Bundle file was given"),
+                )
+            })?;
+            unpack_image(&inside(root, dst), image)
+        }
         Op::Dir(dst) => {
             let mode = if dst.starts_with("/run/user") {
                 0o700

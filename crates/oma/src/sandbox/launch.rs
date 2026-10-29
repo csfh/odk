@@ -16,11 +16,13 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use super::init::{self, Config};
 use super::landlock;
 use super::mounts;
-use super::plan::{self, Inputs, Plan};
+use super::plan::{self, App, Inputs, Plan};
 use crate::fmt::{self, Bundle, Identifier};
 use crate::grants;
+use crate::image::Image;
 use crate::install;
 use crate::layout::Layout;
+use crate::trust::KeyId;
 use crate::userdirs;
 
 #[derive(Debug, thiserror::Error)]
@@ -45,6 +47,10 @@ pub enum Error {
         "this application declares a daemon, which runs outside the sandbox, so only the installed copy of it can be run: use `odk oma run <identifier>`, or install this one"
     )]
     DaemonOnlyFromTheInstalledCopy,
+    #[error(
+        "this application declares a daemon, which runs outside the sandbox from the installed files, and a Bundle file has none on disk yet (issue #14)"
+    )]
+    DaemonFromFile,
     #[error(transparent)]
     Landlock(#[from] landlock::Error),
     #[error("cannot create the sandbox: {0}")]
@@ -104,7 +110,10 @@ pub fn resolve(layout: &Layout, target: &str) -> Result<Bundle, Error> {
 /// What must hold before anyone is asked for consent, so nobody agrees to something that then
 /// cannot start: the permissions this build can enforce, and a kernel that can enforce them.
 pub fn preflight(bundle: &Bundle) -> Result<(), Error> {
-    let permissions = &bundle.manifest().permissions;
+    preflight_permissions(&bundle.manifest().permissions)
+}
+
+fn preflight_permissions(permissions: &fmt::Permissions) -> Result<(), Error> {
     if !permissions.dbus_talk.is_empty() {
         return Err(plan::Error::DbusUnsupported.into());
     }
@@ -171,7 +180,7 @@ pub fn run(
     }
     let env = |name: &str| std::env::var(name).ok();
     let plan = Plan::new(&Inputs {
-        bundle_root: bundle.root(),
+        app: App::Directory(bundle.root()),
         executable: &manifest.executable,
         permissions: &manifest.permissions,
         data_dir: (!options.run_once).then_some(data_dir.as_path()),
@@ -201,7 +210,67 @@ pub fn run(
         .runtime_dir
         .as_deref()
         .expect("the plan requires a runtime directory");
-    spawn(&plan, runtime, host, options.wait)
+    spawn(&plan, None, runtime, host, options.wait)
+}
+
+/// Runs an installed Bundle file whose envelope, image and pin the caller has checked
+/// (`flow::run_file`): its tree is unpacked at `/app` (ADR 0067), its data is the pair's
+/// (`root`, its app id; ADR 0060 section 2), and `granted` is what its install recorded.
+pub fn run_file(
+    layout: &Layout,
+    image: &Image<'_>,
+    root: &KeyId,
+    granted: &fmt::Permissions,
+    host: &HostEnv,
+    wait: bool,
+) -> Result<i32, Error> {
+    let manifest = image.manifest();
+    let id = &manifest.identifier;
+    let missing = grants::missing(granted, &manifest.permissions);
+    if !grants::is_empty(&missing) {
+        return Err(Error::ConsentRequired(fmt::permission_lines(&missing)));
+    }
+    preflight_permissions(&manifest.permissions)?;
+    // A daemon runs outside the sandbox from the installed tree (ADR 0050), and a Bundle file
+    // has no tree on disk to run it from.
+    if manifest.permissions.daemon.is_some() {
+        return Err(Error::DaemonFromFile);
+    }
+
+    let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
+    let data_dir = layout.pair_data_dir(root, id);
+    let inbox_dir = layout.pair_inbox_dir(root, id);
+    private_dir(&data_dir)?;
+    if manifest.permissions.updates {
+        private_dir(&inbox_dir)?;
+    }
+    let env = |name: &str| std::env::var(name).ok();
+    let plan = Plan::new(&Inputs {
+        app: App::Image,
+        executable: &manifest.executable,
+        permissions: &manifest.permissions,
+        data_dir: Some(data_dir.as_path()),
+        inbox_dir: Some(inbox_dir.as_path()),
+        home: layout.home(),
+        uid: host.uid,
+        runtime_dir: host.runtime_dir.as_deref(),
+        wayland_display: host.wayland_display.as_deref(),
+        named_dirs: &named_dirs,
+        host_etc: Path::new("/etc"),
+        host_root: Path::new("/"),
+        host_env: &env,
+    })?;
+    for (dir, why) in &plan.unavailable {
+        eprintln!(
+            "odk oma: note: the {} folder is not available ({why:?}), so the application starts without it",
+            dir.as_str()
+        );
+    }
+    let runtime = host
+        .runtime_dir
+        .as_deref()
+        .expect("the plan requires a runtime directory");
+    spawn(&plan, Some(image), runtime, host, wait)
 }
 
 fn private_dir(path: &Path) -> Result<(), Error> {
@@ -249,18 +318,30 @@ fn write_file(path: &str, text: &str) -> Result<(), Error> {
     fs::write(path, text).map_err(|e| io_error(Path::new(path), e))
 }
 
-fn spawn(plan: &Plan, runtime_dir: &Path, host: &HostEnv, wait: bool) -> Result<i32, Error> {
+fn spawn(
+    plan: &Plan,
+    image: Option<&Image<'_>>,
+    runtime_dir: &Path,
+    host: &HostEnv,
+    wait: bool,
+) -> Result<i32, Error> {
     let staging = runtime_dir.join(format!("oma-{}", std::process::id()));
     fs::DirBuilder::new()
         .mode(0o700)
         .create(&staging)
         .map_err(|e| io_error(&staging, e))?;
-    let result = spawn_in(plan, &staging, host, wait);
+    let result = spawn_in(plan, image, &staging, host, wait);
     let _ = fs::remove_dir(&staging);
     result
 }
 
-fn spawn_in(plan: &Plan, staging: &Path, host: &HostEnv, wait: bool) -> Result<i32, Error> {
+fn spawn_in(
+    plan: &Plan,
+    image: Option<&Image<'_>>,
+    staging: &Path,
+    host: &HostEnv,
+    wait: bool,
+) -> Result<i32, Error> {
     // The init is this same binary, started through a descriptor opened now so that it does
     // not depend on where `oma` is installed being visible inside the sandbox (ADR 0024).
     let exe =
@@ -288,7 +369,7 @@ fn spawn_in(plan: &Plan, staging: &Path, host: &HostEnv, wait: bool) -> Result<i
             libc::close(status_r);
         }
         start_namespaces(
-            plan, staging, &exe, sync_r, ready_w, pid_w, status_fd, &config,
+            plan, image, staging, &exe, sync_r, ready_w, pid_w, status_fd, &config,
         )
     }
     unsafe {
@@ -409,6 +490,7 @@ fn read_exactly(fd: RawFd, buf: &mut [u8]) -> usize {
 #[allow(clippy::too_many_arguments)]
 fn start_namespaces(
     plan: &Plan,
+    image: Option<&Image<'_>>,
     staging: &Path,
     exe: &fs::File,
     sync_r: RawFd,
@@ -442,7 +524,9 @@ fn start_namespaces(
     }
     if child == 0 {
         unsafe { libc::close(pid_w) };
-        become_init(plan, staging, exe, sync_r, ready_w, status_fd, config)
+        become_init(
+            plan, image, staging, exe, sync_r, ready_w, status_fd, config,
+        )
     }
     let bytes = (child as i32).to_le_bytes();
     unsafe {
@@ -477,8 +561,10 @@ fn reap(pid: libc::pid_t) -> libc::c_int {
 
 /// The child of `clone`, which is PID 1 of the new namespaces: wait for the id maps, build
 /// the new root, and re-execute `oma` as the init. It reports a failure over the pipe.
+#[allow(clippy::too_many_arguments)]
 fn become_init(
     plan: &Plan,
+    image: Option<&Image<'_>>,
     staging: &Path,
     exe: &fs::File,
     sync_r: RawFd,
@@ -500,7 +586,7 @@ fn become_init(
     // Not the parent's session: a closing terminal must not take the application with it.
     unsafe { libc::setsid() };
 
-    if let Err(e) = mounts::enter(staging, &plan.ops) {
+    if let Err(e) = mounts::enter(staging, &plan.ops, image) {
         fail(e.to_string());
     }
     // The report pipe, and the status pipe if there is one, must survive into the init.

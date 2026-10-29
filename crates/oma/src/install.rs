@@ -95,6 +95,28 @@ pub fn place_file(file: &Sealed, target: &Path) -> Result<(), Error> {
         .map_err(|e| io(dir, e))
 }
 
+/// The Bundle file in `~/Applications` whose signed manifest names `id`. Only the prefix is read
+/// here, to find it; what is run is checked in full (`flow::run_file`).
+pub fn find_file(layout: &Layout, id: &Identifier) -> Option<PathBuf> {
+    use crate::trust::{Prefix, SignedManifest, container::PREFIX_LEN};
+    use std::io::Read;
+    let names = |path: &Path| -> Option<Identifier> {
+        let mut file = fs::File::open(path).ok()?;
+        let len = file.metadata().ok()?.len();
+        let mut prefix = [0u8; PREFIX_LEN];
+        file.read_exact(&mut prefix).ok()?;
+        let prefix = Prefix::parse(&prefix, len).ok()?;
+        Some(SignedManifest::parse(&prefix.manifest).ok()?.app_id)
+    };
+    fs::read_dir(layout.applications())
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "oma"))
+        .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_file()))
+        .find(|p| names(p).as_ref() == Some(id))
+}
+
 /// Every valid Bundle in `~/Applications`. Directories that are not valid Bundles are skipped.
 pub fn installed(layout: &Layout) -> Vec<Bundle> {
     let Ok(entries) = fs::read_dir(layout.applications()) else {

@@ -29,6 +29,17 @@ pub enum Op {
         dst: PathBuf,
         target: PathBuf,
     },
+    /// A Bundle file's verified tree, unpacked into a read-only tmpfs (ADR 0067).
+    Image(PathBuf),
+}
+
+/// What is at `/app`.
+#[derive(Debug, Clone, Copy)]
+pub enum App<'a> {
+    /// A Bundle directory, bound read-only.
+    Directory(&'a Path),
+    /// A Bundle file's image, unpacked as the mounts are made (`mounts::unpack_image`).
+    Image,
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +82,7 @@ pub enum Error {
 
 /// Everything the plan depends on, so tests can replace the host.
 pub struct Inputs<'a> {
-    pub bundle_root: &'a Path,
+    pub app: App<'a>,
     /// The Manifest's `executable`, relative to the Bundle.
     pub executable: &'a str,
     pub permissions: &'a Permissions,
@@ -293,11 +304,14 @@ impl Plan {
         }
 
         // The Bundle, read-only.
-        ops.push(Op::Bind {
-            src: i.bundle_root.to_owned(),
-            dst: APP.into(),
-            readonly: true,
-            device: false,
+        ops.push(match i.app {
+            App::Directory(root) => Op::Bind {
+                src: root.to_owned(),
+                dst: APP.into(),
+                readonly: true,
+                device: false,
+            },
+            App::Image => Op::Image(APP.into()),
         });
         landlock.push((APP.into(), Rights::ReadExec));
 
@@ -536,7 +550,7 @@ mod tests {
         let bundle = w.dir.path().join("Tee.oma");
         let env = |name: &str| (name == "LANG").then(|| "en_US.UTF-8".to_owned());
         Plan::new(&Inputs {
-            bundle_root: &bundle,
+            app: App::Directory(&bundle),
             executable: "bin/app",
             permissions,
             data_dir: Some(&data),
@@ -656,7 +670,7 @@ mod tests {
                     .iter()
                     .flat_map(|op| match op {
                         Op::Bind { src, dst, .. } => vec![src.clone(), dst.clone()],
-                        Op::Dir(d) | Op::Tmpfs(d) | Op::Proc(d) => vec![d.clone()],
+                        Op::Dir(d) | Op::Tmpfs(d) | Op::Proc(d) | Op::Image(d) => vec![d.clone()],
                         Op::Symlink { dst, target } => vec![dst.clone(), target.clone()],
                     })
                     .chain(p.landlock.iter().map(|(path, _)| path.clone()))

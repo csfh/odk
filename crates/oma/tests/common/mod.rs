@@ -116,6 +116,63 @@ impl World {
         );
     }
 
+    /// Installs the probe as a Bundle file, as `odk oma install` leaves it at first contact: the
+    /// image from `oma::image::write`, signed with fixture keys, in `~/Applications`, and its
+    /// pair's record with the permissions and the mark. Nothing is fetched. Returns the pair's
+    /// data directory.
+    pub fn install_file(&self, permissions: &str) -> PathBuf {
+        use oma::trust::{Mark, Publisher, Sealed, SignedManifest, SigningKey, Timestamp};
+        let tree = self.home.join("tree");
+        fs::create_dir_all(&tree).unwrap();
+        let text = format!(
+            "manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\npublisher = \"apps.example.com\"\n\n[permissions]\n{permissions}\n"
+        );
+        fs::write(tree.join("manifest.toml"), &text).unwrap();
+        fs::copy(probe_binary(), tree.join("probe")).unwrap();
+        let mut image = Vec::new();
+        oma::image::write(&tree, "Probe", &mut image).unwrap();
+
+        // Fixture keys, never real ones.
+        let root = SigningKey::from_seed(&[1; 32]).unwrap();
+        let release = SigningKey::from_seed(&[0x42; 32]).unwrap();
+        let publisher = Publisher::parse("apps.example.com").unwrap();
+        let signed = SignedManifest {
+            app_id: ID.parse().unwrap(),
+            version: 1,
+            entry: "probe".to_owned(),
+            payload_sha256: [0; 32],
+            header_sha256: [0; 32],
+            key_id: release.public_key().key_id(),
+            root_key_id: root.public_key().key_id(),
+            issued_at: Timestamp::parse("2026-10-27T00:00:00Z").unwrap(),
+            expires_at: Timestamp::parse("2099-01-01T00:00:00Z").unwrap(),
+            update_url: "https://apps.example.com/probe.oma".to_owned(),
+            publisher: publisher.clone(),
+        };
+        let bytes = oma::trust::stamp(&image[1024..], signed, &release).unwrap();
+        let apps = self.home.join("Applications");
+        fs::create_dir_all(&apps).unwrap();
+        let file = apps.join("Probe.oma");
+        fs::write(&file, &bytes).unwrap();
+
+        let sealed = Sealed::memfd(&file).unwrap();
+        let checked = oma::trust::check(&sealed).unwrap();
+        let layout = oma::layout::Layout::new(&self.home, self.home.join(".local/share"));
+        let id = ID.parse().unwrap();
+        let pair = oma::grants::Pair {
+            root: root.public_key(),
+            publisher,
+            permissions: Some(oma::fmt::Manifest::parse(&text).unwrap().permissions),
+            mark: Some(Mark {
+                version: 1,
+                payload_sha256: checked.signed().manifest().payload_sha256,
+            }),
+            denied: false,
+        };
+        oma::grants::save_pair(&layout, &id, &pair).unwrap();
+        layout.pair_data_dir(&root.public_key().key_id(), &id)
+    }
+
     /// [`World::install`] for a Bundle that declares a daemon: `daemon` is the text of its
     /// `[daemon]` table, and the probe is also put in the Bundle as `bin/d`, the program it names.
     pub fn install_with_daemon(&self, permissions: &str, daemon: &str) -> PathBuf {
