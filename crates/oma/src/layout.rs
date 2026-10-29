@@ -44,6 +44,15 @@ impl Layout {
         self.home.join("Applications")
     }
 
+    /// Where an installed Bundle's `.desktop` entry goes (ADR 0014): `applications/` beside
+    /// `oma/` in the data home.
+    pub fn desktop_entries(&self) -> PathBuf {
+        self.state
+            .parent()
+            .expect("the state is inside the data home")
+            .join("applications")
+    }
+
     /// The application's private data directory.
     pub fn data_dir(&self, id: &Identifier) -> PathBuf {
         self.state.join("data").join(id.as_str())
