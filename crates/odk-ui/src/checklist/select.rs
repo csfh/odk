@@ -6,6 +6,7 @@ use gpui::{
     Bounds, Modifiers, ParentElement, Pixels, Point, TestAppContext, VisualTestContext, px, size,
 };
 use odk_a11y::{Describe, Role};
+use odk_theme::foundation::Density;
 
 use super::dialog::dialog_around;
 use super::stability::{Step, assert_still};
@@ -14,6 +15,8 @@ use crate::overlay::probe;
 use crate::{Button, Input, Select, Size, h_flex, v_flex};
 
 type Changes = Rc<RefCell<Vec<String>>>;
+/// A density or size given to a select.
+type Setting = fn(Select) -> Select;
 
 /// Five options: Cherry is disabled, and three start with A.
 fn fruit(changes: &Changes) -> Select {
@@ -541,4 +544,47 @@ fn a_select_is_as_tall_as_an_input(cx: &mut TestAppContext) {
 #[test]
 fn selects_are_named() {
     assert_eq!(Select::new("s", "Country").accessible().name, "Country");
+}
+
+/// The list's labels start where the box's value does, at every density and size, so the eye
+/// goes straight down from the value to the options; the check mark ends the chosen row, in a
+/// column every row keeps, so choosing moves nothing.
+#[gpui::test]
+fn the_lists_labels_line_up_with_the_value(cx: &mut TestAppContext) {
+    let cases: [(&str, Setting); 4] = [
+        ("compact", |s| s.density(Density::Compact)),
+        ("default", |s| s.density(Density::Default)),
+        ("comfortable", |s| s.density(Density::Comfortable)),
+        ("small", |s| s.size(Size::Sm)),
+    ];
+    for (density, set) in cases {
+        let changes = Changes::default();
+        let cx = open(cx, move |_, _| set(fruit(&changes).default_value("b")));
+        press(cx, "tab enter");
+        redraw(cx);
+        let bounds = |cx: &mut VisualTestContext, part: String| {
+            let part: &'static str = Box::leak(part.into_boxed_str());
+            cx.debug_bounds(part)
+                .unwrap_or_else(|| panic!("no part named {part}"))
+        };
+        let value = bounds(cx, "sl/value".into()).left();
+        for row in 0..5 {
+            let label = bounds(cx, format!("sl/label-{row}"));
+            let check = bounds(cx, format!("sl/check-{row}"));
+            assert_eq!(
+                label.left(),
+                value,
+                "{density}: row {row} starts with the value"
+            );
+            assert!(
+                check.left() >= label.right(),
+                "{density}: row {row}'s check column ends it"
+            );
+        }
+        assert_eq!(
+            bounds(cx, "sl/check-1".into()).left(),
+            bounds(cx, "sl/check-0".into()).left(),
+            "{density}: the chosen row's check is in the column every row keeps"
+        );
+    }
 }

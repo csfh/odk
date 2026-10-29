@@ -19,7 +19,7 @@ use gpui::{
     StatefulInteractiveElement, Styled, Window, anchored, div, px,
 };
 use odk_a11y::{Accessible, Role};
-use odk_theme::component::{MenuItemStyle, States};
+use odk_theme::component::{ComponentTokens, MenuItemStyle, States};
 use odk_theme::foundation::{Density, MotionDuration, TypeRole};
 
 use crate::components;
@@ -180,6 +180,9 @@ enum Entry {
 #[derive(Default)]
 pub struct Menu {
     entries: Vec<Entry>,
+    /// A select's list: its rows are `select_item`s, whose labels start where the box's value
+    /// does, and the check column ends each row instead of leading it.
+    select: bool,
 }
 
 impl Menu {
@@ -194,6 +197,12 @@ impl Menu {
 
     pub fn separator(mut self) -> Self {
         self.entries.push(Entry::Separator);
+        self
+    }
+
+    /// Makes it a select's list.
+    pub(crate) fn of_select(mut self) -> Self {
+        self.select = true;
         self
     }
 
@@ -425,6 +434,7 @@ pub(crate) fn surface(
             }
         });
 
+    let select = menu.select;
     for (i, entry) in menu.entries.into_iter().enumerate() {
         let item = match entry {
             Entry::Separator => {
@@ -472,7 +482,7 @@ pub(crate) fn surface(
             .disabled(item.disabled)
             .highlighted(highlighted)
             .selected(item.checked == Some(true));
-        let s = c.menu_item(density, states, item.danger);
+        let s = item_style(&c, select, density, states, item.danger);
         let ig = s.geometry;
         #[cfg(test)]
         drawn::record(&part_name(id, &format!("row-{i}")), s);
@@ -495,6 +505,20 @@ pub(crate) fn surface(
         } else {
             full_label.clone()
         };
+        // The check column is always there, so checking an item moves nothing.
+        let check = div()
+            .debug_selector(|| part_name(id, &format!("check-{i}")))
+            .flex_shrink_0()
+            .size(px(ig.icon_size))
+            .when_some(s.indicator, |d, ink| {
+                let mark = if item.radio { CHOSEN } else { CHECK };
+                d.child(field_glyph(mark.into(), ig.icon_size, colour(ink)))
+            });
+        let (leading, trailing) = if select {
+            (None, Some(check))
+        } else {
+            (Some(check), None)
+        };
         let mut row = h_flex()
             .group(format!("row-{i}"))
             .id(child_id(id, format!("row-{i}")))
@@ -505,16 +529,7 @@ pub(crate) fn surface(
             .gap(px(ig.gap))
             .rounded(px(ig.radius))
             .text_role(ig.type_role)
-            .child(
-                // The check column is always there, so checking an item moves nothing.
-                div()
-                    .flex_shrink_0()
-                    .size(px(ig.icon_size))
-                    .when_some(s.indicator, |d, ink| {
-                        let mark = if item.radio { CHOSEN } else { CHECK };
-                        d.child(field_glyph(mark.into(), ig.icon_size, colour(ink)))
-                    }),
-            )
+            .children(leading)
             .children(item.icon.map(|glyph| {
                 // In the row's text colour, so it follows the hover and the highlight.
                 div()
@@ -543,7 +558,8 @@ pub(crate) fn surface(
                     &s,
                     &SharedString::from(format!("row-{i}")),
                 )
-            }));
+            }))
+            .children(trailing);
         row = pointer_states(row, &s.colours, s.responds, &Pointer::Own);
         if let Some(n) = at {
             let (on_select, close) = (item.on_select.clone(), close.clone());
@@ -614,6 +630,21 @@ pub(crate) fn surface(
     )
 }
 
+/// An item's style: a select's option, or a menu's item.
+fn item_style(
+    c: &ComponentTokens,
+    select: bool,
+    density: Density,
+    states: States,
+    danger: bool,
+) -> MenuItemStyle {
+    if select {
+        c.select_item(density, states)
+    } else {
+        c.menu_item(density, states, danger)
+    }
+}
+
 /// How wide the menu must be to show every label, including its padding, border and hints.
 fn menu_content_width(
     menu: &Menu,
@@ -623,7 +654,7 @@ fn menu_content_width(
 ) -> Pixels {
     let c = components();
     let g = c.menu().geometry;
-    let ig = c.menu_item(density, States::NONE, false).geometry;
+    let ig = item_style(&c, menu.select, density, States::NONE, false).geometry;
     let label_size = px(f.typography.style(ig.type_role).size);
     let hint_size = px(f.typography.style(TypeRole::Mono).size);
     let small = px(f.typography.style(TypeRole::Small).size);

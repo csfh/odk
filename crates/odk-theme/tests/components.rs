@@ -1872,3 +1872,25 @@ fn an_avatar_is_s12_across_and_a_placeholder_is_the_skeletons_fill() {
         assert_eq!(s.radius, c.foundation().geometry.radius.default);
     }
 }
+
+/// A select's options start where its box's value does, at every density: an option's padding
+/// is the field's inset less the menu's border and padding. Apart from that an option is a menu
+/// item, colours and height and all.
+#[test]
+fn a_select_option_starts_where_the_value_does() {
+    let t = tokens("tokyo-night");
+    let menu = t.menu().geometry;
+    for d in [Density::Compact, Density::Default, Density::Comfortable] {
+        let field = t.select(d, States::NONE).trigger.geometry;
+        let option = t.select_item(d, States::NONE.selected(true));
+        assert_eq!(
+            menu.border_width + menu.padding_x + option.geometry.padding_x,
+            field.border_width + field.padding_x,
+            "{d:?}"
+        );
+        let item = t.menu_item(d, States::NONE.selected(true), false);
+        assert_eq!(option.colours, item.colours);
+        assert_eq!(option.indicator, item.indicator);
+        assert_eq!(option.geometry.height, item.geometry.height);
+    }
+}
