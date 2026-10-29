@@ -24,9 +24,9 @@ The command a person types is `odk oma …` (ADR 0056). `odk` is the only comman
 | `odk oma mount --open <file>` | Mounts it and opens that directory in the file manager. |
 | `odk oma mount --unmount <file>` | Unmounts every view of that file and deletes its loop devices. A view otherwise lasts until it is ejected or the machine stops. |
 | `odk oma --register` | Reconciles `~/Applications` and the inboxes: generates and removes `.desktop` entries, activates upgrades and enables or disables inbox watches. Idempotent. Used by the path units and the login run (ADR 0009, ADR 0015). It does not open the consent dialog. |
-| `odk oma self-upgrade` | Replaces `odk-oma` and the rest of that runtime with a newer release whose signature verifies under the release root compiled into the running binary, and whose monotonic version is above the high-water mark in the receipt (ADR 0060). A different release root is not accepted. Refuses when pacman owns the files. |
+| `odk oma self-upgrade` | Replaces `odk-oma` and the rest of that runtime with a newer release whose signature verifies under the release root compiled into the running binary, and whose monotonic version is above the high-water mark in the receipt (ADR 0060). A different release root is not accepted. It replaces one user's install and never runs as root; there is no package to refuse (ADR 0087). |
 | `odk oma sign-release <dir>` | Signs the release `tools/package-release` made in `<dir>` with the release root, whose 32-byte seed is read on standard input: `release` and `release.sig` (Ed25519ctx, context `odk-oma release v1`) and `install.sh.sig` (plain Ed25519). Refuses unless the tarball is the one `install.sh` names, its `odk-oma` is the program running, and that program's compiled release root is the seed's public key (ADR 0086). Prints the root's fingerprint and its PEM. |
-| `odk oma self-uninstall` | Removes the odk install and leaves application data (ADR 0054). Refuses when pacman owns the files. |
+| `odk oma self-uninstall` | Removes the odk install and leaves application data (ADR 0054). There is no package for pacman to own (ADR 0087). |
 | `odk oma --init` | Internal. Runs the init inside an application's PID namespace (ADR 0024). Not for users and not a stable interface. The init is a re-exec of `odk-oma`. |
 
 ## Targets

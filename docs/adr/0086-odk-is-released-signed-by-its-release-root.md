@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0087
 ---
 
 # odk is released signed by its release root

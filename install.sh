@@ -21,8 +21,10 @@
 #                       oma-register.service,oma-applications.path,oma-inbox@.path}
 #                   ${XDG_DATA_HOME:-~/.local/share}/mime/packages/oma.xml
 #                   ${XDG_DATA_HOME:-~/.local/share}/doc/odk/{LICENSE,THIRD-PARTY-LICENSES}
+#                   ${XDG_DATA_HOME:-~/.local/share}/oma/runtime.toml, the release installed
 #
-# Running it again upgrades. `ODK_BASE_URL` names another place to download from, for tests.
+# It is never run as root (ADR 0087). Running it again upgrades; a release older than the one
+# installed is refused. `ODK_BASE_URL` names another place to download from, for tests.
 set -eu
 
 # --- the release --------------------------------------------------------------------------
@@ -40,14 +42,15 @@ die() { printf 'odk install: %s\n' "$*" >&2; exit 1; }
 while [ $# -gt 0 ]; do
     case $1 in
         --uninstall) action=uninstall ;;
-        --help | -h) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help | -h) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option '$1' (try --help)" ;;
     esac
     shift
 done
 
 # --- where --------------------------------------------------------------------------------
-[ "$(id -u)" -ne 0 ] || die "run this as your own user, not as root: it installs under your home directory"
+[ "$(id -u)" -ne 0 ] \
+    || die "run this as your own user, not as root: odk installs under your home directory only (ADR 0087). Nothing was written"
 case ${HOME:-} in /*) ;; *) die "HOME is not an absolute path" ;; esac
 prefix=$HOME/.local
 bin=$prefix/bin
@@ -56,6 +59,7 @@ case ${XDG_CONFIG_HOME:-} in /*) config=$XDG_CONFIG_HOME ;; *) config=$HOME/.con
 units=$config/systemd/user
 case ${XDG_DATA_HOME:-} in /*) data=$XDG_DATA_HOME ;; *) data=$HOME/.local/share ;; esac
 mime=$data/mime
+receipt=$data/oma/runtime.toml
 
 # The file type is known to the desktop once its database is rebuilt. Without the tool the
 # type is in place for when it is there.
@@ -102,7 +106,7 @@ if [ "$action" = uninstall ]; then
     rmdir "$lib" "$data/doc/odk" 2>/dev/null || true
     if have_user_manager; then systemctl --user daemon-reload || true; fi
     if [ -d "$mime/packages" ]; then refresh_types; fi
-    say "done; application data under ~/.local/share/oma is kept"
+    say "done; application data under ~/.local/share/oma, and the record of the release installed, are kept"
     exit 0
 fi
 
@@ -116,6 +120,14 @@ done
 # --- download -----------------------------------------------------------------------------
 [ -n "$release_version" ] && [ -n "$tarball_sha256" ] && [ -n "$tarball_length" ] \
     || die "this install.sh names no release; download the one at https://odk.csfh.dev/install.sh"
+# An older release than the one installed is refused: a signed script stays valid, and must not
+# take an install back (ADR 0086). The same release again is a repair.
+if [ -f "$receipt" ]; then
+    installed=$(sed -n 's/^version = \([0-9][0-9]*\)$/\1/p' "$receipt")
+    [ -n "$installed" ] || die "$receipt names no version; nothing was installed"
+    [ "$release_version" -ge "$installed" ] \
+        || die "release $release_version is older than the installed release $installed; nothing was installed"
+fi
 name=odk-x86_64-linux
 base=${ODK_BASE_URL:-https://odk.csfh.dev}
 # Only HTTPS, or a local file for tests, and no redirect is followed (ADR 0060, section 8).
@@ -200,6 +212,13 @@ for doc in LICENSE THIRD-PARTY-LICENSES; do
     fi
 done
 
+# The release installed now, which an older script, or `odk oma self-upgrade`, is held to.
+mkdir -p "$(dirname "$receipt")"
+printf '# The odk release installed here (ADR 0086), written by install.sh.\nversion = %s\n' \
+    "$release_version" >"$receipt.new.$$"
+chmod 644 "$receipt.new.$$"
+mv -f "$receipt.new.$$" "$receipt"
+
 # --- start --------------------------------------------------------------------------------
 if have_user_manager; then
     systemctl --user daemon-reload
@@ -220,7 +239,7 @@ else
 fi
 
 path_note
-say "installed odk $version"
+say "installed odk $version (release $release_version)"
 say "  command:  $bin/odk"
 say "  private:  $lib/ (odk-oma, oma-consent, odkd)"
 say "  units:    $units/ ($sockets, odkd.service${registration:+, $registration}); started: $started"

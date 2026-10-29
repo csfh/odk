@@ -74,6 +74,11 @@ impl World {
 
     /// Builds a release of `version` into `release/`, with `tools/package-release`.
     fn publish(&self, version: &str) {
+        self.publish_at(version, None);
+    }
+
+    /// [`Self::publish`], with the release's monotonic version `at` (`SOURCE_DATE_EPOCH`).
+    fn publish_at(&self, version: &str, at: Option<u64>) {
         let bin = self.root.join(format!("built-{version}"));
         fs::create_dir_all(&bin).unwrap();
         fs::copy(env!("CARGO_BIN_EXE_odk"), bin.join("odk")).unwrap();
@@ -89,12 +94,15 @@ impl World {
         }
         // What `tools/third-party-licenses` writes; its content is not this test's.
         fs::write(bin.join("THIRD-PARTY-LICENSES"), "Third-party licences\n").unwrap();
-        let out = Command::new(repo().join("tools/package-release"))
+        let mut package = Command::new(repo().join("tools/package-release"));
+        package
             .arg(&bin)
             .arg(self.root.join("release"))
-            .arg(version)
-            .output()
-            .unwrap();
+            .arg(version);
+        if let Some(at) = at {
+            package.env("SOURCE_DATE_EPOCH", at.to_string());
+        }
+        let out = package.output().unwrap();
         assert!(
             out.status.success(),
             "{}",
@@ -110,6 +118,25 @@ impl World {
 
     fn script(&self) -> PathBuf {
         self.root.join("install.sh")
+    }
+
+    /// `id -u` says `uid`, and `sudo` only records that it was called.
+    fn stub_uid(&self, uid: u32) {
+        executable(
+            &self.root.join("stubs/id"),
+            &format!("#!/bin/sh\necho {uid}\n"),
+        );
+        executable(
+            &self.root.join("stubs/sudo"),
+            &format!(
+                "#!/bin/sh\necho \"$*\" >>{}\nexit 1\n",
+                self.root.join("sudo.log").display()
+            ),
+        );
+    }
+
+    fn sudo_called(&self) -> bool {
+        self.root.join("sudo.log").exists()
     }
 
     /// The script names the tarball now in `release/`, as `tools/package-release` would have
@@ -244,19 +271,28 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
             assert!(tree.contains(&file.to_owned()), "{file} in {tree:?}");
         }
         let files: Vec<&String> = tree.iter().filter(|p| w.home().join(p).is_file()).collect();
-        assert_eq!(files.len(), FILES.len(), "{files:?}");
+        // And the record of the release installed (ADR 0086).
+        assert_eq!(files.len(), FILES.len() + 1, "{files:?}");
+        let receipt = fs::read_to_string(w.home().join(".local/share/oma/runtime.toml")).unwrap();
+        assert!(
+            receipt.lines().any(|l| l.starts_with("version = ")),
+            "{receipt}"
+        );
         for file in &files[..] {
             let mode = fs::metadata(w.home().join(file))
                 .unwrap()
                 .permissions()
                 .mode()
                 & 0o777;
-            let want =
-                if file.contains("systemd") || file.ends_with(".xml") || file.contains("/doc/") {
-                    0o644
-                } else {
-                    0o755
-                };
+            let want = if file.contains("systemd")
+                || file.ends_with(".xml")
+                || file.contains("/doc/")
+                || file.ends_with("runtime.toml")
+            {
+                0o644
+            } else {
+                0o755
+            };
             assert_eq!(mode, want, "{file}");
         }
         assert!(
@@ -619,6 +655,7 @@ fn uninstall_removes_what_was_installed_and_nothing_else() {
     for kept in [
         ".local/bin/other",
         ".local/share/oma/data/keep",
+        ".local/share/oma/runtime.toml",
         ".config/systemd/user/other.service",
     ] {
         assert!(w.home().join(kept).is_file(), "{kept}");
@@ -695,4 +732,67 @@ fn bad_options_are_usage_errors() {
         assert!(!o.status.success(), "{args:?}");
         assert!(w.tree().is_empty());
     }
+}
+
+#[test]
+fn as_root_it_writes_nothing_and_never_calls_sudo() {
+    // `id` is a stub here, and nothing is run as root.
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    w.stub_uid(0);
+    for args in [&[][..], &["--system"]] {
+        let o = w.install(args);
+        assert!(!o.status.success(), "{args:?}");
+        assert!(
+            out(&o).contains("your own user") || out(&o).contains("unknown option"),
+            "{}",
+            out(&o)
+        );
+    }
+    assert!(w.tree().is_empty(), "{:?}", w.tree());
+    assert!(!w.sudo_called());
+    assert!(w.log().is_empty(), "{:?}", w.log());
+}
+
+#[test]
+fn an_older_release_is_refused_and_the_same_one_repairs() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish_at("2.0.0", Some(2_000));
+    assert!(w.install(&[]).status.success());
+    let receipt = w.home().join(".local/share/oma/runtime.toml");
+    assert!(
+        fs::read_to_string(&receipt)
+            .unwrap()
+            .contains("version = 2000\n")
+    );
+
+    // A signed script of an older release stays valid; it must not take the install back.
+    w.publish_at("1.0.0", Some(1_000));
+    let o = w.install(&[]);
+    assert!(!o.status.success());
+    assert!(
+        out(&o).contains("older than the installed release 2000"),
+        "{}",
+        out(&o)
+    );
+    let odkd = fs::read_to_string(w.home().join(".local/lib/odk/odkd")).unwrap();
+    assert!(odkd.contains("odkd 2.0.0"), "{odkd}");
+    assert!(
+        fs::read_to_string(&receipt)
+            .unwrap()
+            .contains("version = 2000\n")
+    );
+
+    // The same release again puts back a file that was lost.
+    w.publish_at("2.0.0", Some(2_000));
+    fs::remove_file(w.home().join(".local/lib/odk/odkd")).unwrap();
+    let o = w.install(&[]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(w.home().join(".local/lib/odk/odkd").is_file());
 }

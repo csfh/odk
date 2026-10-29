@@ -58,17 +58,16 @@ signature covers it too. `crates/oma/tests/release.rs` runs these two commands a
 Before the tag, `version` in `[workspace.package]` of the root `Cargo.toml` is set to the tag without its `v`, with
 `Cargo.lock`, in a commit on `main`, and the built `odk --version` must say it (ADR 0064) before anything is uploaded.
 
-Text for a system install, which nothing installs yet (ADR 0053, ADR 0056, ADR 0060 on pull
-request #9):
+`install.sh` is never run as root (ADR 0087): as root it writes nothing. It keeps the release's version in
+`~/.local/share/oma/runtime.toml` and refuses a release older than it, so an old signed script cannot take an install
+back; the same release again repairs one. An uninstall keeps that record.
 
-| File | Would be installed as |
+Text that no install puts down (ADR 0053, ADR 0060, ADR 0087):
+
+| File | What it is |
 |---|---|
-| `binfmt.d/odk.conf` | `/usr/lib/binfmt.d/odk.conf`, the `binfmt_misc` line that runs `/usr/lib/odk/odk-oma` with the path of a `.oma` file; it needs root |
-| `mime/oma.xml` | `/usr/share/mime/packages/oma.xml`, the type `application/x-oma`, a sub-class of the raw disk image |
-| `applications/oma.desktop` | `/usr/share/applications/oma.desktop`, the handler `Exec=/usr/bin/odk oma run %f` |
+| `binfmt.d/odk.conf` | the `binfmt_misc` line that would run `/usr/lib/odk/odk-oma` with the path of a `.oma` file. Registering it needs root, so nothing does: a Bundle file is run with `odk oma run` |
+| `applications/oma.desktop` | the handler `Exec=/usr/bin/odk oma run %f` |
 
-A per-user install rewrites that `Exec` to the home directory's `odk`. `install.sh` installs the
-type for the user, and not the `binfmt_misc` line or the handler, because nothing makes a
-single-file `.oma` yet and `odk oma run` refuses one. Until the handler is installed, the
-default for the type is a disk image's, Disk Image Mounter, so double-clicking a `.oma` file
-mounts it (ADR 0065).
+`install.sh` installs the type for the user and not the handler, so the default for the type is a disk image's, Disk Image
+Mounter, and double-clicking a `.oma` file mounts it (ADR 0065).
