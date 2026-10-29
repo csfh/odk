@@ -132,7 +132,9 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             };
             let host = oma::sandbox::launch::HostEnv::from_process();
-            match oma::flow::run(&layout, &host, &target, wait, &oma::consent::ask) {
+            let agent = oma::fetch::agent();
+            let fetch = |publisher: &oma::trust::Publisher| oma::fetch::oma_keys(&agent, publisher);
+            match oma::flow::run(&layout, &host, &target, wait, &oma::consent::ask, &fetch) {
                 Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
                 Err(e) => {
                     eprintln!("odk oma: {e}");
@@ -238,12 +240,15 @@ fn main() -> ExitCode {
                 );
             }
             let host = oma::sandbox::launch::HostEnv::from_process();
+            let agent = oma::fetch::agent();
+            let fetch = |publisher: &oma::trust::Publisher| oma::fetch::oma_keys(&agent, publisher);
             match oma::flow::run(
                 &layout,
                 &host,
                 prepared.identifier.as_str(),
                 wait,
                 &oma::consent::ask,
+                &fetch,
             ) {
                 Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
                 Err(e) => {
