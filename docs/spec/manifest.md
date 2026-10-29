@@ -22,7 +22,7 @@ Any key not listed here is an error. No text in the Manifest that oma later writ
 | `description` | string | no | One-line summary, with no control characters. |
 | `icon` | string | no | Path inside the Bundle to a PNG or SVG file, under the same containment rules as `executable`. |
 | `categories` | array of strings | no | freedesktop registered category names, used for the `.desktop` entry (ADR 0014). Each is non-empty and contains only letters, digits and `-`. |
-| `publisher` | string | yes | The publisher host in the signed manifest (ADR 0060). A hostname: lowercase letters, digits, hyphens and dots, no scheme, no userinfo, no port, no path, and not an IP address. At most 253 characters. An internationalized name is the punycode form. It must equal the signed manifest's `publisher`. It is display text and the first-contact host of `https://<publisher>/.well-known/oma-keys`. It is not the root of trust. The code still accepts a Bundle with no `publisher` until it follows ADR 0060. |
+| `publisher` | string | yes | The publisher host in the signed manifest (ADR 0060). A hostname: lowercase letters, digits, hyphens and dots, no scheme, no userinfo, no port, no path, and not an IP address. At most 253 characters. An internationalized name is the punycode form. It must equal the signed manifest's `publisher`. It is display text and the first-contact host of `https://<publisher>/.well-known/oma-keys`. It is not the root of trust. The code requires it in a Bundle file's image (`docs/spec/oma-image.md`) and still accepts a directory Bundle without one. |
 
 ## Identifier
 

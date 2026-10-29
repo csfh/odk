@@ -709,7 +709,9 @@ mod signed_tests {
         let bytes = crate::trust::stamp(b"an image", manifest, &release_key()).unwrap();
         let path = dir.path().join(format!("{app}-{root_seed}.oma"));
         std::fs::write(&path, bytes).unwrap();
-        crate::trust::check(&Sealed::memfd(&path).unwrap()).unwrap()
+        crate::trust::check(&Sealed::memfd(&path).unwrap())
+            .unwrap()
+            .into_signed()
     }
 
     /// The root of `root_seed`'s key set, naming the fixture release key, verified on first

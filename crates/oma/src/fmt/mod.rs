@@ -10,6 +10,7 @@ mod manifest;
 mod wording;
 
 pub use bundle::Bundle;
+pub(crate) use bundle::{ELF_HEADER_CHECKED, check_elf_header};
 pub use error::Error;
 pub use identifier::Identifier;
 pub(crate) use manifest::check_relative_path;

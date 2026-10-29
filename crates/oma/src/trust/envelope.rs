@@ -48,9 +48,35 @@ impl SelfSigned {
     }
 }
 
+/// A sealed file and what [`check`] found in it. Its image is read only through one of these
+/// ([`crate::image`]; ADR 0060, section 6), so no EROFS code sees bytes whose envelope has not
+/// held, or another file's bytes than the ones that held.
+///
+/// Only [`check`] makes one.
+#[derive(Debug)]
+pub struct Checked<'a> {
+    file: &'a Sealed,
+    signed: SelfSigned,
+}
+
+impl<'a> Checked<'a> {
+    /// The sealed copy the envelope was checked in.
+    pub fn file(&self) -> &'a Sealed {
+        self.file
+    }
+
+    pub fn signed(&self) -> &SelfSigned {
+        &self.signed
+    }
+
+    pub fn into_signed(self) -> SelfSigned {
+        self.signed
+    }
+}
+
 /// Checks a sealed Bundle file against itself, cheapest check first: the payload is hashed only
 /// once everything before it holds.
-pub fn check(file: &Sealed) -> Result<SelfSigned, Error> {
+pub fn check(file: &Sealed) -> Result<Checked<'_>, Error> {
     let len = file.len();
     if len < PREFIX_LEN as u64 {
         return Err(Error::Truncated { len });
@@ -78,11 +104,14 @@ pub fn check(file: &Sealed) -> Result<SelfSigned, Error> {
     if payload_sha256(file)? != manifest.payload_sha256 {
         return Err(Error::Digest { what: "payload" });
     }
-    Ok(SelfSigned {
-        header: prefix.header,
-        manifest,
-        manifest_bytes: prefix.manifest,
-        signature: prefix.signature,
+    Ok(Checked {
+        file,
+        signed: SelfSigned {
+            header: prefix.header,
+            manifest,
+            manifest_bytes: prefix.manifest,
+            signature: prefix.signature,
+        },
     })
 }
 
@@ -192,7 +221,10 @@ pub(crate) mod tests {
         let dir = tempfile::tempdir().unwrap();
         let payload = vec![7u8; 200_000];
         let file = bundle(&payload, &release_key(), |_| {});
-        let checked = check(&sealed(dir.path(), &file)).unwrap();
+        let sealed = sealed(dir.path(), &file);
+        let checked = check(&sealed).unwrap();
+        assert!(std::ptr::eq(checked.file(), &sealed), "the file it checked");
+        let checked = checked.signed();
         assert_eq!(checked.header().release_key, release_key().public_key());
         assert_eq!(checked.manifest().app_id.as_str(), "dev.csfh.notes");
         assert_eq!(checked.header().payload_len, 200_000);
@@ -208,7 +240,7 @@ pub(crate) mod tests {
         let payload = b"an image".repeat(1000);
         let file = stamp(&payload, sample(), &release_key()).unwrap();
         assert_eq!(file, bundle(&payload, &release_key(), |_| {}));
-        let checked = check(&sealed(dir.path(), &file)).unwrap();
+        let checked = check(&sealed(dir.path(), &file)).unwrap().into_signed();
         assert_eq!(
             checked.manifest().key_id,
             release_key().public_key().key_id()
