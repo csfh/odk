@@ -81,7 +81,7 @@ Install and Run once stay disabled while the confusable-host note is up, until t
 name = "Hello"                      # the Manifest's name
 identifier = "com.example.hello"    # shown in small text
 version = "0.1.0"
-situation = "new"                   # "new", or "upgrade" (defined, not sent yet)
+situation = "new"                   # "new", or "upgrade" for an installed file that asks for more
 buttons = ["install", "run-once", "cancel"]
 lines = ["Can use the graphics card directly"]
 notes = ["Desktop: you have no such folder, so this will not be available"]
@@ -98,7 +98,7 @@ notes = ["Desktop: you have no such folder, so this will not be available"]
 - No button is the default: Enter grants nothing. Escape and closing the window are Cancel.
 - The window is small and fixed in size, with the application id `oma-consent`. GPUI 0.2.2 cannot ask a Wayland compositor for a floating dialog, so under Hyprland the helper asks `hyprctl` to float, size and centre it, and ignores any failure; on another compositor it may be tiled.
 - The helper follows the Omarchy theme by reading `colors.toml` itself, with fallback colours; it does not depend on ODK.
-- **Not in the dialog yet:** the "upgrade" screen, with its collapsed "already allowed" line and the "Keep previous version" button, because upgrades are not built. The icon stays out of the dialog (ADR 0060): the identity lines are the signed fields, and the image is not mounted to fill them.
+- **The upgrade screen** is sent for a Bundle file whose launch asks for more than was allowed: `situation = "upgrade"`, the new permissions as lines, "already allowed" as one note, and Allow, Keep previous version (when there is one) and Cancel. Directory Bundles do not get it. The icon stays out of the dialog (ADR 0060): the identity lines are the signed fields, and the image is not mounted to fill them.
 
 ## Left out of v1
 

@@ -21,6 +21,8 @@ pub enum Button {
     Install,
     RunOnce,
     Allow,
+    /// Rolls back to the previous version and runs that (ADR 0011, ADR 0015).
+    KeepPrevious,
     /// Confirms the confusable-host note, on its own, before Install or Run once is offered
     /// (ADR 0060, section 7).
     Confirm,
@@ -33,6 +35,7 @@ impl Button {
             Self::Install => "install",
             Self::RunOnce => "run-once",
             Self::Allow => "allow",
+            Self::KeepPrevious => "keep-previous",
             Self::Confirm => "confirm",
             Self::Cancel => "cancel",
         }
@@ -43,6 +46,7 @@ impl Button {
             Self::Install,
             Self::RunOnce,
             Self::Allow,
+            Self::KeepPrevious,
             Self::Confirm,
             Self::Cancel,
         ]
@@ -57,7 +61,7 @@ pub struct Request {
     pub name: String,
     pub identifier: String,
     pub version: String,
-    /// `"new"`; the upgrade screen is not built (`docs/spec/consent-dialog.md`).
+    /// `"new"`, or `"upgrade"` for an installed file that asks for more (`docs/spec/consent-dialog.md`).
     pub situation: &'static str,
     pub buttons: Vec<&'static str>,
     pub lines: Vec<String>,
@@ -160,6 +164,38 @@ impl Request {
         Self {
             lines: permission_lines(missing),
             ..Self::signed(identity, &[Button::Install, Button::Cancel], notes)
+        }
+    }
+
+    /// The upgrade screen (ADR 0015): an installed file, newer than what was allowed, that asks
+    /// for more. Only the new permissions are listed; what is already allowed is one note. Keep
+    /// previous version is offered when there is a previous version to go back to.
+    pub fn upgrade(
+        identity: &Identity<'_>,
+        missing: &Permissions,
+        already_allowed: usize,
+        has_previous: bool,
+        named_dirs: &Resolved,
+    ) -> Self {
+        let mut notes = vec![format!(
+            "{} {} is an upgrade that asks for more than was allowed.",
+            identity.app_id, identity.version
+        )];
+        if already_allowed > 0 {
+            notes.push(format!(
+                "Already allowed: {already_allowed} more, which it keeps."
+            ));
+        }
+        notes.extend(unavailable(missing, named_dirs));
+        let buttons: &[Button] = if has_previous {
+            &[Button::Allow, Button::KeepPrevious, Button::Cancel]
+        } else {
+            &[Button::Allow, Button::Cancel]
+        };
+        Self {
+            situation: "upgrade",
+            lines: permission_lines(missing),
+            ..Self::signed(identity, buttons, notes)
         }
     }
 
