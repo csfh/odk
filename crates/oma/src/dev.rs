@@ -6,12 +6,13 @@
 //! project's, run as the user, exactly as `make` or `cargo build` would be.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 use serde::Deserialize;
 
 use crate::bundle::{self, Include};
+use crate::fmt::Manifest;
 
 /// The project file's name.
 pub const FILE: &str = "oma.toml";
@@ -57,7 +58,8 @@ struct Raw {
     /// Commands to run, in order, in the project's directory.
     #[serde(default)]
     build: Vec<Vec<String>>,
-    /// The built executable, relative to the project's directory.
+    /// The built executable, relative to the project's directory: `SOURCE`, or
+    /// `SOURCE=DESTINATION` to say where it goes, which must be the manifest's `executable`.
     executable: String,
     /// The manifest, relative to the project's directory.
     #[serde(default = "manifest_name")]
@@ -128,10 +130,42 @@ impl Project {
                 Ok(include)
             })
             .collect::<Result<Vec<_>, bundle::Error>>()?;
+        // The program always goes to the manifest's `executable`. `SOURCE=DESTINATION` says so,
+        // as an include would, and is refused, before anything is built, when it says otherwise.
+        let executable = match raw.executable.split_once('=') {
+            None => dir.join(&raw.executable),
+            Some((source, destination)) => {
+                if source.is_empty() {
+                    return Err(invalid("`executable` names no file before `=`".to_owned()));
+                }
+                let into_bundle = plain(destination).ok_or_else(|| {
+                    invalid(format!(
+                        "`executable` goes to {destination:?}, which is not a path inside the Bundle"
+                    ))
+                })?;
+                let manifest_path = dir.join(&raw.manifest);
+                let text = fs::read_to_string(&manifest_path).map_err(|source| Error::Io {
+                    path: manifest_path.clone(),
+                    source,
+                })?;
+                let shipped = Manifest::parse(&text)
+                    .map_err(|e| Error::Invalid {
+                        path: manifest_path.clone(),
+                        message: e.to_string(),
+                    })?
+                    .executable;
+                if plain(&shipped).as_ref() != Some(&into_bundle) {
+                    return Err(invalid(format!(
+                        "`executable` goes to {destination:?}, and the manifest's `executable` is {shipped:?}: the program is copied to the manifest's path, so they must be the same"
+                    )));
+                }
+                dir.join(source)
+            }
+        };
         Ok(Self {
             dir: dir.to_owned(),
             build: raw.build,
-            executable: dir.join(raw.executable),
+            executable,
             manifest: dir.join(raw.manifest),
             includes,
         })
@@ -169,6 +203,20 @@ impl Project {
             &self.includes,
         )?)
     }
+}
+
+/// A path inside the Bundle as its plain components, or `None` when it is empty, absolute or
+/// climbs out with `..`.
+fn plain(path: &str) -> Option<PathBuf> {
+    let mut out = PathBuf::new();
+    for component in Path::new(path).components() {
+        match component {
+            Component::Normal(name) => out.push(name),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    (!out.as_os_str().is_empty()).then_some(out)
 }
 
 #[cfg(test)]
@@ -239,6 +287,63 @@ mod tests {
         ] {
             assert!(project(text).1.is_err(), "{text}");
         }
+    }
+
+    fn with_manifest(oma_toml: &str, executable: &str) -> (TempDir, Result<Project, Error>) {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(FILE), oma_toml).unwrap();
+        fs::write(
+            dir.path().join("manifest.toml"),
+            format!(
+                "manifest_version = 1\nidentifier = \"dev.example.app\"\nname = \"App\"\nversion = \"1.0.0\"\nexecutable = \"{executable}\"\n\n[permissions]\n"
+            ),
+        )
+        .unwrap();
+        let loaded = Project::load(dir.path());
+        (dir, loaded)
+    }
+
+    #[test]
+    fn the_executable_may_say_it_goes_to_the_manifests_path_and_nowhere_else() {
+        for shipped in ["bin/app", "./bin/app"] {
+            let (dir, loaded) = with_manifest("executable = \"build/app=bin/app\"\n", shipped);
+            let p = loaded.unwrap();
+            assert_eq!(p.executable, dir.path().join("build/app"), "{shipped}");
+        }
+
+        let (_dir, loaded) = with_manifest("executable = \"build/app=bin/app\"\n", "bin/other");
+        let said = loaded.unwrap_err().to_string();
+        assert!(
+            said.contains("\"bin/app\"") && said.contains("\"bin/other\""),
+            "{said}"
+        );
+
+        for bad in [
+            "build/app=../app",
+            "build/app=/bin/app",
+            "build/app=",
+            "=bin/app",
+        ] {
+            let (_dir, loaded) = with_manifest(&format!("executable = \"{bad}\"\n"), "bin/app");
+            assert!(loaded.is_err(), "{bad}");
+        }
+
+        // A bare path still loads without reading the manifest, and is copied to its path.
+        let (dir, loaded) = project("executable = \"build/app\"\n");
+        assert_eq!(loaded.unwrap().executable, dir.path().join("build/app"));
+    }
+
+    #[test]
+    fn a_mapped_executable_lands_at_the_manifests_path() {
+        let (dir, loaded) = with_manifest("executable = \"build/app=bin/app\"\n", "bin/app");
+        fs::create_dir_all(dir.path().join("build")).unwrap();
+        fs::write(dir.path().join("build/app"), crate::testutil::elf()).unwrap();
+        let out = TempDir::new().unwrap();
+        let bundle = loaded.unwrap().assemble(out.path()).unwrap();
+        assert_eq!(
+            fs::read(bundle.join("bin/app")).unwrap(),
+            crate::testutil::elf()
+        );
     }
 
     #[test]
