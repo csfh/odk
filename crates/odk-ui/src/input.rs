@@ -19,9 +19,7 @@ use gpui::{
 use odk_a11y::{Accessible, Describe, Role};
 
 use odk_theme::Color;
-use odk_theme::component::{
-    ButtonVariant, ComponentTokens, FIELD_INVALID_MARK, FieldStyle, States,
-};
+use odk_theme::component::{ButtonVariant, ComponentTokens, FieldStyle, States};
 use odk_theme::foundation::Density;
 
 use crate::button::Size;
@@ -1626,7 +1624,7 @@ impl RenderOnce for Input {
                 field = field.child(icon(glyph, "trailing-icon", style.icon));
             }
             if let Some(mark) = style.invalid_mark {
-                field = field.child(icon(FIELD_INVALID_MARK.into(), "invalid-mark", mark));
+                field = field.child(icon(Icon::Warning.into(), "invalid-mark", mark));
             }
             if self.extras.loading {
                 let name = part_name(&self.id, "spinner");

@@ -109,15 +109,15 @@ fn tabs(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<Navigati
         .manual_activation(true)
         .value(g.mail_tab.clone())
         .tab("inbox", "Inbox", |_, _| Text::new("12 unread messages."))
-        .icon("inbox", "↓")
+        .icon("inbox", Icon::Inbox)
         .counter("inbox", "12")
         .tab("sent", "Sent", |_, _| Text::new("Nothing waiting to send."))
-        .icon("sent", "↑")
+        .icon("sent", Icon::Send)
         .tab("drafts", "Drafts", |_, _| Text::new("3 drafts."))
-        .icon("drafts", "✎")
+        .icon("drafts", Icon::Draft)
         .counter("drafts", "3")
         .tab("spam", "Spam", |_, _| Text::new("Spam is off."))
-        .icon("spam", "⚠")
+        .icon("spam", Icon::Spam)
         .disable("spam")
         .on_change(cx.listener(|this, value: &SharedString, _, cx| {
             this.mail_tab = value.clone();
@@ -163,17 +163,17 @@ fn segments(
                 )
                 .child(
                     ToggleGroup::new(("view", k), "View")
-                        .icon_item("list", "☰", "List")
-                        .icon_item("grid", "▦", "Grid")
-                        .icon_item("columns", "▥", "Columns")
+                        .icon_item("list", Icon::List, "List")
+                        .icon_item("grid", Icon::Grid, "Grid")
+                        .icon_item("columns", Icon::Columns, "Columns")
                         .default_value(["grid"]),
                 )
                 .child(
                     ToggleGroup::new(("layout", k), "Layout")
                         .item("list", "List")
-                        .icon("list", "☰")
+                        .icon("list", Icon::List)
                         .item("grid", "Grid")
-                        .icon("grid", "▦")
+                        .icon("grid", Icon::Grid)
                         .default_value(["list"]),
                 ),
         )
@@ -200,9 +200,9 @@ fn segments(
                     ToggleGroup::new(("style", k), "Text style")
                         .multiple(true)
                         .default_value(["bold"])
-                        .icon_item("bold", "B", "Bold")
-                        .icon_item("italic", "I", "Italic")
-                        .icon_item("under", "U", "Underline"),
+                        .icon_item("bold", Icon::Bold, "Bold")
+                        .icon_item("italic", Icon::Italic, "Italic")
+                        .icon_item("under", Icon::Underline, "Underline"),
                 )
                 .child(
                     ToggleGroup::new(("locked", k), "Locked")
@@ -231,18 +231,18 @@ fn sidebar(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<Navig
                     NavList::new(("sidebar", k), "Settings")
                         .group(workspace)
                         .item("general", general)
-                        .icon("general", "⚙")
+                        .icon("general", Icon::Settings)
                         .item("members", members)
-                        .icon("members", "☺")
+                        .icon("members", Icon::Team)
                         .counter("members", "4")
                         .item("billing", billing)
-                        .icon("billing", "$")
+                        .icon("billing", Icon::BankCard)
                         .disable("billing")
                         .group(account)
                         .item("profile", profile)
-                        .icon("profile", "@")
+                        .icon("profile", Icon::User)
                         .item("notifications", notifications)
-                        .icon("notifications", "!")
+                        .icon("notifications", Icon::Notification)
                         .counter("notifications", "12")
                         .value(current.clone())
                         .on_change(cx.listener(|this, value: &SharedString, _, cx| {
@@ -283,7 +283,7 @@ fn breadcrumbs(c: &Content) -> Div {
     v_flex()
         .gap(Space::Sm)
         .child(short_path)
-        .child(long_path.separator("›"))
+        .child(long_path.separator(Icon::ArrowRight))
         .child(caption(
             "The second folds its middle into a menu and has its own separator.",
         ))
@@ -315,7 +315,7 @@ fn density_row(n: usize, d: Density, c: &Content) -> Div {
                 NavList::new(("nd-nav", n), "Settings")
                     .density(d)
                     .item("a", "General")
-                    .icon("a", "⚙")
+                    .icon("a", Icon::Settings)
                     .default_value("a"),
             ),
         )

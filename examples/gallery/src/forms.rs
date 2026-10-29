@@ -208,14 +208,14 @@ fn text_fields(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsP
         .child(
             FormField::new("f-lead", "Leading icon").child(
                 Input::new(("lead", k), "Handle")
-                    .leading_icon("@")
+                    .leading_icon(Icon::At)
                     .placeholder("username"),
             ),
         )
         .child(
             FormField::new("f-trail", "Trailing icon").child(
                 Input::new(("trail", k), "Discount")
-                    .trailing_icon("%")
+                    .trailing_icon(Icon::Percent)
                     .placeholder("0"),
             ),
         )
@@ -550,7 +550,7 @@ fn example_form(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<Forms
     let mut email = FormField::new("ex-email", t.email.0).required(true).child(
         Input::new(("ex-email-input", k), t.email.0)
             .placeholder(t.email.1)
-            .leading_icon("@")
+            .leading_icon(Icon::At)
             .value(f.email.clone())
             .on_change(cx.listener(|this, text: &str, _, cx| {
                 this.form.email = text.to_owned().into();

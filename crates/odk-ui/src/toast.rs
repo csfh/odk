@@ -26,14 +26,16 @@ use gpui::{
 };
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::ButtonVariant;
-use odk_theme::foundation::MotionDuration;
+use odk_theme::foundation::{MotionDuration, TypeRole};
 use odk_theme::semantic::Role as Semantic;
 
+use crate::Icon;
 use crate::decoration::{Applied, OverlayDecoration, SizeMode};
 use crate::focus::focus_handle;
+use crate::icon;
 use crate::layout::{StyledExt, h_flex, inside_window, v_flex};
 use crate::overlay::{Layer, Presence, Transition};
-use crate::theme::{colour, mono};
+use crate::theme::colour;
 use crate::{Badge, Button, Size, Tone, components};
 
 /// The most toasts shown at once unless [`set_toast_limit`] says otherwise. A count, not a
@@ -393,7 +395,7 @@ struct Shown {
     id: ToastId,
     amount: f32,
     role: Semantic,
-    mark: Option<&'static str>,
+    mark: Option<Icon>,
     title: SharedString,
     description: Option<SharedString>,
     action: Option<(SharedString, Handler)>,
@@ -496,7 +498,7 @@ impl RenderOnce for ToastHost {
                     id: e.toast.id,
                     amount: a,
                     role: e.toast.role(),
-                    mark: tone.map(Tone::mark),
+                    mark: tone.map(Tone::icon),
                     title: e.toast.title.clone(),
                     description: e.toast.description.clone(),
                     action: e.toast.action.clone(),
@@ -642,18 +644,26 @@ impl RenderOnce for ToastHost {
                     }
                 })
                 .children(mark.map(|mark| {
+                    // On the title's line, at the density's icon size.
+                    let size = c.foundation().controls.metrics().icon_size;
+                    let line = c.foundation().typography.style(TypeRole::Body).line_height;
                     div()
-                        .font_family(mono())
-                        .font_weight(gpui::FontWeight::BOLD)
-                        .text_color(colour(style.mark))
-                        .child(mark)
+                        .flex()
+                        .flex_shrink_0()
+                        .items_center()
+                        .h(px(line))
+                        .child(icon::still(mark, size, style.mark))
                 }))
                 .child(text)
                 .child(
-                    Button::icon(("odk-toast-dismiss", toast_id_n as usize), "×", "Dismiss")
-                        .variant(ButtonVariant::Ghost)
-                        .size(Size::Sm)
-                        .on_click(move |_, window, cx| dismiss(window, cx)),
+                    Button::icon(
+                        ("odk-toast-dismiss", toast_id_n as usize),
+                        Icon::Close,
+                        "Dismiss",
+                    )
+                    .variant(ButtonVariant::Ghost)
+                    .size(Size::Sm)
+                    .on_click(move |_, window, cx| dismiss(window, cx)),
                 );
             column = column.child(card.relative());
         }

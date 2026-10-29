@@ -8,13 +8,13 @@ fn actions() -> impl IntoElement {
         .child(Button::new("cancel").label("Cancel").variant(ButtonVariant::Outline))
         .child(
             Button::new("delete")
-                .leading_icon("×")
+                .leading_icon(Icon::Close)
                 .label("Delete")
                 .variant(ButtonVariant::Destructive)
                 .emphasis(Emphasis::Muted),
         )
         .child(
-            Button::icon("settings", "⚙", "Settings")
+            Button::icon("settings", Icon::Settings, "Settings")
                 .variant(ButtonVariant::Ghost)
                 .density(Density::Compact),
         )

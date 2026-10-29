@@ -148,11 +148,13 @@ fn a_long_path_fits_its_width(cx: &mut TestAppContext) {
         parts.map(|p| cx.debug_bounds(p).unwrap())
     };
     let natural = measure(cx);
-    width.set(260.0);
+    // Tight, but with room left above the middle labels' floors: the separators are icons as
+    // wide as the text is high (ADR 0083), 5 px more each than a `/`.
+    width.set(275.0);
     let narrow = measure(cx);
 
     let row = cx.debug_bounds("b/row").unwrap();
-    assert!(row.size.width <= px(260.0), "the row fits: {:?}", row.size);
+    assert!(row.size.width <= px(275.0), "the row fits: {:?}", row.size);
     for pair in narrow[..4].windows(2) {
         assert!(pair[0].right() <= pair[1].left(), "parts overlap: {pair:?}");
     }
@@ -399,4 +401,18 @@ fn links_draw_their_tokens_and_their_ring(cx: &mut TestAppContext) {
     press(cx, "tab");
     super::redraw(cx);
     assert_eq!(painted::take("b"), None);
+}
+
+/// The separator is ODK's chevron by default (ADR 0083), in the separator colour.
+#[gpui::test]
+fn the_separator_is_the_chevron_icon(cx: &mut TestAppContext) {
+    open(cx, |_, _| {
+        Breadcrumb::new("b")
+            .item("Home", |_, _| {})
+            .current("Settings")
+    });
+    let ink = crate::components()
+        .nav_link(odk_theme::component::States::NONE)
+        .separator;
+    assert_eq!(crate::drawn::last_icon(crate::Icon::ChevronRight), [ink; 3]);
 }

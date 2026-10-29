@@ -26,7 +26,7 @@ use crate::decoration::{self, ClipFit, FlowKind, SizeMode};
 use crate::focus::{
     Axis, FocusNext, FocusPrevious, child_id, focus_handle, move_focus, part_name, roving_target,
 };
-use crate::icon::Glyph;
+use crate::icon::{self, Glyph};
 use crate::input::field_mark;
 use crate::interaction::{Pointer, pointer_states};
 use crate::layout::{
@@ -35,7 +35,7 @@ use crate::layout::{
 use crate::overlay::{Layer, Transition, dismiss_catcher, during_overlay, layer_over, lift};
 use crate::placement::{Align, Placement, place};
 use crate::select::{Typed, find, typed_char};
-use crate::theme::{colour, mono};
+use crate::theme::colour;
 use crate::{Icon, components};
 
 type Action = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
@@ -44,8 +44,9 @@ type Action = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 /// (ADR 0035).
 const MENU_MIN_WIDTH: f32 = 192.0;
 
-/// The mark of the chosen one of a radio set; a selected item's is [`Icon::Check`].
-const CHOSEN: &str = "●";
+/// How large the dot of a radio item's chosen one is, as a share of the icon size: ODK's own,
+/// a dot rather than a disc; a checked item's mark is [`Icon::Check`] at the full size.
+const DOT_SHARE: f32 = 0.5;
 
 /// A shortcut at the end of a menu item, as text in the item's hint colour (muted, and the
 /// item's own text colour on a highlight) and not as keycaps: a menu is a list of words. It
@@ -73,7 +74,7 @@ pub(crate) fn hint_text(
 pub struct MenuItem {
     label: SharedString,
     hint: Option<SharedString>,
-    icon: Option<SharedString>,
+    icon: Option<Glyph>,
     checked: Option<bool>,
     /// A checked item is one of a set of which one is chosen, so it shows a dot, not a check.
     radio: bool,
@@ -134,9 +135,9 @@ impl MenuItem {
         self
     }
 
-    /// A glyph before the label, in the item's own colour. It is text; an item does not take
-    /// ODK's icons (ADR 0080) yet. Items without one keep the column, so labels line up.
-    pub fn icon(mut self, glyph: impl Into<SharedString>) -> Self {
+    /// An icon before the label, in the item's own colour: one of ODK's icons or a character.
+    /// Items without one keep the column, so labels line up.
+    pub fn icon(mut self, glyph: impl Into<Glyph>) -> Self {
         self.icon = Some(glyph.into());
         self
     }
@@ -508,15 +509,17 @@ pub(crate) fn surface(
         // The check column is always there, so checking an item moves nothing.
         let check = div()
             .debug_selector(|| part_name(id, &format!("check-{i}")))
+            .flex()
             .flex_shrink_0()
+            .items_center()
+            .justify_center()
             .size(px(ig.icon_size))
             .when_some(s.indicator, |d, ink| {
-                let mark = if item.radio {
-                    Glyph::from(CHOSEN)
+                if item.radio {
+                    d.child(field_mark(Icon::Dot, ig.icon_size * DOT_SHARE, ink))
                 } else {
-                    Glyph::Icon(Icon::Check)
-                };
-                d.child(field_mark(mark, ig.icon_size, ink))
+                    d.child(field_mark(Icon::Check, ig.icon_size, ink))
+                }
             });
         let (leading, trailing) = if select {
             (None, Some(check))
@@ -536,14 +539,13 @@ pub(crate) fn surface(
             .children(leading)
             .children(item.icon.map(|glyph| {
                 // In the row's text colour, so it follows the hover and the highlight.
-                div()
-                    .flex()
-                    .flex_shrink_0()
-                    .items_center()
-                    .justify_center()
-                    .size(px(ig.icon_size))
-                    .font_family(mono())
-                    .child(glyph)
+                let pointer = s.responds.then(|| {
+                    (
+                        SharedString::from(format!("row-{i}")),
+                        child_id(id, format!("icon-{i}")),
+                    )
+                });
+                icon::slot(glyph, ig.icon_size, icon::inks_of(&s.colours), pointer)
             }))
             .child({
                 truncate_end(

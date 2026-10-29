@@ -10,8 +10,10 @@ use gpui::{
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 
+use crate::Icon;
 use crate::decoration::{self, ClipFit};
 use crate::focus::{child_id, part_name};
+use crate::icon::{self, Glyph};
 use crate::interaction::RingTarget;
 use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
 use crate::link::link;
@@ -42,7 +44,7 @@ struct Crumb {
 pub struct Breadcrumb {
     id: ElementId,
     items: Vec<Crumb>,
-    separator: SharedString,
+    separator: Glyph,
     max_items: Option<usize>,
 }
 
@@ -51,7 +53,7 @@ impl Breadcrumb {
         Self {
             id: id.into(),
             items: Vec::new(),
-            separator: "/".into(),
+            separator: Icon::ChevronRight.into(),
             max_items: None,
         }
     }
@@ -78,7 +80,8 @@ impl Breadcrumb {
         self
     }
 
-    pub fn separator(mut self, separator: impl Into<SharedString>) -> Self {
+    /// What stands between two items: ODK's chevron by default, as another icon or a character.
+    pub fn separator(mut self, separator: impl Into<Glyph>) -> Self {
         self.separator = separator.into();
         self
     }
@@ -151,6 +154,9 @@ impl RenderOnce for Breadcrumb {
         let current_page = c.nav_link(States::NONE.selected(true)).current.foreground;
         let f = c.foundation();
         let size = px(f.typography.style(s.type_role).size);
+        // A separator is as tall as the text it stands between.
+        let sep_size = f.typography.style(s.type_role).size;
+        let sep_line = f.typography.style(s.type_role).line_height;
         let floor_cap = px(f.spacing.s6);
         let len = self.items.len();
         let last = len.saturating_sub(1);
@@ -171,12 +177,21 @@ impl RenderOnce for Breadcrumb {
         for (n, slot) in shown.into_iter().enumerate() {
             if n > 0 {
                 let part = part_name(&self.id, &format!("sep-{n}"));
+                // On the items' line, as tall as it.
                 row = row.child(
                     div()
                         .debug_selector(|| part)
+                        .flex()
                         .flex_shrink_0()
+                        .items_center()
+                        .h(px(sep_line))
                         .text_color(colour(s.separator))
-                        .child(self.separator.clone()),
+                        .child(icon::slot(
+                            self.separator.clone(),
+                            sep_size,
+                            [s.separator; 3],
+                            None,
+                        )),
                 );
             }
             let Some(i) = slot else {

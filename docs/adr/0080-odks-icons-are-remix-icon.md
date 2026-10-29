@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0083
 ---
 
 # ODK's icons are Remix Icon, drawn as SVG

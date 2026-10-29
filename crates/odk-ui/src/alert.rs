@@ -10,8 +10,9 @@ use odk_theme::component::{AlertStyle, ButtonLayout, ButtonVariant, States};
 use odk_theme::semantic::Emphasis;
 
 use crate::focus::{child_id, part_name};
+use crate::icon;
 use crate::layout::{StyledExt, h_flex, v_flex};
-use crate::theme::{colour, mono};
+use crate::theme::colour;
 use crate::{Button, Icon, Size, Tone, components};
 
 type Handler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
@@ -157,11 +158,7 @@ impl RenderOnce for Alert {
                     .flex_shrink_0()
                     .w(icon)
                     .h(px(title_line))
-                    .font_family(mono())
-                    .text_size(icon)
-                    .line_height(icon)
-                    .text_color(colour(s.mark))
-                    .child(self.tone.mark()),
+                    .child(icon::still(self.tone.icon(), g.icon_size, s.mark)),
             )
             .child(text)
             .children(

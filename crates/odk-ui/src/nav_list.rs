@@ -13,16 +13,17 @@ use odk_theme::foundation::{Density, TypeRole};
 
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
+use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
 use crate::layout::{StyledExt, tail, truncate_end, v_flex};
-use crate::theme::{colour, mono};
+use crate::theme::colour;
 
 type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 
 struct Item {
     value: SharedString,
     label: SharedString,
-    icon: Option<SharedString>,
+    icon: Option<Glyph>,
     counter: Option<SharedString>,
     disabled: bool,
 }
@@ -32,6 +33,9 @@ enum Entry {
     Group(SharedString),
     Item(Item),
 }
+
+/// The GPUI group a row gives its icon, which follows its pointer states.
+const ROW_GROUP: &str = "odk-nav-row";
 
 /// The navigation of a sidebar: rows that each open a page, optionally under group headings,
 /// one of them the current page. A row is a control's height at the density, with an optional
@@ -90,8 +94,9 @@ impl NavList {
         self
     }
 
-    /// Puts a glyph before the label of the row with this value, at the density's icon size.
-    pub fn icon(mut self, value: impl Into<SharedString>, glyph: impl Into<SharedString>) -> Self {
+    /// Puts an icon before the label of the row with this value, at the density's icon size: one
+    /// of ODK's icons or a character.
+    pub fn icon(mut self, value: impl Into<SharedString>, glyph: impl Into<Glyph>) -> Self {
         let (value, glyph) = (value.into(), glyph.into());
         for item in self.items_mut(&value) {
             item.icon = Some(glyph.clone());
@@ -308,6 +313,7 @@ impl RenderOnce for NavList {
 
             let mut row = div()
                 .id(child_id(&self.id, format!("item-{i}")))
+                .group(ROW_GROUP)
                 .debug_selector(|| part_name(&self.id, &format!("item-{i}")))
                 .relative()
                 .flex()
@@ -315,19 +321,15 @@ impl RenderOnce for NavList {
                 .flex_shrink_0()
                 .control_geometry(&g);
             if let Some(glyph) = item.icon {
-                let size = px(g.icon_size);
-                row = row.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .flex_shrink_0()
-                        .size(size)
-                        .font_family(mono())
-                        .text_size(size)
-                        .line_height(size)
-                        .child(glyph),
-                );
+                let pointer = s
+                    .responds
+                    .then(|| (ROW_GROUP.into(), child_id(&self.id, format!("icon-{i}"))));
+                row = row.child(icon::slot(
+                    glyph,
+                    g.icon_size,
+                    icon::inks_of(&s.colours),
+                    pointer,
+                ));
             }
             row = row.child(truncate_end(
                 div()

@@ -14,9 +14,10 @@ use odk_theme::foundation::Density;
 use crate::components;
 use crate::decoration::{self, ClipFit};
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
+use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
 use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
-use crate::theme::{colour, mono};
+use crate::theme::colour;
 
 type ChangeHandler = Rc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 
@@ -24,10 +25,13 @@ struct Item {
     value: SharedString,
     label: SharedString,
     /// Shown alone when the item has no label of its own (`icon_item`), else before the label.
-    icon: Option<SharedString>,
+    icon: Option<Glyph>,
     name: Option<SharedString>,
     disabled: bool,
 }
+
+/// The GPUI group an option gives its icon, which follows its pointer states.
+const SEGMENT_GROUP: &str = "odk-segment";
 
 /// A segmented control: a row of options in one frame, such as List and Grid, or Daily, Weekly
 /// and Monthly. In single mode exactly one is on once chosen, like a radio group; in multiple
@@ -84,12 +88,12 @@ impl ToggleGroup {
         self
     }
 
-    /// Adds an option shown as a glyph alone, a square segment, with an accessible name that says
-    /// what it is.
+    /// Adds an option shown as an icon alone (one of ODK's icons or a character), a square
+    /// segment, with an accessible name that says what it is.
     pub fn icon_item(
         mut self,
         value: impl Into<SharedString>,
-        glyph: impl Into<SharedString>,
+        glyph: impl Into<Glyph>,
         name: impl Into<SharedString>,
     ) -> Self {
         self.items.push(Item {
@@ -102,8 +106,9 @@ impl ToggleGroup {
         self
     }
 
-    /// Puts a glyph before the label of the option with this value, at the density's icon size.
-    pub fn icon(mut self, value: impl Into<SharedString>, glyph: impl Into<SharedString>) -> Self {
+    /// Puts an icon before the label of the option with this value, at the density's icon size:
+    /// one of ODK's icons or a character.
+    pub fn icon(mut self, value: impl Into<SharedString>, glyph: impl Into<Glyph>) -> Self {
         let (value, glyph) = (value.into(), glyph.into());
         for item in self.items.iter_mut().filter(|i| i.value == value) {
             item.icon = Some(glyph.clone());
@@ -305,6 +310,7 @@ impl RenderOnce for ToggleGroup {
             });
             let mut option = div()
                 .id(child_id(&self.id, format!("item-{i}")))
+                .group(SEGMENT_GROUP)
                 .debug_selector(|| part_name(&self.id, &format!("item-{i}")))
                 .relative()
                 .flex()
@@ -318,19 +324,18 @@ impl RenderOnce for ToggleGroup {
                 option.w_full().min_w_0()
             };
             if let Some(glyph) = item.icon {
-                let size = px(g.icon_size);
-                option = option.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .flex_shrink_0()
-                        .size(size)
-                        .font_family(mono())
-                        .text_size(size)
-                        .line_height(size)
-                        .child(glyph),
-                );
+                let pointer = s.responds.then(|| {
+                    (
+                        SEGMENT_GROUP.into(),
+                        child_id(&self.id, format!("icon-{i}")),
+                    )
+                });
+                option = option.child(icon::slot(
+                    glyph,
+                    g.icon_size,
+                    icon::inks_of(&s.colours),
+                    pointer,
+                ));
             }
             if !icon_only {
                 option = option.child(truncate_end(

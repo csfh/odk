@@ -201,3 +201,22 @@ fn reports_the_navigation_and_each_row() {
     assert_eq!(rows[1].name, "Members (4)");
     assert!(rows[2].disabled);
 }
+
+/// A row's icon is one of ODK's (ADR 0083) in the row's text colour in each pointer state, as a
+/// character there would be.
+#[gpui::test]
+fn a_rows_icon_takes_its_text_colours(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        NavList::new("n", "Settings")
+            .item("a", "General")
+            .icon("a", crate::Icon::Settings)
+            .item("b", "Members")
+            .default_value("b")
+    });
+    redraw(cx);
+    let c = item(0).colours;
+    assert_eq!(
+        crate::drawn::last_icon(crate::Icon::Settings),
+        [c.default, c.hover, c.pressed].map(|t| t.foreground)
+    );
+}

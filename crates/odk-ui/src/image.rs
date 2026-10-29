@@ -8,9 +8,10 @@ use gpui::{
 };
 use odk_a11y::{Accessible, Describe, Role};
 
+use crate::Icon;
 use crate::components;
 use crate::focus::{child_id, part_name};
-use crate::layout::StyledExt;
+use crate::icon;
 use crate::theme::colour;
 
 /// How an image fills its box.
@@ -22,9 +23,6 @@ pub enum ImageFit {
     /// All of it shown, inside the box.
     Contain,
 }
-
-/// The mark a placeholder shows for bytes that are not an image ODK knows.
-const BROKEN: &str = "×";
 
 /// The format of an encoded image, from its first bytes: PNG, JPEG, WebP, GIF or BMP.
 fn sniff(bytes: &[u8]) -> Option<ImageFormat> {
@@ -168,11 +166,11 @@ impl RenderOnce for Image {
         let Some(format) = sniff(&bytes) else {
             #[cfg(test)]
             crate::drawn::record(&drawn, "broken");
+            // An image that cannot be shown: ODK's image icon (ADR 0083), so it reads as one.
+            let size = crate::foundation().controls.metrics().icon_size;
             return frame
                 .bg(colour(s.placeholder))
-                .text_role(s.type_role)
-                .text_color(colour(s.mark))
-                .child(BROKEN);
+                .child(icon::still(Icon::Image, size, s.mark));
         };
         let decoded =
             window.use_keyed_state(child_id(&self.id, "decoded"), cx, |_, _| Decoded::default());
