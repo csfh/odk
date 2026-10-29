@@ -1,0 +1,9 @@
+[Unit]
+Description=ODK: register the Bundle files in ~/Applications and take staged upgrades (ADR 0009, ADR 0053)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/lib/odk/odk-oma --register
+
+[Install]
+WantedBy=default.target

@@ -150,7 +150,6 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
 - `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
 - Not yet:
-  - the inbox watches (`oma-inbox@` path units) and the registration units that run `--register`;
   - a `.desktop` entry's icon, which is inside the image;
   - applying a held or dropped upgrade without the network, which needs the root's key set stored (question 14);
   - revocation (question 2).
@@ -173,6 +172,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   - it holds a valid file under a root not pinned for its app id at `held/<root>/<app>.oma`, with one line naming the app id;
   - it applies a newer version under the pin, dropped there or staged in its app's inbox, when the fetched set authorizes it, even if it asks for more (ADR 0015), and leaves it with a line saying why when the set cannot be fetched;
   - it deletes anything else in an inbox that ends in `.oma`;
+  - it runs from `oma-register.service`, at login and when `oma-applications.path` sees `~/Applications` change, and enables an `oma-inbox@<root>-<app>.path` watch for each installed app with the `updates` permission, disabling the ones no longer wanted; `install.sh` installs and enables the units;
   - it creates `~/Applications` if it is missing, writes `oma-<app id>.desktop` under `applications/` in the data home for each installed Bundle file (`Exec=odk oma run <app id>`, marked `X-Oma-Identifier=`), and removes the marked entries whose file is gone;
   - it does not touch directory Bundles.
 - The launch of an installed file that asks for more than was allowed shows the upgrade screen: Allow, Keep previous version (when there is one) or Cancel. Only the new permissions are listed. Allow records them, Keep previous version rolls back and runs that, and Cancel runs nothing.

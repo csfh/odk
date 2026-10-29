@@ -16,7 +16,8 @@
 #
 # Where things go:  ~/.local/bin/odk
 #                   ~/.local/lib/odk/{odk-oma,oma-consent,odkd}
-#                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd-files.socket,odkd.service}
+#                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd-files.socket,odkd.service,
+#                       oma-register.service,oma-applications.path,oma-inbox@.path}
 #                   ${XDG_DATA_HOME:-~/.local/share}/mime/packages/oma.xml
 #
 # Running it again upgrades. `ODK_BASE_URL` names another place to download from, for tests.
@@ -80,9 +81,16 @@ path_note() {
 if [ "$action" = uninstall ]; then
     if have_user_manager; then
         systemctl --user disable --now odkd.socket odkd-files.socket odkd.service >/dev/null 2>&1 || true
+        systemctl --user disable --now oma-register.service oma-applications.path >/dev/null 2>&1 || true
+        # The inbox watches `odk oma --register` enabled, one per application (ADR 0015).
+        for watch in "$units"/default.target.wants/oma-inbox@*.path; do
+            [ -L "$watch" ] || continue
+            systemctl --user disable --now "$(basename "$watch")" >/dev/null 2>&1 || true
+        done
     fi
     for file in "$bin/odk" "$lib/odk-oma" "$lib/oma-consent" "$lib/odkd" \
         "$units/odkd.socket" "$units/odkd-files.socket" "$units/odkd.service" \
+        "$units/oma-register.service" "$units/oma-applications.path" "$units/oma-inbox@.path" \
         "$mime/packages/oma.xml"; do
         if [ -e "$file" ]; then
             rm -f "$file"
@@ -184,6 +192,14 @@ if [ -f "$src/share/systemd/user/odkd-files.socket" ] && [ ! -L "$src/share/syst
     sockets="odkd.socket odkd-files.socket"
 fi
 put 644 "$src/share/systemd/user/odkd.service" "$units/odkd.service"
+# What runs `odk oma --register` (ADR 0009, ADR 0053); a release before it has none.
+registration=
+if [ -f "$src/share/systemd/user/oma-register.service" ] && [ ! -L "$src/share/systemd/user/oma-register.service" ]; then
+    for unit in oma-register.service oma-applications.path oma-inbox@.path; do
+        put 644 "$src/share/systemd/user/$unit" "$units/$unit"
+    done
+    registration="oma-register.service oma-applications.path"
+fi
 put 644 "$src/share/mime/packages/oma.xml" "$mime/packages/oma.xml"
 refresh_types
 
@@ -197,6 +213,8 @@ if have_user_manager; then
     systemctl --user stop odkd.service
     # $sockets is one or two unit names, split on purpose.
     systemctl --user enable --now $sockets
+    # $registration is none or two unit names, split on purpose.
+    [ -z "$registration" ] || systemctl --user enable --now $registration
     started=yes
 else
     started=no
@@ -208,6 +226,6 @@ path_note
 say "installed odk $version"
 say "  command:  $bin/odk"
 say "  private:  $lib/ (odk-oma, oma-consent, odkd)"
-say "  units:    $units/ ($sockets, odkd.service); started: $started"
+say "  units:    $units/ ($sockets, odkd.service${registration:+, $registration}); started: $started"
 say "  type:     $mime/packages/oma.xml (a .oma file opens as a disk image)"
 say "  remove:   sh install.sh --uninstall"

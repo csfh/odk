@@ -181,7 +181,7 @@ fn skip_as_root() -> bool {
     String::from_utf8_lossy(&id.stdout).trim() == "0"
 }
 
-const FILES: [&str; 8] = [
+const FILES: [&str; 11] = [
     ".local/bin/odk",
     ".local/lib/odk/odk-oma",
     ".local/lib/odk/oma-consent",
@@ -189,6 +189,9 @@ const FILES: [&str; 8] = [
     ".config/systemd/user/odkd.socket",
     ".config/systemd/user/odkd-files.socket",
     ".config/systemd/user/odkd.service",
+    ".config/systemd/user/oma-register.service",
+    ".config/systemd/user/oma-applications.path",
+    ".config/systemd/user/oma-inbox@.path",
     ".local/share/mime/packages/oma.xml",
 ];
 
@@ -259,7 +262,8 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
             [
                 "--user daemon-reload",
                 "--user stop odkd.service",
-                "--user enable --now odkd.socket odkd-files.socket"
+                "--user enable --now odkd.socket odkd-files.socket",
+                "--user enable --now oma-register.service oma-applications.path"
             ],
             "{log:?}"
         );
@@ -297,13 +301,14 @@ fn running_it_again_upgrades_and_starts_every_socket_while_odkd_runs() {
     // The old program was stopped, so the next connection starts the new one.
     assert!(!w.root.join("odkd-running").exists());
     let log = w.log();
-    let second = &log[log.len() - 3..];
+    let second = &log[log.len() - 4..];
     assert_eq!(
         second,
         [
             "--user daemon-reload",
             "--user stop odkd.service",
-            "--user enable --now odkd.socket odkd-files.socket"
+            "--user enable --now odkd.socket odkd-files.socket",
+            "--user enable --now oma-register.service oma-applications.path"
         ],
         "{log:?}"
     );

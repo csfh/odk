@@ -1,0 +1,11 @@
+[Unit]
+Description=ODK: watch ~/Applications for Bundle files (ADR 0009, ADR 0053)
+
+[Path]
+PathChanged=%h/Applications
+MakeDirectory=yes
+DirectoryMode=0755
+Unit=oma-register.service
+
+[Install]
+WantedBy=default.target

@@ -20,6 +20,22 @@ use crate::{dev, fetch, grants, image, install, userdirs};
 /// Shows the dialog. The real one is [`consent::ask`].
 pub type Ask<'a> = &'a dyn Fn(&Request) -> Result<Button, consent::Error>;
 
+/// Runs `systemctl` with these arguments. The real one is [`systemctl`].
+pub type Systemctl<'a> = &'a dyn Fn(&[&str]) -> Result<(), String>;
+
+/// `systemctl` itself; its standard error is the reason when it fails.
+pub fn systemctl(args: &[&str]) -> Result<(), String> {
+    let out = std::process::Command::new("systemctl")
+        .args(args)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
+    }
+}
+
 /// Fetches a publisher's key set. The real one is [`fetch::oma_keys`] with [`fetch::agent`].
 pub type Fetch<'a> = &'a dyn Fn(&Publisher) -> Result<fetch::KeySet, fetch::Failure>;
 
@@ -115,6 +131,8 @@ pub enum Error {
     StillInstalled { app: Identifier, path: PathBuf },
     #[error("there is nothing to purge for {app}")]
     NothingToPurge { app: Identifier },
+    #[error("systemctl: {0}")]
+    Systemctl(String),
 }
 
 /// What the Bundle's consent record does not cover yet.
@@ -961,7 +979,7 @@ pub enum Registered {
 /// effect even when it asks for more, which its next launch asks about (ADR 0015). Directory
 /// Bundles, and anything that is not a regular `*.oma` file, are not touched. `.desktop` entries
 /// and inbox watches are not built yet.
-pub fn register(layout: &Layout, now: i64, fetch: Fetch) -> Vec<Registered> {
+pub fn register(layout: &Layout, now: i64, fetch: Fetch, systemctl: Systemctl) -> Vec<Registered> {
     // The path unit watches `~/Applications`, which has to be there to be watched (ADR 0053).
     let _ = fs::create_dir_all(layout.applications());
     let or_waiting = |path: PathBuf, result: Result<Registered, Error>| {
@@ -999,10 +1017,96 @@ pub fn register(layout: &Layout, now: i64, fetch: Fetch) -> Vec<Registered> {
             done.push(or_waiting(path, result));
         }
     }
-    if let Err(e) = desktop_entries(layout) {
-        eprintln!("odk oma: the .desktop entries were not all written: {e}");
+    match installed_apps(layout) {
+        Ok(apps) => {
+            if let Err(e) = desktop_entries(layout, &apps) {
+                eprintln!("odk oma: the .desktop entries were not all written: {e}");
+            }
+            if let Err(e) = inbox_watches(layout, &apps, systemctl) {
+                eprintln!("odk oma: the inbox watches were not all changed: {e}");
+            }
+        }
+        Err(e) => eprintln!("odk oma: the installed applications could not be read: {e}"),
     }
     done
+}
+
+/// Every installed Bundle file's app id, root and Manifest, read from its verified image.
+fn installed_apps(
+    layout: &Layout,
+) -> Result<Vec<(Identifier, KeyId, crate::fmt::Manifest)>, Error> {
+    let mut apps = Vec::new();
+    for (app, pair) in grants::pairs(layout)?
+        .into_iter()
+        .filter(|(_, pair)| !pair.denied)
+    {
+        let Some(path) = installed_file(layout, &app)? else {
+            continue;
+        };
+        let sealed = Sealed::memfd(&path)?;
+        let checked = trust::check(&sealed)?;
+        let manifest = Image::read(&checked)?.manifest().clone();
+        apps.push((app, pair.root.key_id(), manifest));
+    }
+    Ok(apps)
+}
+
+/// Enables a watch on the inbox of each installed application that may stage upgrades, the
+/// `updates` permission, and disables the ones no longer wanted (ADR 0015, ADR 0053). Only what
+/// changed since the last run is asked of `systemctl`, from the record of what it enabled.
+fn inbox_watches(
+    layout: &Layout,
+    apps: &[(Identifier, KeyId, crate::fmt::Manifest)],
+    systemctl: Systemctl,
+) -> Result<(), Error> {
+    use std::collections::BTreeSet;
+    let wanted: BTreeSet<String> = apps
+        .iter()
+        .filter(|(_, _, manifest)| manifest.permissions.updates)
+        .map(|(app, root, _)| format!("oma-inbox@{}.path", unit_escape(&format!("{root}/{app}"))))
+        .collect();
+    let record = layout.inbox_watches_file();
+    let had: BTreeSet<String> = fs::read_to_string(&record)
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    for (verb, units) in [
+        ("enable", wanted.difference(&had).collect::<Vec<_>>()),
+        ("disable", had.difference(&wanted).collect::<Vec<_>>()),
+    ] {
+        if units.is_empty() {
+            continue;
+        }
+        let mut args = vec!["--user", verb, "--now"];
+        args.extend(units.iter().map(|u| u.as_str()));
+        systemctl(&args).map_err(Error::Systemctl)?;
+    }
+    if wanted != had {
+        let text: String = wanted.iter().map(|u| format!("{u}\n")).collect();
+        let io = |source| install::Error::Io {
+            path: record.clone(),
+            source,
+        };
+        fs::create_dir_all(record.parent().expect("the state directory")).map_err(io)?;
+        fs::write(&record, text).map_err(io)?;
+    }
+    Ok(())
+}
+
+/// `text` escaped as an instance name, as `systemd-escape` does it and `%I` undoes it: `/` is
+/// `-`, and any byte but ASCII letters, digits, `:`, `_` and a `.` that is not first is `\xNN`.
+fn unit_escape(text: &str) -> String {
+    let mut out = String::new();
+    for (i, byte) in text.bytes().enumerate() {
+        match byte {
+            b'/' => out.push('-'),
+            b'.' if i > 0 => out.push('.'),
+            b if b.is_ascii_alphanumeric() || b == b':' || b == b'_' => out.push(b as char),
+            b => out.push_str(&format!("\\x{b:02x}")),
+        }
+    }
+    out
 }
 
 /// The line that marks a `.desktop` entry as one `--register` writes, and names its app id.
@@ -1012,24 +1116,17 @@ const ENTRY_MARK: &str = "X-Oma-Identifier=";
 /// any that is gone (ADR 0014, ADR 0053). Its `Exec` runs the app id through `odk oma run`, never
 /// the program, so the sandbox applies. An entry is rewritten only when it would change, and
 /// entries without its mark are not touched. The icon is in the image and is not written out.
-fn desktop_entries(layout: &Layout) -> Result<(), Error> {
+fn desktop_entries(
+    layout: &Layout,
+    apps: &[(Identifier, KeyId, crate::fmt::Manifest)],
+) -> Result<(), Error> {
     let dir = layout.desktop_entries();
     let io = |path: &Path| {
         let path = path.to_owned();
         move |source| install::Error::Io { path, source }
     };
     let mut listed = Vec::new();
-    for (app, _) in grants::pairs(layout)?
-        .into_iter()
-        .filter(|(_, pair)| !pair.denied)
-    {
-        let Some(path) = installed_file(layout, &app)? else {
-            continue;
-        };
-        let sealed = Sealed::memfd(&path)?;
-        let checked = trust::check(&sealed)?;
-        let image = Image::read(&checked)?;
-        let manifest = image.manifest();
+    for (app, _, manifest) in apps {
         let mut text = format!(
             "[Desktop Entry]\nType=Application\nName={}\nExec=odk oma run {app}\n",
             escape(&manifest.name)
@@ -2845,7 +2942,7 @@ mod signed_tests {
         let directory = apps.join("Atmos.oma");
         std::fs::create_dir_all(directory.join("bin")).unwrap();
 
-        let done = register(&layout, soon(), &|p| site.fetch(p));
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         let deleted: Vec<_> = done
             .iter()
             .filter_map(|r| match r {
@@ -2883,7 +2980,7 @@ mod signed_tests {
         );
 
         // Run again, it keeps what is there.
-        let again = register(&layout, soon(), &|p| site.fetch(p));
+        let again = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         assert_eq!(again, [Registered::Kept(installed)]);
     }
 
@@ -2905,7 +3002,7 @@ mod signed_tests {
 
         let more = apps.join("More.oma");
         std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 8), &more).unwrap();
-        let done = register(&layout, soon(), &|p| site.fetch(p));
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         assert!(
             done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
@@ -2942,7 +3039,7 @@ mod signed_tests {
         let newer = apps.join("Newer.oma");
         std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 9), &newer).unwrap();
         let offline = Site::failing(fetch::Failure::HostNotFound { host: HOST.into() });
-        let done = register(&layout, soon(), &|p| offline.fetch(p));
+        let done = register(&layout, soon(), &|p| offline.fetch(p), &|_| Ok(()));
         assert!(
             done.iter()
                 .any(|r| matches!(r, Registered::Waiting { path, .. } if *path == newer)),
@@ -2981,7 +3078,7 @@ mod signed_tests {
         let staged = put("Up.oma", bundle_file(&dir, |t| t, |m| m.version = 8));
         let partial = put("Up.oma.stage", bundle_file(&dir, |t| t, |m| m.version = 8));
 
-        let done = register(&layout, soon(), &|p| site.fetch(p));
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         assert!(
             done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
@@ -3003,7 +3100,7 @@ mod signed_tests {
     fn register_lists_each_installed_file_in_the_launcher_and_unlists_it_when_it_goes() {
         let dir = TempDir::new().unwrap();
         let layout = layout(&dir);
-        assert!(register(&layout, soon(), &|_| unreachable!()).is_empty());
+        assert!(register(&layout, soon(), &|_| unreachable!(), &|_| Ok(())).is_empty());
         assert!(layout.applications().is_dir(), "created for the path unit");
 
         let site = Site::serving(key_set_bytes(1, &release_key()));
@@ -3016,7 +3113,7 @@ mod signed_tests {
         let foreign = entries.join("oma-dev.csfh.foreign.desktop");
         std::fs::write(&foreign, "[Desktop Entry]\nName=Foreign\n").unwrap();
 
-        register(&layout, soon(), &|p| site.fetch(p));
+        register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         let entry = entries.join(format!("oma-{APP}.desktop"));
         assert_eq!(
             std::fs::read_to_string(&entry).unwrap(),
@@ -3026,8 +3123,56 @@ mod signed_tests {
         );
 
         std::fs::remove_file(&target).unwrap();
-        register(&layout, soon(), &|p| site.fetch(p));
+        register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         assert!(!entry.exists());
         assert!(foreign.exists());
+    }
+
+    #[test]
+    fn register_watches_the_inbox_of_an_app_that_may_stage_upgrades_and_stops_when_it_goes() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let with_updates =
+            |t: String| t.replace("[permissions]\n", "[permissions]\nupdates = true\n");
+        let v7 = bundle_file(&dir, with_updates, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let calls = RefCell::new(Vec::<Vec<String>>::new());
+        let systemctl = |args: &[&str]| {
+            calls
+                .borrow_mut()
+                .push(args.iter().map(|a| a.to_string()).collect());
+            Ok(())
+        };
+        let unit = format!(
+            "oma-inbox@{}-dev.csfh.notes.path",
+            root(1).public_key().key_id()
+        );
+
+        register(&layout, soon(), &|p| site.fetch(p), &systemctl);
+        assert_eq!(
+            *calls.borrow(),
+            [vec!["--user", "enable", "--now", unit.as_str()]]
+        );
+        // Again: nothing changed, nothing asked.
+        register(&layout, soon(), &|p| site.fetch(p), &systemctl);
+        assert_eq!(calls.borrow().len(), 1);
+
+        std::fs::remove_file(&target).unwrap();
+        register(&layout, soon(), &|p| site.fetch(p), &systemctl);
+        assert_eq!(
+            calls.borrow()[1],
+            ["--user", "disable", "--now", unit.as_str()]
+        );
+    }
+
+    #[test]
+    fn an_instance_name_escapes_what_systemd_escapes() {
+        assert_eq!(
+            unit_escape("0123456789abcdef/dev.csfh.my-app"),
+            "0123456789abcdef-dev.csfh.my\\x2dapp"
+        );
+        assert_eq!(unit_escape(".hidden"), "\\x2ehidden");
     }
 }

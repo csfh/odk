@@ -1,0 +1,11 @@
+[Unit]
+Description=ODK: watch the inbox of %I for a staged upgrade (ADR 0015)
+
+[Path]
+PathChanged=%h/.local/share/oma/apps/%I/inbox
+MakeDirectory=yes
+DirectoryMode=0700
+Unit=oma-register.service
+
+[Install]
+WantedBy=default.target

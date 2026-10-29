@@ -8,7 +8,8 @@
 # The layout inside the tarball is the one `install.sh` installs:
 #
 #   odk/VERSION   odk/bin/odk   odk/lib/odk/{odk-oma,oma-consent,odkd}
-#   odk/share/systemd/user/{odkd.socket,odkd-files.socket,odkd.service}
+#   odk/share/systemd/user/{odkd.socket,odkd-files.socket,odkd.service,
+#       oma-register.service,oma-applications.path,oma-inbox@.path}
 #   odk/share/mime/packages/oma.xml
 #
 # CI and the installer's test both call this, so the asset names and the layout cannot drift.
@@ -34,6 +35,9 @@ for program in odk-oma oma-consent odkd; do
 done
 install -m 644 "$root/packaging/systemd/user/odkd.socket" \
     "$root/packaging/systemd/user/odkd-files.socket" "$root/packaging/systemd/user/odkd.service" \
+    "$root/packaging/systemd/user/oma-register.service" \
+    "$root/packaging/systemd/user/oma-applications.path" \
+    "$root/packaging/systemd/user/oma-inbox@.path" \
     "$stage/odk/share/systemd/user/"
 install -m 644 "$root/packaging/mime/oma.xml" "$stage/odk/share/mime/packages/oma.xml"
 printf '%s\n' "$version" >"$stage/odk/VERSION"

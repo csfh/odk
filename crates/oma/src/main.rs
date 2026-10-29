@@ -364,7 +364,7 @@ fn register() -> ExitCode {
     let agent = oma::fetch::agent();
     let fetch = |publisher: &oma::trust::Publisher| oma::fetch::oma_keys(&agent, publisher);
     use oma::flow::Registered;
-    for done in oma::flow::register(&layout, now, &fetch) {
+    for done in oma::flow::register(&layout, now, &fetch, &oma::flow::systemctl) {
         match done {
             Registered::Kept(_) => {}
             Registered::Applied(path) => eprintln!("odk oma: installed {}", path.display()),
