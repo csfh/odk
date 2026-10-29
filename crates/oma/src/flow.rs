@@ -165,7 +165,7 @@ pub fn run(
     // a path, which is opened.
     match target.parse::<Identifier>() {
         Ok(id) if install::find(layout, &id).is_none() => {
-            if let Some(file) = install::find_file(layout, &id) {
+            if let Some(file) = installed_file(layout, &id)? {
                 return run_file(layout, host, &file, wait, now);
             }
         }
@@ -595,7 +595,10 @@ pub fn install_file(
         .iter()
         .find(|(other, _)| other == app)
         .map(|(_, p)| p);
-    let installed = pair.and_then(|_| install::find_file(layout, app));
+    let installed = match pair {
+        Some(_) => installed_file(layout, app)?,
+        None => None,
+    };
 
     // The high-water rule (section 4): the same file again is a no-op, and a lower version, or
     // the same version with another payload, is refused.
@@ -835,8 +838,7 @@ fn replace_installed(
 /// The high-water mark stays (ADR 0060, section 4): only the record of what is installed changes,
 /// so `run` runs the file now in `~/Applications`. Returns where it is.
 pub fn rollback(layout: &Layout, app: &Identifier) -> Result<PathBuf, Error> {
-    let current =
-        install::find_file(layout, app).ok_or_else(|| Error::NoFile { app: app.clone() })?;
+    let current = installed_file(layout, app)?.ok_or_else(|| Error::NoFile { app: app.clone() })?;
     let root = {
         let sealed = Sealed::memfd(&current)?;
         trust::check(&sealed)?.signed().manifest().root_key_id
@@ -908,6 +910,181 @@ pub fn purge(layout: &Layout, app: &Identifier) -> Result<Vec<KeyId>, Error> {
         gone(fs::remove_file(&record), &record)?;
     }
     Ok(roots)
+}
+
+/// The installed Bundle file of `app`: the one in `~/Applications` whose signed version and
+/// payload are what its pair records as installed. Other files of the same app id may be there.
+pub fn installed_file(layout: &Layout, app: &Identifier) -> Result<Option<PathBuf>, Error> {
+    for (path, signed) in install::bundle_files(layout) {
+        let Some(signed) = signed.filter(|s| s.app_id == *app) else {
+            continue;
+        };
+        let Some(pair) = grants::load_pair(layout, &signed.root_key_id, app)? else {
+            continue;
+        };
+        let mark = Mark {
+            version: signed.version,
+            payload_sha256: signed.payload_sha256,
+        };
+        if !pair.denied && pair.installed.or(pair.mark) == Some(mark) {
+            return Ok(Some(path));
+        }
+    }
+    Ok(None)
+}
+
+/// What `--register` did with one Bundle file in `~/Applications`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Registered {
+    /// The installed version, or another copy of it: nothing to do.
+    Kept(PathBuf),
+    /// A newer version under the pin, applied: where it is installed now.
+    Applied(PathBuf),
+    /// Signed by a root not pinned for its app id: moved to where held files are kept.
+    Held {
+        app: Identifier,
+        from: PathBuf,
+        to: PathBuf,
+    },
+    /// Deleted, and why.
+    Deleted { path: PathBuf, why: String },
+    /// Left where it is, and why.
+    Waiting { path: PathBuf, why: String },
+}
+
+/// `odk oma --register` for Bundle files (ADR 0060, section 7): every `*.oma` file in
+/// `~/Applications` is reconciled, and no dialog is opened. A file that does not verify, an
+/// expired one, and a version lower than the mark, or the marked version with other contents,
+/// are deleted. A valid file under a root not pinned for its app id is held at
+/// `held/<root>/<app>.oma`, and not launched. A newer version under the pin is applied when its
+/// key set authorizes it and it asks for nothing new; otherwise it waits for `odk oma install`.
+/// Directory Bundles, and anything that is not a regular `*.oma` file there, are not touched.
+/// `.desktop` entries and inbox watches are not built yet.
+pub fn register(layout: &Layout, now: i64, fetch: Fetch) -> Vec<Registered> {
+    install::bundle_files(layout)
+        .into_iter()
+        .map(|(path, _)| {
+            register_one(layout, &path, now, fetch).unwrap_or_else(|e| Registered::Waiting {
+                why: e.to_string(),
+                path,
+            })
+        })
+        .collect()
+}
+
+fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<Registered, Error> {
+    let io = |source| install::Error::Io {
+        path: path.to_owned(),
+        source,
+    };
+    let delete = |why: String| -> Result<Registered, Error> {
+        fs::remove_file(path).map_err(io)?;
+        Ok(Registered::Deleted {
+            path: path.to_owned(),
+            why,
+        })
+    };
+    let sealed = Sealed::memfd(path)?;
+    let checked = match trust::check(&sealed) {
+        Ok(checked) => checked,
+        Err(trust::Error::Io(e)) => return Err(trust::Error::Io(e).into()),
+        Err(e) => return delete(e.to_string()),
+    };
+    let image = match Image::read(&checked) {
+        Ok(image) => image,
+        Err(image::Error::Io(e)) => return Err(image::Error::Io(e).into()),
+        Err(e) => return delete(e.to_string()),
+    };
+    let file = checked.signed();
+    let signed = file.manifest();
+    let (app, root_id) = (&signed.app_id, &signed.root_key_id);
+    if signed.expires_at.unix_seconds() < now {
+        return delete(format!(
+            "its signature expired at {}",
+            signed.expires_at.as_str()
+        ));
+    }
+    let Some(pair) = grants::load_pair(layout, root_id, app)?.filter(|pair| !pair.denied) else {
+        let held = layout.held_file(root_id, app);
+        let _ = fs::remove_file(&held);
+        install::place_file(&sealed, &held)?;
+        fs::remove_file(path).map_err(io)?;
+        return Ok(Registered::Held {
+            app: app.clone(),
+            from: path.to_owned(),
+            to: held,
+        });
+    };
+    let marked = pair.mark.map_or(0, |m| m.version);
+    match Verdict::of(pair.mark.as_ref(), signed.version, &signed.payload_sha256) {
+        Verdict::Same => return Ok(Registered::Kept(path.to_owned())),
+        Verdict::Lower => {
+            return delete(format!("version {} is lower than {marked}", signed.version));
+        }
+        Verdict::SameVersionOtherPayload => {
+            return delete(format!(
+                "version {} has other contents than the one installed",
+                signed.version
+            ));
+        }
+        Verdict::First => {
+            return Ok(Registered::Waiting {
+                path: path.to_owned(),
+                why: "nothing of it is installed yet; install it with `odk oma install`".to_owned(),
+            });
+        }
+        Verdict::Higher => {}
+    }
+    let keys = match authorized_keys(layout, file, Some(&pair.root), now, fetch) {
+        Ok(keys) => keys,
+        Err(e) => {
+            return Ok(Registered::Waiting {
+                path: path.to_owned(),
+                why: e.to_string(),
+            });
+        }
+    };
+    let granted = pair.permissions.clone().unwrap_or_default();
+    if !grants::is_empty(&grants::missing(&granted, &image.manifest().permissions)) {
+        return Ok(Registered::Waiting {
+            path: path.to_owned(),
+            why: "it asks for more than was allowed; install it with `odk oma install`".to_owned(),
+        });
+    }
+    let installed = installed_file(layout, app)?;
+    let target = layout
+        .applications()
+        .join(format!("{}.oma", image.manifest().name.replace('/', "-")));
+    if target == path {
+        // Copied over the installed file: it is in place, and only the records change.
+        let mark = Mark {
+            version: signed.version,
+            payload_sha256: signed.payload_sha256,
+        };
+        let mut pair = pair.clone();
+        pair.mark = Some(mark);
+        pair.installed = Some(mark);
+        grants::save_pair(layout, app, &pair)?;
+        let stored = grants::keys_version(layout, root_id)?;
+        grants::save_keys_version(layout, root_id, stored.unwrap_or(0).max(keys.set().version))?;
+        return Ok(Registered::Applied(target));
+    }
+    if target.symlink_metadata().is_ok() && installed.as_deref() != Some(target.as_path()) {
+        return Ok(Registered::Waiting {
+            path: path.to_owned(),
+            why: format!("{} is taken", target.display()),
+        });
+    }
+    commit(
+        layout,
+        file,
+        installed.as_deref(),
+        &sealed,
+        &target,
+        keys.set().version,
+    )?;
+    fs::remove_file(path).map_err(io)?;
+    Ok(Registered::Applied(target))
 }
 
 /// `odk oma run` of an installed Bundle file (ADR 0060, sections 4 and 5; ADR 0067). It is
@@ -2413,5 +2590,122 @@ mod signed_tests {
         ));
         assert!(quiet.shown.borrow().is_empty());
         assert_eq!(site.fetches.get(), fetches);
+    }
+
+    #[test]
+    fn register_keeps_holds_deletes_and_applies_without_asking() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let apps = layout.applications();
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let installed = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let put = |name: &str, from: &Path| {
+            std::fs::copy(from, apps.join(name)).unwrap();
+            apps.join(name)
+        };
+
+        let mut tampered = std::fs::read(&v7).unwrap();
+        *tampered.last_mut().unwrap() ^= 1;
+        std::fs::write(apps.join("Tampered.oma"), tampered).unwrap();
+        let lower = put("Lower.oma", &bundle_file(&dir, |t| t, |m| m.version = 6));
+        let expired = put(
+            "Expired.oma",
+            &bundle_file(
+                &dir,
+                |t| t,
+                |m| {
+                    m.version = 9;
+                    m.expires_at = Timestamp::parse("2026-10-28T00:00:00Z").unwrap();
+                },
+            ),
+        );
+        let other_root = put(
+            "Other.oma",
+            &bundle_file(
+                &dir,
+                |t| t,
+                |m| m.root_key_id = root(2).public_key().key_id(),
+            ),
+        );
+        let newer = put("Newer.oma", &bundle_file(&dir, |t| t, |m| m.version = 8));
+        let directory = apps.join("Atmos.oma");
+        std::fs::create_dir_all(directory.join("bin")).unwrap();
+
+        let done = register(&layout, soon(), &|p| site.fetch(p));
+        let deleted: Vec<_> = done
+            .iter()
+            .filter_map(|r| match r {
+                Registered::Deleted { path, .. } => Some(path.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(deleted.len(), 3, "{done:?}");
+        for path in [apps.join("Tampered.oma"), lower, expired] {
+            assert!(
+                deleted.contains(&path) && !path.exists(),
+                "{}",
+                path.display()
+            );
+        }
+        let held = layout.held_file(&root(2).public_key().key_id(), &APP.parse().unwrap());
+        assert!(done.contains(&Registered::Held {
+            app: APP.parse().unwrap(),
+            from: other_root.clone(),
+            to: held.clone(),
+        }));
+        assert!(held.is_file() && !other_root.exists());
+
+        // The newer version is applied: installed in place of v7, which is kept as previous.
+        assert!(done.contains(&Registered::Applied(installed.clone())));
+        assert!(!newer.exists());
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 8);
+        assert_eq!(
+            std::fs::read(&installed).unwrap(),
+            std::fs::read(bundle_file(&dir, |t| t, |m| m.version = 8)).unwrap()
+        );
+        assert!(
+            directory.join("bin").is_dir(),
+            "a directory Bundle is not touched"
+        );
+
+        // Run again, it keeps what is there.
+        let again = register(&layout, soon(), &|p| site.fetch(p));
+        assert_eq!(again, [Registered::Kept(installed)]);
+    }
+
+    #[test]
+    fn register_leaves_an_upgrade_that_asks_for_more_or_cannot_be_checked() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let apps = layout.applications();
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+
+        let more = apps.join("More.oma");
+        std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 8), &more).unwrap();
+        let done = register(&layout, soon(), &|p| site.fetch(p));
+        assert!(
+            done.iter()
+                .any(|r| matches!(r, Registered::Waiting { path, .. } if *path == more)),
+            "{done:?}"
+        );
+        assert!(more.exists());
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 7);
+
+        std::fs::remove_file(&more).unwrap();
+        let newer = apps.join("Newer.oma");
+        std::fs::copy(bundle_file(&dir, |t| t, |m| m.version = 8), &newer).unwrap();
+        let offline = Site::failing(fetch::Failure::HostNotFound { host: HOST.into() });
+        let done = register(&layout, soon(), &|p| offline.fetch(p));
+        assert!(
+            done.iter()
+                .any(|r| matches!(r, Registered::Waiting { path, .. } if *path == newer)),
+            "{done:?}"
+        );
+        assert!(newer.exists());
     }
 }

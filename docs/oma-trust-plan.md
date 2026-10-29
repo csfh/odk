@@ -150,7 +150,8 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
 - `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
 - Not yet:
-  - `--register`, held files and the inbox;
+  - `--register`'s `.desktop` entries and inbox watches, and the inbox;
+  - applying a held or dropped upgrade without the network, which needs the root's key set stored (question 14);
   - revocation (question 2).
 - Installs under a pinned root:
   - an upgrade, or a second app id, verifies the key set under the pin;
@@ -166,6 +167,11 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   - Cancel is remembered, and a later launch neither asks nor fetches;
   - the installed version runs as installed;
   - a newer version of an installed app is not run by opening it, since the upgrade dialog is not built.
+- `odk oma --register` reconciles the Bundle files in `~/Applications` with no dialog:
+  - it deletes one that does not verify, an expired one, a version lower than the mark, or the marked version with other contents;
+  - it holds a valid file under a root not pinned for its app id at `held/<root>/<app>.oma`, with one line naming the app id;
+  - it applies a newer version under the pin when the fetched set authorizes it and it asks for nothing new, and otherwise leaves it with a line saying why;
+  - it does not touch directory Bundles.
 - `odk oma rollback <app id>` swaps the installed file and `previous.oma`, after checking the previous one, and leaves the mark; the pair records which file is installed (`installed`), so `run` runs exactly that one. `odk oma purge <app id>` refuses while the app is in `~/Applications`, then deletes each of its pairs' data, previous file, inbox, held file and record.
 
 ### 6. Bootstrap and self-upgrade
