@@ -15,7 +15,7 @@ use crate::trust::keys::Signer;
 use crate::trust::{
     self, KeyId, Mark, Publisher, Sealed, SelfSigned, SetChange, Timestamp, Verdict, VerifiedKeys,
 };
-use crate::{dev, fetch, grants, image, install, userdirs};
+use crate::{desktop, dev, fetch, grants, image, install, userdirs};
 
 /// Shows the dialog. The real one is [`consent::ask`].
 pub type Ask<'a> = &'a dyn Fn(&Request) -> Result<Button, consent::Error>;
@@ -238,6 +238,12 @@ pub fn run(
         )?;
         bundle
     };
+    if !options.run_once
+        && install::find(layout, &bundle.manifest().identifier)
+            .is_some_and(|installed| installed.root() == bundle.root())
+    {
+        list_directory(layout, bundle.root());
+    }
     Ok(launch::run(layout, &bundle, host, &options)?)
 }
 
@@ -264,7 +270,9 @@ pub fn install(
         )?;
         true
     };
-    Ok(install::install(layout, source, accept)?)
+    let installed = install::install(layout, source, accept)?;
+    list_directory(layout, &installed);
+    Ok(installed)
 }
 
 /// `odk oma consent`: asks about whatever the Bundle needs that has not been granted, and records
@@ -353,6 +361,7 @@ pub fn dev(
             .map_err(Error::StopDaemon)?;
     }
     let (installed, replaced) = install::reinstall(layout, &assembled, accept)?;
+    list_directory(layout, &installed);
     let foreign_daemon = declared
         .zip(runtime_dir)
         .filter(|(daemon, runtime)| daemon::serving(runtime, daemon))
@@ -669,6 +678,7 @@ pub fn install_file(
         &target,
         keys.set().version,
     )?;
+    list(layout, app, image.manifest(), None);
     Ok(target)
 }
 
@@ -1109,66 +1119,51 @@ fn unit_escape(text: &str) -> String {
     out
 }
 
-/// The line that marks a `.desktop` entry as one `--register` writes, and names its app id.
-const ENTRY_MARK: &str = "X-Oma-Identifier=";
-
-/// Writes a `.desktop` entry for each installed Bundle file and removes the entries it wrote for
-/// any that is gone (ADR 0014, ADR 0053). Its `Exec` runs the app id through `odk oma run`, never
-/// the program, so the sandbox applies. An entry is rewritten only when it would change, and
-/// entries without its mark are not touched. The icon is in the image and is not written out.
+/// Writes the launcher entry of every installed application, Bundle files and directory Bundles,
+/// and removes the entries `odk-oma` wrote for any that is gone (ADR 0014). A Bundle file's icon
+/// is in its image, so its entry has none.
 fn desktop_entries(
     layout: &Layout,
     apps: &[(Identifier, KeyId, crate::fmt::Manifest)],
 ) -> Result<(), Error> {
-    let dir = layout.desktop_entries();
-    let io = |path: &Path| {
-        let path = path.to_owned();
-        move |source| install::Error::Io { path, source }
+    let odk = desktop::facade();
+    let io = |source| install::Error::Io {
+        path: layout.desktop_entries(),
+        source,
     };
-    let mut listed = Vec::new();
+    let mut keep = Vec::new();
     for (app, _, manifest) in apps {
-        let mut text = format!(
-            "[Desktop Entry]\nType=Application\nName={}\nExec=odk oma run {app}\n",
-            escape(&manifest.name)
-        );
-        if let Some(description) = &manifest.description {
-            text.push_str(&format!("Comment={}\n", escape(description)));
-        }
-        if !manifest.categories.is_empty() {
-            text.push_str(&format!("Categories={};\n", manifest.categories.join(";")));
-        }
-        text.push_str(&format!("{ENTRY_MARK}{app}\n"));
-        let entry = dir.join(format!("oma-{app}.desktop"));
-        if fs::read_to_string(&entry).ok().as_deref() != Some(text.as_str()) {
-            fs::create_dir_all(&dir).map_err(io(&dir))?;
-            let partial = dir.join(format!(".oma-{app}.desktop.partial"));
-            fs::write(&partial, &text).map_err(io(&partial))?;
-            fs::rename(&partial, &entry).map_err(io(&entry))?;
-        }
-        listed.push(entry);
+        desktop::write(layout, app, &desktop::text(app, manifest, None, &odk)).map_err(io)?;
+        keep.push(app.clone());
     }
-    let Ok(entries) = fs::read_dir(&dir) else {
-        return Ok(());
-    };
-    for entry in entries.filter_map(Result::ok).map(|e| e.path()) {
-        let named = entry
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.starts_with("oma-") && n.ends_with(".desktop"));
-        let marked = || {
-            fs::read_to_string(&entry).is_ok_and(|t| t.lines().any(|l| l.starts_with(ENTRY_MARK)))
-        };
-        if named && !listed.contains(&entry) && marked() {
-            fs::remove_file(&entry).map_err(io(&entry))?;
-        }
+    for bundle in install::installed(layout) {
+        let manifest = bundle.manifest();
+        let icon = manifest.icon.as_ref().map(|icon| bundle.root().join(icon));
+        let id = &manifest.identifier;
+        let text = desktop::text(id, manifest, icon.as_deref(), &odk);
+        desktop::write(layout, id, &text).map_err(io)?;
+        keep.push(id.clone());
     }
+    desktop::remove_others(layout, &keep).map_err(io)?;
     Ok(())
 }
 
-/// A `.desktop` string value: `\` is the one escape a Manifest's text can need, since it holds
-/// no control characters (`docs/spec/manifest.md`).
-fn escape(text: &str) -> String {
-    text.replace('\\', "\\\\")
+/// Writes the launcher entry of the directory Bundle installed at `root`. A failure is told and
+/// does not undo anything: the application is installed either way.
+fn list_directory(layout: &Layout, root: &Path) {
+    let Ok(bundle) = Bundle::open(root) else {
+        return;
+    };
+    let manifest = bundle.manifest();
+    let icon = manifest.icon.as_ref().map(|icon| bundle.root().join(icon));
+    list(layout, &manifest.identifier, manifest, icon.as_deref());
+}
+
+fn list(layout: &Layout, id: &Identifier, manifest: &crate::fmt::Manifest, icon: Option<&Path>) {
+    let text = desktop::text(id, manifest, icon, &desktop::facade());
+    if let Err(e) = desktop::write(layout, id, &text) {
+        eprintln!("odk oma: the launcher entry of {id} was not written: {e}");
+    }
 }
 
 fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<Registered, Error> {
@@ -1420,6 +1415,7 @@ pub fn run_file(
             _ => return Err(Error::Cancelled),
         }
     }
+    list(layout, app, image.manifest(), None);
     Ok(launch::run_file(
         layout,
         &image,
@@ -1666,6 +1662,78 @@ mod tests {
         assert!(
             matches!(e, Error::Install(install::Error::AlreadyInstalled { .. })),
             "{e}"
+        );
+    }
+
+    #[test]
+    fn installing_a_directory_bundle_lists_it_in_the_launcher_and_run_once_does_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = Layout::new(dir.path().join("home"), dir.path().join("data"));
+        let source = crate::testutil::bundle(dir.path(), "Probe", "com.example.probe", "1.0.0", "");
+        let manifest = source.join("manifest.toml");
+        let text = std::fs::read_to_string(&manifest).unwrap();
+        std::fs::write(
+            &manifest,
+            text.replace(
+                "executable = \"bin/app\"",
+                "executable = \"bin/app\"\nicon = \"icon.png\"",
+            ),
+        )
+        .unwrap();
+        std::fs::write(source.join("icon.png"), b"png").unwrap();
+        let installed = install(&layout, &source, true, &|_| unreachable!()).unwrap();
+        let entry = layout.desktop_entries().join("com.example.probe.desktop");
+        let written = std::fs::read_to_string(&entry).unwrap();
+        assert!(
+            written.contains("Exec=odk oma run com.example.probe\n"),
+            "{written}"
+        );
+        let icon = std::fs::canonicalize(&installed).unwrap().join("icon.png");
+        assert!(
+            written.contains(&format!("Icon={}\n", icon.display())),
+            "{written}"
+        );
+
+        // One with no icon still gets an entry, without an Icon line.
+        let plain = crate::testutil::bundle(dir.path(), "Plain", "com.example.plain", "1.0.0", "");
+        install(&layout, &plain, true, &|_| unreachable!()).unwrap();
+        let written =
+            std::fs::read_to_string(layout.desktop_entries().join("com.example.plain.desktop"))
+                .unwrap();
+        assert!(!written.contains("Icon="), "{written}");
+
+        // Run once of another Bundle changes nothing there.
+        let before = std::fs::read_dir(layout.desktop_entries()).unwrap().count();
+        let once = crate::testutil::bundle(
+            dir.path(),
+            "Once",
+            "com.example.once",
+            "1.0.0",
+            "network = true",
+        );
+        let host = HostEnv {
+            uid: 1000,
+            gid: 1000,
+            runtime_dir: None,
+            wayland_display: None,
+        };
+        let _ = run(
+            &layout,
+            &host,
+            once.to_str().unwrap(),
+            true,
+            &|_| Ok(Button::RunOnce),
+            &|_| unreachable!(),
+        );
+        assert_eq!(
+            std::fs::read_dir(layout.desktop_entries()).unwrap().count(),
+            before
+        );
+        assert!(
+            !layout
+                .desktop_entries()
+                .join("com.example.once.desktop")
+                .exists()
         );
     }
 }
@@ -3114,7 +3182,7 @@ mod signed_tests {
         std::fs::write(&foreign, "[Desktop Entry]\nName=Foreign\n").unwrap();
 
         register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
-        let entry = entries.join(format!("oma-{APP}.desktop"));
+        let entry = entries.join(format!("{APP}.desktop"));
         assert_eq!(
             std::fs::read_to_string(&entry).unwrap(),
             format!(
