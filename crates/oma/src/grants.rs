@@ -236,6 +236,9 @@ pub struct Pair {
     /// What the user has consented to. `None` until something is granted.
     pub permissions: Option<Permissions>,
     pub mark: Option<Mark>,
+    /// The version and payload of the file installed now: the mark's, unless `odk oma rollback`
+    /// put the previous file back (ADR 0011), which does not lower the mark. `None` is the mark's.
+    pub installed: Option<Mark>,
     /// The user cancelled the first-install dialog for this pair. A launch, `--register` and
     /// another pass over the same file do not ask again; `odk oma install` may.
     pub denied: bool,
@@ -252,6 +255,8 @@ struct PairFile {
     denied: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     high_water: Option<HighWater>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    installed: Option<HighWater>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     permissions: Option<Granted>,
 }
@@ -292,20 +297,27 @@ pub fn load_pair(layout: &Layout, root: &KeyId, app: &Identifier) -> Result<Opti
         return Err(damaged(format!("its root is {}, not {root}", key.key_id())));
     }
     let publisher = Publisher::parse(&file.publisher).map_err(|e| damaged(e.to_string()))?;
-    let mark = match file.high_water {
-        None => None,
-        Some(h) => Some(Mark {
-            version: h.version.parse().map_err(|_| {
+    let read_mark = |h: HighWater, field: &str| -> Result<Mark, Error> {
+        Ok(Mark {
+            version: h
+                .version
+                .parse()
+                .map_err(|_| damaged(format!("{field}.version {:?} is not a number", h.version)))?,
+            payload_sha256: crate::trust::unhex::<32>(&h.payload_sha256).ok_or_else(|| {
                 damaged(format!(
-                    "high_water.version {:?} is not a number",
-                    h.version
+                    "{field}.payload_sha256 is not 64 lowercase hex digits"
                 ))
             })?,
-            payload_sha256: crate::trust::unhex::<32>(&h.payload_sha256).ok_or_else(|| {
-                damaged("high_water.payload_sha256 is not 64 lowercase hex digits".into())
-            })?,
-        }),
+        })
     };
+    let mark = file
+        .high_water
+        .map(|h| read_mark(h, "high_water"))
+        .transpose()?;
+    let installed = file
+        .installed
+        .map(|h| read_mark(h, "installed"))
+        .transpose()?;
     let permissions = file
         .permissions
         .map(Granted::permissions)
@@ -316,6 +328,7 @@ pub fn load_pair(layout: &Layout, root: &KeyId, app: &Identifier) -> Result<Opti
         publisher,
         permissions,
         mark,
+        installed,
         denied: file.denied,
     }))
 }
@@ -329,6 +342,10 @@ pub fn save_pair(layout: &Layout, app: &Identifier, pair: &Pair) -> Result<(), E
         publisher: pair.publisher.to_string(),
         denied: pair.denied,
         high_water: pair.mark.map(|m| HighWater {
+            version: m.version.to_string(),
+            payload_sha256: crate::trust::hex(&m.payload_sha256),
+        }),
+        installed: pair.installed.map(|m| HighWater {
             version: m.version.to_string(),
             payload_sha256: crate::trust::hex(&m.payload_sha256),
         }),
@@ -485,6 +502,10 @@ mod tests {
                 version: u64::MAX,
                 payload_sha256: [0xab; 32],
             }),
+            installed: Some(Mark {
+                version: 3,
+                payload_sha256: [0xcd; 32],
+            }),
             denied: false,
         }
     }
@@ -511,6 +532,7 @@ mod tests {
         let bare = Pair {
             permissions: None,
             mark: None,
+            installed: None,
             denied: true,
             ..record
         };

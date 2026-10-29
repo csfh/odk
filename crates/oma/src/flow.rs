@@ -103,6 +103,14 @@ pub enum Error {
         "the publisher's key set is version {fetched}, older than the version {stored} already accepted; nothing was installed"
     )]
     KeySetLower { stored: u64, fetched: u64 },
+    #[error("{app} is not installed as a Bundle file in ~/Applications")]
+    NoFile { app: Identifier },
+    #[error("{app} has no previous version to go back to")]
+    NoPrevious { app: Identifier },
+    #[error("{app} is still installed at {}; remove it first, or purging would only make it ask again", .path.display())]
+    StillInstalled { app: Identifier, path: PathBuf },
+    #[error("there is nothing to purge for {app}")]
+    NothingToPurge { app: Identifier },
 }
 
 /// What the Bundle's consent record does not cover yet.
@@ -477,6 +485,7 @@ pub fn admit(
             publisher: manifest.publisher.clone(),
             permissions: None,
             mark: None,
+            installed: None,
             denied: true,
         });
         pair.denied = true;
@@ -512,6 +521,7 @@ pub fn admit(
                 publisher: manifest.publisher.clone(),
                 permissions: Some(requested.clone()),
                 mark: existing.as_ref().and_then(|p| p.mark),
+                installed: existing.as_ref().and_then(|p| p.installed),
                 denied: false,
             };
             grants::save_pair(layout, app, &pair)?;
@@ -580,19 +590,23 @@ pub fn install_file(
 
     // The high-water rule (section 4): the same file again is a no-op, and a lower version, or
     // the same version with another payload, is refused.
+    let current = pair.and_then(|p| p.installed.or(p.mark));
     match Verdict::of(
         pair.and_then(|p| p.mark.as_ref()),
         signed.version,
         &signed.payload_sha256,
     ) {
+        // The marked file again: nothing to do, unless a rollback put another in its place,
+        // which this one replaces again. It was authorized when it was first installed.
+        Verdict::Same if current == Some(mark) && installed.is_some() => {
+            return Ok(installed.expect("checked"));
+        }
         Verdict::Same => {
-            return match installed {
-                Some(path) => Ok(path),
-                None => {
-                    install::place_file(&sealed, &target)?;
-                    Ok(target)
-                }
-            };
+            replace_installed(layout, root_id, app, installed.as_deref(), &sealed, &target)?;
+            let mut pair = pair.expect("a mark is a pair's").clone();
+            pair.installed = Some(mark);
+            grants::save_pair(layout, app, &pair)?;
+            return Ok(target);
         }
         Verdict::Lower | Verdict::SameVersionOtherPayload => {
             return Err(Error::Version {
@@ -651,31 +665,122 @@ pub fn install_file(
         Admission::RunOnce => unreachable!("install offers Install and Cancel only"),
     }
 
-    // The file it replaces is kept as the previous one (ADR 0011), and put back if the new one
-    // cannot be placed.
-    let previous = layout.pair_previous_file(root_id, app);
-    if let Some(old) = &installed {
+    replace_installed(layout, root_id, app, installed.as_deref(), &sealed, &target)?;
+    let mut pair = grants::load_pair(layout, root_id, app)?.expect("the pair is pinned");
+    pair.mark = Some(mark);
+    pair.installed = Some(mark);
+    grants::save_pair(layout, app, &pair)?;
+    grants::save_keys_version(layout, root_id, stored.unwrap_or(0).max(keys.set().version))?;
+    Ok(target)
+}
+
+/// Places `sealed` at `target`, keeping the file it replaces, `installed`, as the pair's previous
+/// one (ADR 0011), and putting that back if the new one cannot be placed.
+fn replace_installed(
+    layout: &Layout,
+    root: &KeyId,
+    app: &Identifier,
+    installed: Option<&Path>,
+    sealed: &Sealed,
+    target: &Path,
+) -> Result<(), Error> {
+    let previous = layout.pair_previous_file(root, app);
+    let io = |path: &Path| {
+        let path = path.to_owned();
+        move |source| install::Error::Io { path, source }
+    };
+    if let Some(old) = installed {
         let dir = previous.parent().expect("a pair's directory");
-        fs::create_dir_all(dir).map_err(|e| install::Error::Io {
-            path: dir.to_owned(),
-            source: e,
-        })?;
-        fs::rename(old, &previous).map_err(|e| install::Error::Io {
-            path: old.clone(),
-            source: e,
-        })?;
+        fs::create_dir_all(dir).map_err(io(dir))?;
+        fs::rename(old, &previous).map_err(io(old))?;
     }
-    if let Err(e) = install::place_file(&sealed, &target) {
-        if let Some(old) = &installed {
+    if let Err(e) = install::place_file(sealed, target) {
+        if let Some(old) = installed {
             let _ = fs::rename(&previous, old);
         }
         return Err(e.into());
     }
-    let mut pair = grants::load_pair(layout, root_id, app)?.expect("the pair is pinned");
-    pair.mark = Some(mark);
+    Ok(())
+}
+
+/// `odk oma rollback <app id>` (ADR 0011): the installed Bundle file and the previous one change
+/// places. The previous one must verify, under the same root and app id, before it is put back.
+/// The high-water mark stays (ADR 0060, section 4): only the record of what is installed changes,
+/// so `run` runs the file now in `~/Applications`. Returns where it is.
+pub fn rollback(layout: &Layout, app: &Identifier) -> Result<PathBuf, Error> {
+    let current =
+        install::find_file(layout, app).ok_or_else(|| Error::NoFile { app: app.clone() })?;
+    let root = {
+        let sealed = Sealed::memfd(&current)?;
+        trust::check(&sealed)?.signed().manifest().root_key_id
+    };
+    let mut pair = grants::load_pair(layout, &root, app)?
+        .filter(|pair| !pair.denied)
+        .ok_or_else(|| Error::NotInstalledFile { app: app.clone() })?;
+    let previous = layout.pair_previous_file(&root, app);
+    if !previous.is_file() {
+        return Err(Error::NoPrevious { app: app.clone() });
+    }
+    let sealed = Sealed::memfd(&previous)?;
+    let checked = trust::check(&sealed)?;
+    Image::read(&checked)?;
+    let signed = checked.signed().manifest();
+    if signed.app_id != *app || signed.root_key_id != root {
+        return Err(Error::NoPrevious { app: app.clone() });
+    }
+    let io = |path: &Path| {
+        let path = path.to_owned();
+        move |source| install::Error::Io { path, source }
+    };
+    let swap = previous.with_extension("oma.swap");
+    fs::rename(&current, &swap).map_err(io(&current))?;
+    fs::rename(&previous, &current).map_err(io(&previous))?;
+    fs::rename(&swap, &previous).map_err(io(&swap))?;
+    pair.installed = Some(Mark {
+        version: signed.version,
+        payload_sha256: signed.payload_sha256,
+    });
     grants::save_pair(layout, app, &pair)?;
-    grants::save_keys_version(layout, root_id, stored.unwrap_or(0).max(keys.set().version))?;
-    Ok(target)
+    Ok(current)
+}
+
+/// `odk oma purge <app id>`: every pair of that app id loses its data, previous file, inbox, held
+/// file and record, which holds the pin, the consent and the high-water mark. It refuses while
+/// the application is in `~/Applications`, whose next launch would only ask again. Returns the
+/// roots it purged.
+pub fn purge(layout: &Layout, app: &Identifier) -> Result<Vec<KeyId>, Error> {
+    if let Some(path) = install::find_file(layout, app)
+        .or_else(|| install::find(layout, app).map(|b| b.root().to_owned()))
+    {
+        return Err(Error::StillInstalled {
+            app: app.clone(),
+            path,
+        });
+    }
+    let roots: Vec<KeyId> = grants::pairs(layout)?
+        .into_iter()
+        .filter(|(other, _)| other == app)
+        .map(|(_, pair)| pair.root.key_id())
+        .collect();
+    if roots.is_empty() {
+        return Err(Error::NothingToPurge { app: app.clone() });
+    }
+    let gone = |result: std::io::Result<()>, path: &Path| match result {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(install::Error::Io {
+            path: path.to_owned(),
+            source: e,
+        }),
+        _ => Ok(()),
+    };
+    for root in &roots {
+        let dir = layout.pair_dir(root, app);
+        gone(fs::remove_dir_all(&dir), &dir)?;
+        let held = layout.held_file(root, app);
+        gone(fs::remove_file(&held), &held)?;
+        let record = layout.pair_grants_file(root, app);
+        gone(fs::remove_file(&record), &record)?;
+    }
+    Ok(roots)
 }
 
 /// `odk oma run` of an installed Bundle file (ADR 0060, sections 4 and 5; ADR 0067). It is
@@ -704,7 +809,7 @@ pub fn run_file(
         version: signed.version,
         payload_sha256: signed.payload_sha256,
     };
-    if pair.mark != Some(mark) {
+    if pair.installed.or(pair.mark) != Some(mark) {
         return Err(Error::NotInstalledFile { app: app.clone() });
     }
     if signed.expires_at.unix_seconds() < now {
@@ -1996,5 +2101,85 @@ mod signed_tests {
             "{:?}",
             shown[0].notes
         );
+    }
+
+    #[test]
+    fn rollback_puts_the_previous_file_back_and_keeps_the_mark() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let app: Identifier = APP.parse().unwrap();
+        let host = HostEnv {
+            uid: 1000,
+            gid: 1000,
+            runtime_dir: None,
+            wayland_display: None,
+        };
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let v7_bytes = std::fs::read(&v7).unwrap();
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        assert!(matches!(
+            rollback(&layout, &app),
+            Err(Error::NoPrevious { .. })
+        ));
+        let v8 = bundle_file(&dir, |t| t, |m| m.version = 8);
+        let v8_bytes = std::fs::read(&v8).unwrap();
+        let quiet = Dialog::answering(&[]);
+        let target = install_with(&layout, &v8, false, soon(), &quiet, &site).unwrap();
+
+        assert_eq!(rollback(&layout, &app).unwrap(), target);
+        assert_eq!(std::fs::read(&target).unwrap(), v7_bytes);
+        let pair = pair_of(&layout).unwrap();
+        assert_eq!(pair.mark.unwrap().version, 8, "the mark stays");
+        assert_eq!(pair.installed.unwrap().version, 7);
+        // The installed file now is the one that runs: it passes the check, and stops only at
+        // the launch, which has no runtime directory here.
+        assert!(!matches!(
+            run_file(&layout, &host, &target, true, soon()),
+            Err(Error::NotInstalledFile { .. })
+        ));
+
+        // Installing the marked version again puts it back, without a dialog or a fetch.
+        let fetches = site.fetches.get();
+        install_with(&layout, &v8, false, soon(), &quiet, &site).unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), v8_bytes);
+        assert_eq!(pair_of(&layout).unwrap().installed.unwrap().version, 8);
+        assert_eq!(site.fetches.get(), fetches);
+        assert!(quiet.shown.borrow().is_empty());
+    }
+
+    #[test]
+    fn purge_waits_until_the_app_is_gone_then_forgets_it() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let app: Identifier = APP.parse().unwrap();
+        let root_id = root(1).public_key().key_id();
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        std::fs::create_dir_all(layout.pair_data_dir(&root_id, &app)).unwrap();
+        std::fs::write(layout.pair_data_dir(&root_id, &app).join("notes.db"), "x").unwrap();
+
+        assert!(matches!(
+            purge(&layout, &app),
+            Err(Error::StillInstalled { .. })
+        ));
+        assert!(pair_of(&layout).is_some());
+
+        std::fs::remove_file(&target).unwrap();
+        assert_eq!(purge(&layout, &app).unwrap(), [root_id]);
+        assert!(pair_of(&layout).is_none());
+        assert!(!layout.pair_dir(&root_id, &app).exists());
+        assert!(matches!(
+            purge(&layout, &app),
+            Err(Error::NothingToPurge { .. })
+        ));
+
+        // With its mark gone, any version installs again, as at first contact.
+        let again = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &again, &site).unwrap();
+        assert_eq!(again.shown.borrow().len(), 1);
     }
 }
