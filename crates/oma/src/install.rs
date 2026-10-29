@@ -1,8 +1,8 @@
 //! Installing a Bundle into `~/Applications` (ADR 0009, ADR 0018).
 //!
 //! Minimal for now: it writes no `.desktop` entry, refuses an Identifier that is already
-//! installed (no upgrades, no previous version; only [`reinstall`], for `odk oma dev`, replaces one,
-//! ADR 0051), and records consent only with `accept_permissions`: the dialog is the caller's
+//! installed (no upgrades, no previous version; `odk oma dev` replaces one with a Bundle file,
+//! ADR 0085), and records consent only with `accept_permissions`: the dialog is the caller's
 //! (`flow`, ADR 0033).
 
 use std::fs;
@@ -201,39 +201,6 @@ pub fn install(layout: &Layout, source: &Path, accept_permissions: bool) -> Resu
     Ok(target)
 }
 
-/// [`install`] that replaces the installed Bundle with the same Identifier, for `odk oma dev`
-/// (ADR 0051); `odk oma install` still refuses one. The old copy is moved aside under a name that
-/// [`installed`] skips and put back if the new one cannot be installed, so a failure leaves what
-/// was there. Returns the new path and whether there was a copy to replace.
-pub fn reinstall(
-    layout: &Layout,
-    source: &Path,
-    accept_permissions: bool,
-) -> Result<(PathBuf, bool), Error> {
-    let bundle = Bundle::open(source)?;
-    let Some(old) = find(layout, &bundle.manifest().identifier) else {
-        return Ok((install(layout, source, accept_permissions)?, false));
-    };
-    let old = old.root().to_owned();
-    let name = old.file_name().map(|n| n.to_string_lossy().into_owned());
-    let aside = layout.applications().join(format!(
-        ".{}.replaced-{}",
-        name.as_deref().unwrap_or("bundle"),
-        std::process::id()
-    ));
-    fs::rename(&old, &aside).map_err(|e| io(&old, e))?;
-    match install(layout, source, accept_permissions) {
-        Ok(path) => {
-            let _ = fs::remove_dir_all(&aside);
-            Ok((path, true))
-        }
-        Err(e) => {
-            let _ = fs::rename(&aside, &old);
-            Err(e)
-        }
-    }
-}
-
 /// Copies a directory tree, keeping symlinks as symlinks and file modes as they are.
 fn copy_tree(from: &Path, to: &Path) -> Result<(), Error> {
     for entry in fs::read_dir(from).map_err(|e| io(from, e))? {
@@ -366,43 +333,6 @@ mod tests {
             install(&layout, &other, false),
             Err(Error::Exists(_))
         ));
-    }
-
-    #[test]
-    fn reinstall_replaces_the_copy_and_puts_it_back_when_the_new_one_cannot_go_in() {
-        let dir = TempDir::new().unwrap();
-        let layout = layout(&dir);
-        let old = bundle(&dir.path().join("a"), "Tee", "com.example.t", "1.0.0", "");
-        install(&layout, &old, false).unwrap();
-
-        // Asks for a permission that was never granted, and consent is not given: the old
-        // copy stays, under its own name, and nothing is left beside it.
-        let wants = bundle(
-            &dir.path().join("b"),
-            "Tee",
-            "com.example.t",
-            "2.0.0",
-            "audio = true",
-        );
-        assert!(matches!(
-            reinstall(&layout, &wants, false),
-            Err(Error::ConsentRequired(_))
-        ));
-        let id = "com.example.t".parse().unwrap();
-        assert_eq!(
-            find(&layout, &id).unwrap().manifest().version.to_string(),
-            "1.0.0"
-        );
-        assert_eq!(fs::read_dir(layout.applications()).unwrap().count(), 1);
-
-        let (path, replaced) = reinstall(&layout, &wants, true).unwrap();
-        assert!(replaced);
-        assert_eq!(path, layout.applications().join("Tee.oma"));
-        assert_eq!(
-            find(&layout, &id).unwrap().manifest().version.to_string(),
-            "2.0.0"
-        );
-        assert_eq!(fs::read_dir(layout.applications()).unwrap().count(), 1);
     }
 
     #[test]

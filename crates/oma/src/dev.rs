@@ -203,6 +203,30 @@ impl Project {
             &self.includes,
         )?)
     }
+
+    /// The Manifest that ships in the Bundle.
+    pub fn manifest(&self) -> Result<Manifest, Error> {
+        let text = fs::read_to_string(&self.manifest).map_err(|source| Error::Io {
+            path: self.manifest.clone(),
+            source,
+        })?;
+        Manifest::parse(&text).map_err(|e| Error::Invalid {
+            path: self.manifest.clone(),
+            message: e.to_string(),
+        })
+    }
+
+    /// Writes the Bundle as one file signed with `signing` in `out_dir`, as `odk oma bundle
+    /// --sign` would, and returns its path.
+    pub fn write_file(&self, out_dir: &Path, signing: &bundle::Signing) -> Result<PathBuf, Error> {
+        Ok(bundle::write_file(
+            &self.executable,
+            &self.manifest,
+            out_dir,
+            &self.includes,
+            signing,
+        )?)
+    }
 }
 
 /// A path inside the Bundle as its plain components, or `None` when it is empty, absolute or

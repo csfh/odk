@@ -232,10 +232,14 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             };
             let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs() as i64);
             let prepared = match oma::flow::dev(
                 &layout,
                 &project,
                 runtime.as_deref().filter(|p| p.is_absolute()),
+                now,
                 &oma::consent::ask,
                 &oma::daemon::SystemctlStop,
             ) {
@@ -245,6 +249,12 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
+            if let Some(root) = &prepared.made_key {
+                eprintln!(
+                    "odk oma: made this computer's dev key in {}; dev builds are signed under its root {root}",
+                    layout.dev_key_dir().display()
+                );
+            }
             let what = if prepared.replaced {
                 "replaced the installed copy at"
             } else {
