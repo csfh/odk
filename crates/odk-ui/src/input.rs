@@ -23,7 +23,7 @@ use odk_theme::component::{
 };
 use odk_theme::foundation::Density;
 
-use crate::button::Size;
+use crate::button::{Mark, Size};
 use crate::editor::Editor;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::interaction::{Pointer, focus_ring, pointer_states};
@@ -1367,7 +1367,7 @@ const DECREMENT: &str = "decrement";
 const INCREMENT: &str = "increment";
 
 /// The glyphs of a field's own buttons and marks. ODK has no icon set yet, so they are
-/// characters, like a button's icons.
+/// characters, like a button's icons; a number field's steppers paint theirs (ADR 0078).
 const CLEAR_GLYPH: &str = "×";
 /// What a number field says when its text is not a number, once the user has left it.
 pub(crate) const NUMBER_ERROR: &str = "Enter a number";
@@ -1375,8 +1375,6 @@ pub(crate) const NUMBER_ERROR: &str = "Enter a number";
 /// while it shows.
 const SHOW_GLYPH: &str = "◉";
 const HIDE_GLYPH: &str = "○";
-const DECREMENT_GLYPH: &str = "−";
-const INCREMENT_GLYPH: &str = "+";
 
 /// One glyph of `size`, centred in a square of that size, for a field's icons and marks.
 pub(crate) fn field_glyph(glyph: SharedString, size: f32, ink: Rgba) -> Div {
@@ -1641,12 +1639,15 @@ impl RenderOnce for Input {
                         .child(Kbd::new(&chord)),
                 );
             }
-            let button = |part: &'static str, glyph: &'static str, name: &'static str| {
-                Button::icon(child_id(&self.id, part), glyph, name)
+            let field_action = |button: Button| {
+                button
                     .variant(ButtonVariant::Ghost)
                     .density(density)
                     .in_field()
                     .keep_focus()
+            };
+            let button = |part: &'static str, glyph: &'static str, name: &'static str| {
+                field_action(Button::icon(child_id(&self.id, part), glyph, name))
             };
             let mut ends: Vec<&'static str> = Vec::new();
             let mut end = end_buttons(&self.id).gap(px(c.foundation().geometry.thumb_gap));
@@ -1683,15 +1684,15 @@ impl RenderOnce for Input {
             }
             if let Some(r) = rules {
                 let text = state.read(cx).editor.text().to_owned();
-                for (part, glyph, name, steps) in [
-                    (DECREMENT, DECREMENT_GLYPH, "Decrease", -1.0),
-                    (INCREMENT, INCREMENT_GLYPH, "Increase", 1.0),
+                for (part, mark, name, steps) in [
+                    (DECREMENT, Mark::Minus, "Decrease", -1.0),
+                    (INCREMENT, Mark::Plus, "Increase", 1.0),
                 ] {
                     let state = state.clone();
                     let can = editable && r.can_step(&text, steps > 0.0);
                     ends.push(part);
                     end = end.child(
-                        button(part, glyph, name)
+                        field_action(Button::mark(child_id(&self.id, part), mark, name))
                             .disabled(!can)
                             .skip_tab()
                             .on_click(move |_, window, cx| {
