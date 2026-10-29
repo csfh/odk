@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0079
+---
+
 # GPUI is pinned to an exact crates.io version
 
 GPUI is consumed from crates.io, not from a git commit of the Zed repository, and pinned with an exact requirement: `gpui = "=0.2.2"`, the latest release when this was decided. This amends ADR 0004, which said "a specific commit"; the rest of that ADR stands (the wrapper, the raw escape hatch, and the pin being a single workspace-level dependency). The pin is in the workspace `Cargo.toml` under `[workspace.dependencies]`, and `odk-ui` and `omagate` both take it from there.
