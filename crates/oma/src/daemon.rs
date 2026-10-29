@@ -223,32 +223,52 @@ pub fn ensure(
     let Some(daemon) = &bundle.manifest().permissions.daemon else {
         return Ok(None);
     };
-    Daemon::check_socket(&daemon.socket).map_err(Error::Start)?;
     let executable = bundle
         .daemon_executable()
         .ok_or_else(|| Error::Start("the Bundle does not hold its executable".into()))?;
-    let unit = Unit::new(
-        &bundle.manifest().identifier,
-        daemon,
-        executable,
-        runtime_dir,
-        env,
-    );
+    let id = &bundle.manifest().identifier;
+    ensure_program(id, daemon, executable, runtime_dir, env, starter, wait).map(Some)
+}
+
+/// [`ensure`] for the daemon `daemon` of the application `id`, run from the program at
+/// `executable`: a directory Bundle's, or the one written out of a Bundle file (ADR 0084).
+pub fn ensure_program(
+    id: &Identifier,
+    daemon: &Daemon,
+    executable: &Path,
+    runtime_dir: &Path,
+    env: &dyn Fn(&str) -> Option<String>,
+    starter: &dyn Starter,
+    wait: Duration,
+) -> Result<Outcome, Error> {
+    Daemon::check_socket(&daemon.socket).map_err(Error::Start)?;
+    let unit = Unit::new(id, daemon, executable, runtime_dir, env);
     if reachable(&unit.socket) {
-        return Ok(Some(Outcome::Running));
+        return Ok(Outcome::Running);
     }
     starter.start(&unit).map_err(Error::Start)?;
     let until = Instant::now() + wait;
     while Instant::now() < until {
         if is_socket(&unit.socket) {
-            return Ok(Some(Outcome::Started));
+            return Ok(Outcome::Started);
         }
         std::thread::sleep(Duration::from_millis(40));
     }
     if is_socket(&unit.socket) {
-        return Ok(Some(Outcome::Started));
+        return Ok(Outcome::Started);
     }
     Err(Error::NoSocket(unit.socket))
+}
+
+/// [`ensure_program`] with the real starter and the time to wait that `odk oma run` allows.
+pub fn ensure_program_for_run(
+    id: &Identifier,
+    daemon: &Daemon,
+    executable: &Path,
+    runtime_dir: &Path,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Result<Outcome, Error> {
+    ensure_program(id, daemon, executable, runtime_dir, env, &SystemdRun, WAIT)
 }
 
 /// [`ensure`] with the real starter and the time to wait that `odk oma run` allows.

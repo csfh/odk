@@ -171,6 +171,48 @@ impl<'a> Image<'a> {
         pages.max(BLOCK)
     }
 
+    /// Writes the regular file at the Manifest path `relative` to `target`, `0755`, replacing it
+    /// in one step and only when its bytes differ: the one file of an image that is written out
+    /// onto the host, a daemon's program (ADR 0084). A running program keeps the file it started
+    /// from.
+    pub fn write_out(&self, relative: &str, target: &Path) -> io::Result<()> {
+        let tree = Tree {
+            file: self.file,
+            nodes: &self.nodes,
+        };
+        let node = tree
+            .find(relative)
+            .filter(|n| matches!(n.kind, Kind::File { .. }))
+            .ok_or_else(|| io::Error::other(format!("{relative} is not a file of the image")))?;
+        let mut bytes = Vec::with_capacity(node.data.size as usize);
+        contents(self.file, &node.data, |b| {
+            bytes.extend_from_slice(b);
+            Ok(())
+        })?;
+        if fs::read(target).is_ok_and(|on_disk| on_disk == bytes) {
+            return Ok(());
+        }
+        let dir = target.parent().expect("a file in a directory");
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)?;
+        let partial = dir.join(format!(
+            ".{}.partial",
+            target.file_name().expect("a file name").to_string_lossy()
+        ));
+        let mut out = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o755)
+            .open(&partial)?;
+        out.set_permissions(Permissions::from_mode(0o755))?;
+        out.write_all(&bytes)?;
+        out.sync_all()?;
+        fs::rename(&partial, target)
+    }
+
     /// Writes the tree into `dir`, an empty directory: directories `0755`, files `0755` when the
     /// image marks them executable and `0644` when not. Nothing it writes may already exist.
     pub fn unpack(&self, dir: &Path) -> io::Result<()> {

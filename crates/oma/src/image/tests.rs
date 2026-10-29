@@ -747,3 +747,37 @@ fn a_root_too_large_for_the_first_block_moves_to_the_next_and_the_superblock_say
     assert_eq!(root_nid, 4096 / 32, "the root's inode starts block 1");
     assert_eq!(unpacked(&image), normalized(&tree));
 }
+
+#[test]
+fn one_file_is_written_out_executable_and_only_when_it_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    let sealed = seal(dir.path(), &build(&notes()).signed());
+    let checked = trust::check(&sealed).unwrap();
+    let image = Image::read(&checked).unwrap();
+    let target = dir.path().join("out/daemon/notes");
+    image.write_out("bin/notes", &target).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), crate::testutil::elf());
+    assert_eq!(
+        fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
+    assert_eq!(
+        fs::metadata(target.parent().unwrap())
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o700
+    );
+
+    // The same bytes again: the file is left as it is.
+    use std::os::unix::fs::MetadataExt;
+    let inode = fs::metadata(&target).unwrap().ino();
+    image.write_out("bin/notes", &target).unwrap();
+    assert_eq!(fs::metadata(&target).unwrap().ino(), inode);
+    // Other bytes on disk: replaced by a new file.
+    fs::write(&target, b"changed").unwrap();
+    image.write_out("bin/notes", &target).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), crate::testutil::elf());
+    assert!(image.write_out("share", &target).is_err(), "a directory");
+}

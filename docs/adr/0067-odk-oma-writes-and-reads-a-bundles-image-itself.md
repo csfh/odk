@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0084
 ---
 
 # odk-oma writes and reads a Bundle's image itself

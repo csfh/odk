@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0084
+---
+
 # A Bundle may declare one daemon, which runs outside the sandbox
 
 The user asked on 2026-10-24 that Atmos be packed as an `.oma` Bundle, with its backend `ratmos` inside it. Atmos is a window over one daemon (`ratmos daemon`): the window shows what the daemon reports and sends it typed requests over a socket, and the daemon runs `omarchy`, `hyprctl`, `systemctl` and `sudo` for it. The window can live in the sandbox. The daemon cannot: it needs the user's session, their home and their tools, which is what the sandbox exists to withhold. The user also said the daemon must not run twice and that the manifest "should simply declare the daemon". This record is the choices made on their behalf, and is open to change.

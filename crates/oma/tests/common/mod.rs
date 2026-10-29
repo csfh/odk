@@ -110,14 +110,21 @@ impl World {
     /// pair's record with the permissions and the mark. Nothing is fetched. Returns the pair's
     /// data directory.
     pub fn install_file(&self, permissions: &str) -> PathBuf {
+        self.install_file_with(permissions, None)
+    }
+
+    /// [`World::install_file`] with a `[daemon]` table, whose program, `bin/d`, is the probe.
+    pub fn install_file_with(&self, permissions: &str, daemon: Option<&str>) -> PathBuf {
         use oma::trust::{Mark, Publisher, Sealed, SignedManifest, SigningKey, Timestamp};
         let tree = self.home.join("tree");
-        fs::create_dir_all(&tree).unwrap();
+        fs::create_dir_all(tree.join("bin")).unwrap();
+        let daemon = daemon.map_or(String::new(), |d| format!("\n[daemon]\n{d}\n"));
         let text = format!(
-            "manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\npublisher = \"apps.example.com\"\n\n[permissions]\n{permissions}\n"
+            "manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\npublisher = \"apps.example.com\"\n\n[permissions]\n{permissions}\n{daemon}"
         );
         fs::write(tree.join("manifest.toml"), &text).unwrap();
         fs::copy(probe_binary(), tree.join("probe")).unwrap();
+        fs::copy(probe_binary(), tree.join("bin/d")).unwrap();
         let mut image = Vec::new();
         oma::image::write(&tree, "Probe", &mut image).unwrap();
 
