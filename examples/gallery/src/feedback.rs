@@ -142,7 +142,7 @@ fn badges(c: &Content) -> Div {
                     Badge::new(primary)
                         .role(Intent::Accent)
                         .emphasis(Emphasis::Solid)
-                        .icon("★"),
+                        .icon(Icon::StarFilled),
                 )
                 .child(Badge::new(secondary))
                 .child(

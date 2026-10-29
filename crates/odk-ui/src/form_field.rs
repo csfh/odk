@@ -11,8 +11,9 @@ use odk_a11y::{Accessible, Describe};
 use odk_theme::component::States;
 use odk_theme::semantic::Role;
 
+use crate::Icon;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
-use crate::input::field_glyph;
+use crate::input::field_mark;
 use crate::layout::{StyledExt, h_flex, v_flex};
 use crate::theme::colour;
 use crate::{
@@ -302,7 +303,7 @@ impl RenderOnce for FormField {
                 .gap(px(c.foundation().spacing.s1))
                 .text_role(s.message_role)
                 .text_color(colour(m.colour));
-            if let Some(mark) = m.mark {
+            if let Some(mark) = Icon::status(message.role) {
                 // The mark sits on the message's first line.
                 let line = c.foundation().typography.style(s.message_role).line_height;
                 row = row.child(
@@ -311,7 +312,7 @@ impl RenderOnce for FormField {
                         .h(px(line))
                         .flex()
                         .items_center()
-                        .child(field_glyph(mark.into(), s.icon_size, colour(m.colour))),
+                        .child(field_mark(mark, s.icon_size, m.colour)),
                 );
             }
             field = field.child(row.child(div().min_w_0().child(message.text)));

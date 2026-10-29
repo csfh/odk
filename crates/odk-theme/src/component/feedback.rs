@@ -179,7 +179,8 @@ const fn prose(secondary: bool) -> C {
 const HEADING_LEVELS: [u8; 3] = [1, 2, 3];
 
 /// The mark of a status, so it reads without its colour: `i`, `✓`, `!` and `×` for info,
-/// success, warning and danger. Status marks are still characters, not ODK's icons (ADR 0080).
+/// success, warning and danger. The characters, for text; components draw the status icons
+/// instead (odk-ui's `Icon::status`, ADR 0083).
 pub const fn status_mark(role: Role) -> Option<&'static str> {
     match role {
         Role::Info => Some("i"),

@@ -166,3 +166,16 @@ fn a_badge_is_its_text_high_with_the_application_s_corners(cx: &mut TestAppConte
         assert_eq!(drawn("3").geometry.radius, radius);
     }
 }
+
+/// A marked badge draws its role's status icon (ADR 0083) in its own text colour.
+#[gpui::test]
+fn a_marked_badge_draws_its_status_icon(cx: &mut TestAppContext) {
+    open(cx, |_, _| {
+        Badge::new("Failed").role(Intent::Danger).marked()
+    });
+    let s = crate::drawn::last::<BadgeStyle>("odk-badge/Failed");
+    assert_eq!(
+        crate::drawn::last_icon(crate::Icon::Danger),
+        [s.colours.foreground; 3]
+    );
+}

@@ -213,7 +213,7 @@ pub struct FieldStyle {
 
 /// The mark of a wrong value: at the end of a field, after a check box's label, after a radio
 /// group's first option. Not the danger role's `×`, which a field already shows as its clear
-/// button.
+/// button. The character; components draw odk-ui's warning icon in its place (ADR 0083).
 pub const FIELD_INVALID_MARK: &str = "!";
 
 /// The box of a select and the list it opens.

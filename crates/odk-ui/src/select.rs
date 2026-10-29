@@ -15,7 +15,7 @@ use odk_theme::foundation::Density;
 use crate::button::Size;
 use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, part_name};
-use crate::input::{field_box, field_glyph, field_mark};
+use crate::input::{field_box, field_mark};
 use crate::layout::{bounds_probe, h_flex};
 use crate::menu_list::{Fit, Menu, MenuItem, Surface, Typeahead, surface};
 use crate::theme::colour;
@@ -486,12 +486,8 @@ impl RenderOnce for Select {
             );
         if let Some(mark) = s.invalid_mark {
             field = field.child(
-                field_glyph(
-                    odk_theme::component::FIELD_INVALID_MARK.into(),
-                    g.icon_size,
-                    colour(mark),
-                )
-                .debug_selector(|| part_name(&id, "invalid-mark")),
+                field_mark(Icon::Warning, g.icon_size, mark)
+                    .debug_selector(|| part_name(&id, "invalid-mark")),
             );
         }
         field = field.child(

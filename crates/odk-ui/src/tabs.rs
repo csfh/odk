@@ -14,9 +14,10 @@ use odk_theme::foundation::{Density, MotionDuration, TypeRole};
 
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
+use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, RingTarget, pointer_states, progress};
 use crate::layout::{StyledExt, h_flex, v_flex};
-use crate::theme::{colour, mono};
+use crate::theme::colour;
 
 type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 type Content = Box<dyn FnOnce(&mut Window, &mut App) -> AnyElement + 'static>;
@@ -24,11 +25,14 @@ type Content = Box<dyn FnOnce(&mut Window, &mut App) -> AnyElement + 'static>;
 struct Tab {
     value: SharedString,
     label: SharedString,
-    icon: Option<SharedString>,
+    icon: Option<Glyph>,
     counter: Option<SharedString>,
     content: Content,
     disabled: bool,
 }
+
+/// The GPUI group a tab gives its icon, which follows its pointer states.
+const TAB_GROUP: &str = "odk-tab";
 
 /// A list of tabs above the content of the selected one. The selected tab has primary text and a
 /// thin accent indicator on the list's baseline; the others are secondary text with a quiet tint
@@ -91,9 +95,9 @@ impl Tabs {
         self
     }
 
-    /// Puts a glyph before the label of the tab with this value, at the density's icon size and
-    /// in the label's colour.
-    pub fn icon(mut self, value: impl Into<SharedString>, glyph: impl Into<SharedString>) -> Self {
+    /// Puts an icon before the label of the tab with this value, at the density's icon size and
+    /// in the label's colour: one of ODK's icons or a character.
+    pub fn icon(mut self, value: impl Into<SharedString>, glyph: impl Into<Glyph>) -> Self {
         let (value, glyph) = (value.into(), glyph.into());
         for tab in self.tabs.iter_mut().filter(|t| t.value == value) {
             tab.icon = Some(glyph.clone());
@@ -322,6 +326,7 @@ impl RenderOnce for Tabs {
 
             let mut trigger = div()
                 .id(child_id(&self.id, format!("tab-{i}")))
+                .group(TAB_GROUP)
                 .debug_selector(|| part_name(&self.id, &format!("tab-{i}")))
                 .relative()
                 .flex()
@@ -330,19 +335,15 @@ impl RenderOnce for Tabs {
                 .whitespace_nowrap()
                 .control_geometry(&g);
             if let Some(glyph) = tab.icon {
-                let size = px(g.icon_size);
-                trigger = trigger.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .flex_shrink_0()
-                        .size(size)
-                        .font_family(mono())
-                        .text_size(size)
-                        .line_height(size)
-                        .child(glyph),
-                );
+                let pointer = s
+                    .responds
+                    .then(|| (TAB_GROUP.into(), child_id(&self.id, format!("icon-{i}"))));
+                trigger = trigger.child(icon::slot(
+                    glyph,
+                    g.icon_size,
+                    icon::inks_of(&s.colours),
+                    pointer,
+                ));
             }
             trigger = trigger.child(
                 div()

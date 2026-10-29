@@ -1,5 +1,6 @@
-use odk_theme::component::status_mark;
 use odk_theme::semantic::Role;
+
+use crate::Icon;
 
 /// The meaning of a notice, which picks its status colour.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -24,10 +25,9 @@ impl From<Tone> for Role {
 }
 
 impl Tone {
-    /// A one-character mark drawn in the notice's colour, so the tone never shows by colour
-    /// alone: its role's status mark. Status marks are still text in the monospace face, not
-    /// ODK's icons (ADR 0080).
-    pub(crate) fn mark(self) -> &'static str {
-        status_mark(self.into()).expect("every tone is a status role")
+    /// The icon drawn in the notice's colour, so the tone never shows by colour alone: its
+    /// role's status icon (ADR 0083).
+    pub(crate) fn icon(self) -> Icon {
+        Icon::status(self.into()).expect("every tone is a status role")
     }
 }

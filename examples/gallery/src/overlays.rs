@@ -78,21 +78,29 @@ impl Render for OverlaysPage {
                             item.hint(hint)
                         }
                     };
-                    m.item(item(file[0]).icon("▤").on_select(pick(&e, file[0].0)))
-                        .item(item(file[1]).icon("▥").on_select(pick(&e, file[1].0)))
-                        .separator()
-                        .item(item(file[2]).checked(wrap).on_select({
-                            let e = e.clone();
-                            move |_, cx| {
-                                e.update(cx, |g, cx| {
-                                    g.wrap = !g.wrap;
-                                    cx.notify();
-                                })
-                            }
-                        }))
-                        .item(item(file[3]).disabled(true))
-                        .separator()
-                        .item(item(file[4]).danger().on_select(pick(&e, file[4].0)))
+                    m.item(
+                        item(file[0])
+                            .icon(Icon::FileAdd)
+                            .on_select(pick(&e, file[0].0)),
+                    )
+                    .item(
+                        item(file[1])
+                            .icon(Icon::FolderOpen)
+                            .on_select(pick(&e, file[1].0)),
+                    )
+                    .separator()
+                    .item(item(file[2]).checked(wrap).on_select({
+                        let e = e.clone();
+                        move |_, cx| {
+                            e.update(cx, |g, cx| {
+                                g.wrap = !g.wrap;
+                                cx.notify();
+                            })
+                        }
+                    }))
+                    .item(item(file[3]).disabled(true))
+                    .separator()
+                    .item(item(file[4]).danger().on_select(pick(&e, file[4].0)))
                 }
             }))
             .child(DropdownMenu::new("view", "View").menu({
@@ -214,10 +222,8 @@ impl Render for OverlaysPage {
                         .child(Tooltip::new(
                             "tip-close",
                             close,
-                            Button::new("tip-close-button")
-                                .label("×")
-                                .variant(ButtonVariant::Ghost)
-                                .accessible_name("Close"),
+                            Button::icon("tip-close-button", Icon::Close, "Close")
+                                .variant(ButtonVariant::Ghost),
                         ))
                         .child(
                             Tooltip::new(

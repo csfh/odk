@@ -64,7 +64,7 @@ impl ButtonProps {
             Content::Trailing => Button::new(id)
                 .label("Save changes")
                 .trailing_icon(Icon::ArrowRight),
-            Content::IconOnly => Button::icon(id, "⚙", "Settings"),
+            Content::IconOnly => Button::icon(id, Icon::Settings, "Settings"),
         }
         .variant(self.variant);
         if let Some(e) = self.emphasis {
@@ -81,14 +81,14 @@ impl ButtonProps {
         let mut lines = vec![match self.content {
             Content::Text => "Button::new(\"save\")\n    .label(\"Save changes\")".to_owned(),
             Content::Leading => {
-                "Button::new(\"save\")\n    .leading_icon(\"✓\")\n    .label(\"Save changes\")"
+                "Button::new(\"save\")\n    .leading_icon(Icon::Check)\n    .label(\"Save changes\")"
                     .to_owned()
             }
             Content::Trailing => {
-                "Button::new(\"save\")\n    .label(\"Save changes\")\n    .trailing_icon(\"→\")"
+                "Button::new(\"save\")\n    .label(\"Save changes\")\n    .trailing_icon(Icon::ArrowRight)"
                     .to_owned()
             }
-            Content::IconOnly => "Button::icon(\"save\", \"⚙\", \"Settings\")".to_owned(),
+            Content::IconOnly => "Button::icon(\"save\", Icon::Settings, \"Settings\")".to_owned(),
         }];
         lines.push(format!("    .variant(ButtonVariant::{:?})", self.variant));
         if let Some(e) = self.emphasis {

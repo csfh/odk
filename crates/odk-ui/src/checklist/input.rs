@@ -662,3 +662,15 @@ fn escape_reaches_the_dialog_around_the_field(cx: &mut TestAppContext) {
     assert_eq!(closed.get(), 1);
     assert_eq!(text(cx), "abc");
 }
+
+/// A wrong value's mark is ODK's warning icon (ADR 0083) in the field's mark colour, so a wrong
+/// value never shows by its edge's colour alone.
+#[gpui::test]
+fn a_wrong_value_shows_the_warning_icon(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| Input::new("f", "Port").invalid(true));
+    redraw(cx);
+    let ink = crate::input::drawn::last("f")
+        .invalid_mark
+        .expect("a wrong value is marked");
+    assert_eq!(crate::drawn::last_icon(crate::Icon::Warning), [ink; 3]);
+}

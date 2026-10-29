@@ -6,13 +6,13 @@ use gpui::{
     Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
-use odk_theme::component::{BadgeAppearance, BadgeStyle, status_mark};
+use odk_theme::component::{BadgeAppearance, BadgeStyle};
 use odk_theme::semantic::{self, Emphasis};
 
 use crate::decoration::{self, Applied, FlowKind, TextDecoration};
+use crate::icon::{self, Glyph};
 use crate::layout::{StyledExt, h_flex};
-use crate::theme::mono;
-use crate::{Tone, components};
+use crate::{Icon, Tone, components};
 
 /// A short label, such as a count or a state, in a small box: as high as its text, as wide as its
 /// label until the parent is narrower, then one line ending in `…` (ADR 0058), with the
@@ -25,7 +25,7 @@ use crate::{Tone, components};
 pub struct Badge {
     label: SharedString,
     appearance: BadgeAppearance,
-    icon: Option<SharedString>,
+    icon: Option<Glyph>,
     marked: bool,
     applied: Applied,
 }
@@ -80,25 +80,24 @@ impl Badge {
         self
     }
 
-    /// A glyph before the label, at the label's size. It is a character; a badge does not take
-    /// ODK's icons (ADR 0080) yet.
-    pub fn icon(mut self, icon: impl Into<SharedString>) -> Self {
+    /// An icon before the label, at the label's size: one of ODK's icons or a character.
+    pub fn icon(mut self, icon: impl Into<Glyph>) -> Self {
         self.icon = Some(icon.into());
         self
     }
 
-    /// Puts the Role's status mark (`i`, `✓`, `!`, `×`) before the label, as an alert has, so the
-    /// status reads without its colour. Accent and neutral have none.
+    /// Puts the Role's status icon (`Info`, `Success`, `Warning`, `Danger`) before the label, as
+    /// an alert has, so the status reads without its colour. Accent and neutral have none.
     pub fn marked(mut self) -> Self {
         self.marked = true;
         self
     }
 
     /// Its look and the glyph before its label: an icon, else the status mark when `marked`.
-    fn glyph(&self) -> Option<SharedString> {
+    fn glyph(&self) -> Option<Glyph> {
         self.icon.clone().or_else(|| {
             self.marked
-                .then(|| status_mark(self.appearance.role).map(SharedString::from))
+                .then(|| Icon::status(self.appearance.role).map(Glyph::Icon))
                 .flatten()
         })
     }
@@ -136,19 +135,10 @@ impl RenderOnce for Badge {
             .control_geometry(&g)
             .treatment(&s.colours);
         if let Some(glyph) = self.glyph() {
-            let size = px(g.icon_size);
+            let ink = s.colours.foreground;
             badge = badge.child(
-                div()
-                    .debug_selector(|| "odk-badge/icon".into())
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .flex_shrink_0()
-                    .size(size)
-                    .font_family(mono())
-                    .text_size(size)
-                    .line_height(size)
-                    .child(glyph),
+                icon::slot(glyph, g.icon_size, [ink; 3], None)
+                    .debug_selector(|| "odk-badge/icon".into()),
             );
         }
         // As wide as its label, not stretched across a column, until the column is narrower.

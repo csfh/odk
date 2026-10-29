@@ -14,8 +14,10 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 use odk_theme::foundation::Density;
 
+use crate::Icon;
 use crate::decoration::{self, ClipFit};
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
+use crate::icon;
 use crate::interaction::{Pointer, RingTarget, pointer_states};
 use crate::layout::{StyledExt, bounds_probe, h_flex, text_width, truncate_end, v_flex};
 use crate::menu::Menu;
@@ -116,11 +118,11 @@ impl SortDirection {
         }
     }
 
-    /// The mark beside a sorted column's name, so the order never rests on colour.
-    fn mark(self) -> &'static str {
+    /// The icon beside a sorted column's name, so the order never rests on colour (ADR 0083).
+    fn mark(self) -> Icon {
         match self {
-            Self::Ascending => "▲",
-            Self::Descending => "▼",
+            Self::Ascending => Icon::ArrowUp,
+            Self::Descending => Icon::ArrowDown,
         }
     }
 
@@ -673,7 +675,14 @@ impl<R: 'static> RenderOnce for DataTable<R> {
                 .min_w_0()
                 .gap(px(g.gap))
                 .child(truncate_end(div().min_w_0()).child(column.header.clone()))
-                .children(mark.map(|m| div().flex_shrink_0().child(m)));
+                .children(mark.map(|m| {
+                    let size = crate::foundation().controls.metrics().icon_size;
+                    div()
+                        .flex()
+                        .flex_shrink_0()
+                        .items_center()
+                        .child(icon::still(m, size, hs.current.foreground))
+                }));
             if column.align_end {
                 label = label.justify_end();
             }

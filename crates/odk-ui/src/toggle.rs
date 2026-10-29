@@ -9,10 +9,11 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 use odk_theme::Color;
-use odk_theme::component::FIELD_INVALID_MARK;
 use odk_theme::foundation::TypeRole;
 
+use crate::Icon;
 use crate::focus::{child_id, move_focus, part_name};
+use crate::icon;
 use crate::layout::{StyledExt, h_flex};
 use crate::theme::colour;
 
@@ -112,9 +113,15 @@ pub(crate) fn labelled(
         row = row.child(
             div()
                 .debug_selector(|| part_name(id, "invalid-mark"))
+                .flex()
                 .flex_shrink_0()
-                .text_color(colour(ink))
-                .child(FIELD_INVALID_MARK),
+                .items_center()
+                .h(px(line))
+                .child(icon::still(
+                    Icon::Warning,
+                    f.typography.style(look.role).size,
+                    ink,
+                )),
         );
     }
     if usable {

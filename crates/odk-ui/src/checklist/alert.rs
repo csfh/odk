@@ -41,13 +41,35 @@ fn reports_its_title_and_description() {
     );
 }
 
-/// Item 18: every tone has its own mark, so colour is not the only signal.
+/// Item 18: every tone has its own icon, so colour is not the only signal.
 #[test]
 fn every_tone_has_its_own_mark() {
-    let marks = [Tone::Info, Tone::Success, Tone::Warning, Tone::Danger].map(Tone::mark);
+    let marks = [Tone::Info, Tone::Success, Tone::Warning, Tone::Danger].map(Tone::icon);
     for (i, m) in marks.iter().enumerate() {
-        assert!(!m.is_empty());
-        assert!(!marks[i + 1..].contains(m), "two tones share the mark {m}");
+        assert!(
+            !marks[i + 1..].contains(m),
+            "two tones share the icon {m:?}"
+        );
+    }
+}
+
+/// An alert draws its tone's status icon (ADR 0083) in the tone's mark colour.
+#[gpui::test]
+fn the_mark_is_the_tones_icon(cx: &mut TestAppContext) {
+    open(cx, |_, _| {
+        v_flex()
+            .child(Alert::new("i", "Backup scheduled"))
+            .child(Alert::new("d", "Failed").variant(Tone::Danger))
+    });
+    let c = crate::components();
+    for (tone, icon) in [
+        (Tone::Info, crate::Icon::Info),
+        (Tone::Danger, crate::Icon::Danger),
+    ] {
+        let ink = c
+            .alert(tone.into(), odk_theme::semantic::Emphasis::Muted)
+            .mark;
+        assert_eq!(crate::drawn::last_icon(icon), [ink; 3], "{tone:?}");
     }
 }
 

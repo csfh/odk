@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use odk::gpui::{ClickEvent, KeyDownEvent, KeyboardButton};
 use odk::prelude::*;
-use odk::theme::component::{ButtonLayout, ButtonVariant, States, status_mark};
+use odk::theme::component::{ButtonLayout, ButtonVariant, States};
 use odk::theme::foundation::MotionDuration;
 use odk::ui::{
     Button, Checkbox, Dialog, DropdownMenu, MenuItem, Popover, RadioGroup, Select, Switch, Tabs,
@@ -188,10 +188,8 @@ impl Render for InteractionPage {
             .child(Tooltip::new(
                 "ix-tip",
                 "Close the panel",
-                Button::new("ix-close")
-                    .label("×")
+                Button::icon("ix-close", Icon::Close, "Close the panel")
                     .variant(ButtonVariant::Ghost)
-                    .accessible_name("Close the panel")
                     .on_click(cx.listener(|this, event: &ClickEvent, _, cx| {
                         this.note(format!("Close activated using {}", source(event)));
                         cx.notify();
@@ -432,10 +430,13 @@ impl Render for InteractionPage {
             .child(row().children(
                 tones
                     .iter()
-                    .map(|(tone, word)| Badge::new(format!(
-                        "{} {word}",
-                        status_mark(odk::theme::semantic::Role::from(*tone)).unwrap_or("")
-                    ))),
+                    .map(|(tone, word)| {
+                        let badge = Badge::new(*word);
+                        match Icon::status(odk::theme::semantic::Role::from(*tone)) {
+                            Some(icon) => badge.icon(icon),
+                            None => badge,
+                        }
+                    }),
             ));
 
         // Contrast, from the component tokens' diagnostics: for each component the pair with the

@@ -5,12 +5,14 @@
 use std::borrow::Cow;
 
 use gpui::{
-    AnyElement, AssetSource, ElementId, InteractiveElement, IntoElement, SharedString,
-    StatefulInteractiveElement, Styled, px, svg,
+    AnyElement, AssetSource, Div, ElementId, InteractiveElement, IntoElement, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, div, px, svg,
 };
 use odk_theme::Color;
+use odk_theme::component::Interactive;
+use odk_theme::semantic::{Role, Treatment};
 
-use crate::theme::colour;
+use crate::theme::{colour, mono};
 
 /// One of the icons ODK ships. Each is a Remix Icon of the same look (`-line`, or `-fill` where
 /// the name says so); a new one is added by its file in `icons/remixicon/` and a variant here.
@@ -46,10 +48,75 @@ pub enum Icon {
     Warning,
     /// Failed: `close-circle-line`.
     Danger,
+    /// An open section, or the step up beside a chevron down: `arrow-up-s-line`.
+    ChevronUp,
+    /// A breadcrumb's separator, or what opens beside: `arrow-right-s-line`.
+    ChevronRight,
+    /// A column sorted ascending: `arrow-up-line`.
+    ArrowUp,
+    /// A column sorted descending: `arrow-down-line`.
+    ArrowDown,
+    /// More of what is folded away, such as a breadcrumb's middle: `more-line`.
+    More,
+    /// Settings: `settings-3-line`.
+    Settings,
+    /// The chosen item of a set, such as a menu's radio item, drawn small: `circle-fill`.
+    Dot,
+    /// An image that cannot be shown: `image-line`.
+    Image,
+    /// A new file: `file-add-line`.
+    FileAdd,
+    /// Open a file: `folder-open-line`.
+    FolderOpen,
+    /// An inbox: `inbox-line`.
+    Inbox,
+    /// Send, or what was sent: `send-plane-line`.
+    Send,
+    /// A draft: `draft-line`.
+    Draft,
+    /// Spam: `spam-2-line`.
+    Spam,
+    /// A list view: `list-unordered`.
+    List,
+    /// A grid view: `layout-grid-line`.
+    Grid,
+    /// A view in columns: `layout-column-line`.
+    Columns,
+    /// Bold text: `bold`.
+    Bold,
+    /// Italic text: `italic`.
+    Italic,
+    /// Underlined text: `underline`.
+    Underline,
+    /// A person, such as a profile: `user-line`.
+    User,
+    /// People, such as members: `team-line`.
+    Team,
+    /// Payment, such as billing: `bank-card-line`.
+    BankCard,
+    /// Notifications: `notification-3-line`.
+    Notification,
+    /// A handle or an address: `at-line`.
+    At,
+    /// A percentage: `percent-line`.
+    Percent,
 }
 
 impl Icon {
-    pub const ALL: [Self; 15] = [
+    /// The icon of a status, so it reads without its colour (ADR 0083): `Info`, `Success`,
+    /// `Warning` and `Danger` for those roles. Accent and neutral have none. Alerts, toasts,
+    /// marked badges and form messages draw it.
+    pub const fn status(role: Role) -> Option<Self> {
+        match role {
+            Role::Info => Some(Self::Info),
+            Role::Success => Some(Self::Success),
+            Role::Warning => Some(Self::Warning),
+            Role::Danger => Some(Self::Danger),
+            Role::Accent | Role::Neutral => None,
+        }
+    }
+
+    pub const ALL: [Self; 41] = [
         Self::ChevronDown,
         Self::ArrowRight,
         Self::Check,
@@ -65,6 +132,32 @@ impl Icon {
         Self::Success,
         Self::Warning,
         Self::Danger,
+        Self::ChevronUp,
+        Self::ChevronRight,
+        Self::ArrowUp,
+        Self::ArrowDown,
+        Self::More,
+        Self::Settings,
+        Self::Dot,
+        Self::Image,
+        Self::FileAdd,
+        Self::FolderOpen,
+        Self::Inbox,
+        Self::Send,
+        Self::Draft,
+        Self::Spam,
+        Self::List,
+        Self::Grid,
+        Self::Columns,
+        Self::Bold,
+        Self::Italic,
+        Self::Underline,
+        Self::User,
+        Self::Team,
+        Self::BankCard,
+        Self::Notification,
+        Self::At,
+        Self::Percent,
     ];
 
     /// The path GPUI asks [`Assets`] for.
@@ -85,6 +178,32 @@ impl Icon {
             Self::Success => "odk/icons/checkbox-circle-line.svg",
             Self::Warning => "odk/icons/error-warning-line.svg",
             Self::Danger => "odk/icons/close-circle-line.svg",
+            Self::ChevronUp => "odk/icons/arrow-up-s-line.svg",
+            Self::ChevronRight => "odk/icons/arrow-right-s-line.svg",
+            Self::ArrowUp => "odk/icons/arrow-up-line.svg",
+            Self::ArrowDown => "odk/icons/arrow-down-line.svg",
+            Self::More => "odk/icons/more-line.svg",
+            Self::Settings => "odk/icons/settings-3-line.svg",
+            Self::Dot => "odk/icons/circle-fill.svg",
+            Self::Image => "odk/icons/image-line.svg",
+            Self::FileAdd => "odk/icons/file-add-line.svg",
+            Self::FolderOpen => "odk/icons/folder-open-line.svg",
+            Self::Inbox => "odk/icons/inbox-line.svg",
+            Self::Send => "odk/icons/send-plane-line.svg",
+            Self::Draft => "odk/icons/draft-line.svg",
+            Self::Spam => "odk/icons/spam-2-line.svg",
+            Self::List => "odk/icons/list-unordered.svg",
+            Self::Grid => "odk/icons/layout-grid-line.svg",
+            Self::Columns => "odk/icons/layout-column-line.svg",
+            Self::Bold => "odk/icons/bold.svg",
+            Self::Italic => "odk/icons/italic.svg",
+            Self::Underline => "odk/icons/underline.svg",
+            Self::User => "odk/icons/user-line.svg",
+            Self::Team => "odk/icons/team-line.svg",
+            Self::BankCard => "odk/icons/bank-card-line.svg",
+            Self::Notification => "odk/icons/notification-3-line.svg",
+            Self::At => "odk/icons/at-line.svg",
+            Self::Percent => "odk/icons/percent-line.svg",
         }
     }
 
@@ -106,6 +225,32 @@ impl Icon {
             Self::Success => include_bytes!("../icons/remixicon/checkbox-circle-line.svg"),
             Self::Warning => include_bytes!("../icons/remixicon/error-warning-line.svg"),
             Self::Danger => include_bytes!("../icons/remixicon/close-circle-line.svg"),
+            Self::ChevronUp => include_bytes!("../icons/remixicon/arrow-up-s-line.svg"),
+            Self::ChevronRight => include_bytes!("../icons/remixicon/arrow-right-s-line.svg"),
+            Self::ArrowUp => include_bytes!("../icons/remixicon/arrow-up-line.svg"),
+            Self::ArrowDown => include_bytes!("../icons/remixicon/arrow-down-line.svg"),
+            Self::More => include_bytes!("../icons/remixicon/more-line.svg"),
+            Self::Settings => include_bytes!("../icons/remixicon/settings-3-line.svg"),
+            Self::Dot => include_bytes!("../icons/remixicon/circle-fill.svg"),
+            Self::Image => include_bytes!("../icons/remixicon/image-line.svg"),
+            Self::FileAdd => include_bytes!("../icons/remixicon/file-add-line.svg"),
+            Self::FolderOpen => include_bytes!("../icons/remixicon/folder-open-line.svg"),
+            Self::Inbox => include_bytes!("../icons/remixicon/inbox-line.svg"),
+            Self::Send => include_bytes!("../icons/remixicon/send-plane-line.svg"),
+            Self::Draft => include_bytes!("../icons/remixicon/draft-line.svg"),
+            Self::Spam => include_bytes!("../icons/remixicon/spam-2-line.svg"),
+            Self::List => include_bytes!("../icons/remixicon/list-unordered.svg"),
+            Self::Grid => include_bytes!("../icons/remixicon/layout-grid-line.svg"),
+            Self::Columns => include_bytes!("../icons/remixicon/layout-column-line.svg"),
+            Self::Bold => include_bytes!("../icons/remixicon/bold.svg"),
+            Self::Italic => include_bytes!("../icons/remixicon/italic.svg"),
+            Self::Underline => include_bytes!("../icons/remixicon/underline.svg"),
+            Self::User => include_bytes!("../icons/remixicon/user-line.svg"),
+            Self::Team => include_bytes!("../icons/remixicon/team-line.svg"),
+            Self::BankCard => include_bytes!("../icons/remixicon/bank-card-line.svg"),
+            Self::Notification => include_bytes!("../icons/remixicon/notification-3-line.svg"),
+            Self::At => include_bytes!("../icons/remixicon/at-line.svg"),
+            Self::Percent => include_bytes!("../icons/remixicon/percent-line.svg"),
         }
     }
 }
@@ -166,6 +311,36 @@ impl AssetSource for Assets {
 /// The colours of an icon: at rest, under the pointer and pressed, the text colours a character
 /// in its place would take.
 pub(crate) type Inks = [Color; 3];
+
+/// The text colours of a control in each pointer state, which its icon takes.
+pub(crate) fn inks_of(colours: &Interactive<Treatment>) -> Inks {
+    [colours.default, colours.hover, colours.pressed].map(|t| t.foreground)
+}
+
+/// `glyph` in a square of `size`: a character in the monospace face and the text colour around
+/// it, which follows its control under the pointer; or one of ODK's icons in `inks`, following
+/// `pointer`'s group as [`drawn`] does.
+pub(crate) fn slot(
+    glyph: Glyph,
+    size: f32,
+    inks: Inks,
+    pointer: Option<(SharedString, ElementId)>,
+) -> Div {
+    let el = div()
+        .flex()
+        .flex_shrink_0()
+        .items_center()
+        .justify_center()
+        .size(px(size));
+    match glyph {
+        Glyph::Text(text) => el
+            .font_family(mono())
+            .text_size(px(size))
+            .line_height(px(size))
+            .child(text),
+        Glyph::Icon(icon) => el.child(drawn(icon, size, inks, pointer)),
+    }
+}
 
 /// An icon in one colour, for a mark that does not follow the pointer: a select's indicator, a
 /// menu's check, a field's icon.

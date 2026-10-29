@@ -8,7 +8,7 @@ use std::sync::Arc;
 use odk::gpui::{Div, ElementId, px, rgba};
 use odk::prelude::*;
 use odk::theme::Color;
-use odk::theme::component::{ComponentTokens, Shape, StyleDiagnostic, status_mark};
+use odk::theme::component::{ComponentTokens, Shape, StyleDiagnostic};
 
 use crate::Settings;
 
@@ -148,10 +148,10 @@ pub(crate) fn caption(text: impl Into<SharedString>) -> impl IntoElement {
 
 /// A status variant's mark, so its meaning never rests on its colour alone, as in a
 /// monochrome theme.
-fn mark(variant: ButtonVariant) -> Option<&'static str> {
+fn mark(variant: ButtonVariant) -> Option<Icon> {
     match variant {
         ButtonVariant::Destructive | ButtonVariant::Success | ButtonVariant::Warning => {
-            status_mark(variant.appearance().role)
+            Icon::status(variant.appearance().role)
         }
         _ => None,
     }
@@ -229,7 +229,7 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
                         .density(d),
                 )
                 .child(
-                    Button::icon(("d-icon", n), "⚙", "Settings")
+                    Button::icon(("d-icon", n), Icon::Settings, "Settings")
                         .variant(ButtonVariant::Ghost)
                         .density(d),
                 )
@@ -331,9 +331,9 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
                 .child(Button::new("c-text").label("Save changes"))
                 .child(Button::new("c-lead").leading_icon(Icon::Check).label("Save changes"))
                 .child(Button::new("c-trail").label("Continue").trailing_icon(Icon::ArrowRight))
-                .child(Button::icon("c-icon", "⚙", "Settings"))
+                .child(Button::icon("c-icon", Icon::Settings, "Settings"))
                 .child(
-                    Button::icon("c-target", "⚙", "Settings")
+                    Button::icon("c-target", Icon::Settings, "Settings")
                         .variant(ButtonVariant::Outline)
                         .density(Density::Compact)
                         .target_size(44.0),

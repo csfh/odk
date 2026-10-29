@@ -1258,15 +1258,15 @@ mod tests {
     fn tones_map_onto_the_component_layer() {
         use odk_theme::semantic::Role;
 
-        use crate::Tone;
-        for (tone, role, mark) in [
-            (Tone::Info, Role::Info, "i"),
-            (Tone::Success, Role::Success, "✓"),
-            (Tone::Warning, Role::Warning, "!"),
-            (Tone::Danger, Role::Danger, "×"),
+        use crate::{Icon, Tone};
+        for (tone, role, icon) in [
+            (Tone::Info, Role::Info, Icon::Info),
+            (Tone::Success, Role::Success, Icon::Success),
+            (Tone::Warning, Role::Warning, Icon::Warning),
+            (Tone::Danger, Role::Danger, Icon::Danger),
         ] {
             assert_eq!(Role::from(tone), role);
-            assert_eq!(tone.mark(), mark);
+            assert_eq!(tone.icon(), icon);
         }
     }
 
