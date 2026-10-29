@@ -23,6 +23,14 @@ pub enum Error {
     MissingIcon(String),
     #[error("cannot include {0}")]
     BadInclude(String),
+    #[error(
+        "the manifest names no publisher; a Bundle file is signed for its publisher's host (docs/spec/manifest.md)"
+    )]
+    NoPublisher,
+    #[error(transparent)]
+    Write(#[from] crate::image::WriteError),
+    #[error("the Bundle file does not verify: {0}")]
+    Unverified(String),
 }
 
 /// A file to put in the Bundle besides the executable, the manifest and the icon (ADR 0050).
@@ -120,6 +128,81 @@ pub fn assemble_with(
         return Err(e);
     }
     Ok(target)
+}
+
+/// What signs a Bundle file (ADR 0060, section 4): the release key, the root that authorizes it,
+/// the monotonic version, and the signature's window and update URL.
+pub struct Signing {
+    pub release: crate::trust::SigningKey,
+    pub root: crate::trust::KeyId,
+    pub version: u64,
+    pub issued_at: crate::trust::Timestamp,
+    pub expires_at: crate::trust::Timestamp,
+    /// `None` is `https://<publisher>/<Name>.oma`.
+    pub update_url: Option<String>,
+}
+
+/// Writes `<out_dir>/<Name>.oma`: the Bundle [`assemble_with`] would make, as one signed file
+/// (ADR 0052, ADR 0060, ADR 0067). The tree is written as an image by `odk-oma`'s own writer, and
+/// the prefix is signed with `signing`. Nothing is placed unless the file verifies as `odk-oma`
+/// reads it: its envelope, its image and its Manifest's match. It refuses to replace a file.
+pub fn write_file(
+    executable: &Path,
+    manifest_path: &Path,
+    out_dir: &Path,
+    includes: &[Include],
+    signing: &Signing,
+) -> Result<PathBuf, Error> {
+    use crate::trust::{self, Sealed, SignedManifest};
+
+    let manifest_text = fs::read_to_string(manifest_path).map_err(|e| io(manifest_path, e))?;
+    let manifest = Manifest::parse(&manifest_text)?;
+    let publisher = manifest.publisher.clone().ok_or(Error::NoPublisher)?;
+    fs::create_dir_all(out_dir).map_err(|e| io(out_dir, e))?;
+    let name = format!("{}.oma", manifest.name.replace('/', "-"));
+    let target = out_dir.join(&name);
+    if target.exists() {
+        return Err(Error::Exists(target));
+    }
+    let staging = out_dir.join(format!(".{name}.signing-{}", std::process::id()));
+    fs::create_dir(&staging).map_err(|e| io(&staging, e))?;
+    let result = (|| {
+        let tree = assemble_with(executable, manifest_path, &staging, includes)?;
+        let mut image = Vec::new();
+        crate::image::write(&tree, &manifest.name, &mut image)?;
+        let signed = SignedManifest {
+            app_id: manifest.identifier.clone(),
+            version: signing.version,
+            entry: manifest.executable.clone(),
+            payload_sha256: [0; 32],
+            header_sha256: [0; 32],
+            key_id: signing.release.public_key().key_id(),
+            root_key_id: signing.root,
+            issued_at: signing.issued_at.clone(),
+            expires_at: signing.expires_at.clone(),
+            update_url: signing
+                .update_url
+                .clone()
+                .unwrap_or_else(|| format!("https://{publisher}/{name}")),
+            publisher,
+        };
+        let unverified = |e: &dyn std::fmt::Display| Error::Unverified(e.to_string());
+        let bytes =
+            trust::stamp(&image[1024..], signed, &signing.release).map_err(|e| unverified(&e))?;
+        // Beside the tree, which `assemble_with` made at `staging/<Name>.oma`.
+        let file = staging.join(format!("{name}.signed"));
+        fs::write(&file, &bytes).map_err(|e| io(&file, e))?;
+        let sealed = Sealed::memfd(&file).map_err(|e| unverified(&e))?;
+        let checked = trust::check(&sealed).map_err(|e| unverified(&e))?;
+        crate::image::Image::read(&checked).map_err(|e| unverified(&e))?;
+        // A link never replaces a file that appeared meanwhile.
+        fs::hard_link(&file, &target).map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => Error::Exists(target.clone()),
+            _ => io(&target, e),
+        })
+    })();
+    let _ = fs::remove_dir_all(&staging);
+    result.map(|()| target)
 }
 
 fn fill(

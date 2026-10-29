@@ -76,6 +76,23 @@ enum Command {
         /// An executable bit is kept; a symlink is refused (ADR 0050)
         #[arg(long = "include", value_name = "FILE[=PATH]")]
         includes: Vec<String>,
+        /// The file holding the release key's 32-byte ed25519 seed, which signs the Bundle
+        /// (ADR 0060). It is never put in the Bundle
+        #[arg(long, value_name = "SEED")]
+        sign: PathBuf,
+        /// The key id of the publisher root that authorizes the release key, 16 hex digits
+        #[arg(long, value_name = "KEY_ID")]
+        root: String,
+        /// The monotonic version, which must grow with every release (ADR 0060, section 4)
+        #[arg(long, value_name = "N")]
+        release: u64,
+        /// Days until the signature expires; installs and upgrades refuse it after that
+        #[arg(long, value_name = "DAYS", default_value_t = 365)]
+        expires_in: u32,
+        /// Where updates are published; an https URL on the publisher's host. The default is
+        /// https://<publisher>/<Name>.oma
+        #[arg(long, value_name = "URL")]
+        update_url: Option<String>,
     },
     /// Mount a Bundle file read-only, as a disk image, to look inside it, and print the directory
     Mount {
@@ -267,22 +284,36 @@ fn main() -> ExitCode {
             manifest,
             out,
             includes,
-        } => match includes
-            .iter()
-            .map(|text| oma::bundle::Include::parse(text))
-            .collect::<Result<Vec<_>, _>>()
-            .and_then(|includes| {
-                oma::bundle::assemble_with(&executable, &manifest, &out, &includes)
-            }) {
-            Ok(bundle) => {
-                println!("{}", bundle.display());
-                ExitCode::SUCCESS
+            sign,
+            root,
+            release,
+            expires_in,
+            update_url,
+        } => {
+            let signing = match signing(&sign, &root, release, expires_in, update_url) {
+                Ok(signing) => signing,
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match includes
+                .iter()
+                .map(|text| oma::bundle::Include::parse(text))
+                .collect::<Result<Vec<_>, _>>()
+                .and_then(|includes| {
+                    oma::bundle::write_file(&executable, &manifest, &out, &includes, &signing)
+                }) {
+                Ok(bundle) => {
+                    println!("{}", bundle.display());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    ExitCode::FAILURE
+                }
             }
-            Err(e) => {
-                eprintln!("odk oma: {e}");
-                ExitCode::FAILURE
-            }
-        },
+        }
         Command::Mount {
             file,
             open,
@@ -380,4 +411,39 @@ fn register() -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+/// What `bundle` signs with: the release key's seed read from `seed`, now as the issue time, and
+/// `expires_in` days after it as the expiry.
+fn signing(
+    seed: &std::path::Path,
+    root: &str,
+    release: u64,
+    expires_in: u32,
+    update_url: Option<String>,
+) -> Result<oma::bundle::Signing, String> {
+    use oma::trust::{SigningKey, Timestamp};
+    let bytes = std::fs::read(seed).map_err(|e| format!("{}: {e}", seed.display()))?;
+    let release_key = SigningKey::from_seed(&bytes).ok_or_else(|| {
+        format!(
+            "{}: a release key is a 32-byte ed25519 seed, and this is {} bytes",
+            seed.display(),
+            bytes.len()
+        )
+    })?;
+    let root = root
+        .parse()
+        .map_err(|_| format!("--root {root:?} is not a key id of 16 lowercase hex digits"))?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let at = |seconds| Timestamp::from_unix_seconds(seconds).ok_or("the clock is out of range");
+    Ok(oma::bundle::Signing {
+        release: release_key,
+        root,
+        version: release,
+        issued_at: at(now)?,
+        expires_at: at(now + i64::from(expires_in) * 86_400)?,
+        update_url,
+    })
 }
