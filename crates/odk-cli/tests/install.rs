@@ -139,18 +139,6 @@ impl World {
         self.root.join("sudo.log").exists()
     }
 
-    /// Every file and directory under `dir`, relative to it, sorted.
-    fn tree_of(dir: &Path) -> Vec<String> {
-        let mut out = Vec::new();
-        if dir.exists() {
-            for entry in walk(dir) {
-                out.push(entry.strip_prefix(dir).unwrap().display().to_string());
-            }
-        }
-        out.sort();
-        out
-    }
-
     /// The script names the tarball now in `release/`, as `tools/package-release` would have
     /// written it for that tarball: a test of what the script does with a tarball it trusts.
     fn rename_tarball(&self) {
@@ -231,18 +219,6 @@ impl World {
         out.sort();
         out
     }
-}
-
-fn walk(dir: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    for entry in fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() && !path.is_symlink() {
-            found.extend(walk(&path));
-        }
-        found.push(path);
-    }
-    found
 }
 
 fn out(o: &Output) -> String {
@@ -759,106 +735,26 @@ fn bad_options_are_usage_errors() {
 }
 
 #[test]
-fn as_root_without_system_or_system_without_root_writes_nothing_and_never_calls_sudo() {
-    // `id` is a stub here: as real root, a wrong path would be the machine's own /usr.
+fn as_root_it_writes_nothing_and_never_calls_sudo() {
+    // `id` is a stub here, and nothing is run as root.
     if skip_as_root() {
         return;
     }
     let w = World::new();
     w.publish("1.0.0");
-    let dest = w.root.join("dest");
-    let destdir = [("ODK_DESTDIR", dest.display().to_string())];
-
     w.stub_uid(0);
-    let o = w.install_with(&["sh"], &[], &destdir);
-    assert!(!o.status.success());
-    assert!(out(&o).contains("--system"), "{}", out(&o));
-
-    w.stub_uid(1000);
-    let o = w.install_with(&["sh"], &["--system"], &destdir);
-    assert!(!o.status.success());
-    assert!(out(&o).contains("needs root"), "{}", out(&o));
-
+    for args in [&[][..], &["--system"]] {
+        let o = w.install(args);
+        assert!(!o.status.success(), "{args:?}");
+        assert!(
+            out(&o).contains("your own user") || out(&o).contains("unknown option"),
+            "{}",
+            out(&o)
+        );
+    }
     assert!(w.tree().is_empty(), "{:?}", w.tree());
-    assert!(World::tree_of(&dest).is_empty());
     assert!(!w.sudo_called());
     assert!(w.log().is_empty(), "{:?}", w.log());
-}
-
-#[test]
-fn a_system_install_puts_everything_under_usr_and_its_units_name_usr() {
-    // `id` is a stub here: as real root, a wrong path would be the machine's own /usr.
-    if skip_as_root() {
-        return;
-    }
-    let w = World::new();
-    w.publish("1.0.0");
-    w.stub_uid(0);
-    let dest = w.root.join("dest");
-    let destdir = [("ODK_DESTDIR", dest.display().to_string())];
-    let o = w.install_with(&["sh"], &["--system"], &destdir);
-    assert!(o.status.success(), "{}", out(&o));
-
-    let files: Vec<String> = World::tree_of(&dest)
-        .into_iter()
-        .filter(|p| dest.join(p).is_file())
-        .collect();
-    assert_eq!(
-        files,
-        [
-            "usr/bin/odk",
-            "usr/lib/binfmt.d/odk.conf",
-            "usr/lib/odk/odk-oma",
-            "usr/lib/odk/odkd",
-            "usr/lib/odk/oma-consent",
-            "usr/lib/systemd/user/odkd-files.socket",
-            "usr/lib/systemd/user/odkd.service",
-            "usr/lib/systemd/user/odkd.socket",
-            "usr/lib/systemd/user/oma-applications.path",
-            "usr/lib/systemd/user/oma-inbox@.path",
-            "usr/lib/systemd/user/oma-register.service",
-            "usr/share/applications/oma.desktop",
-            "usr/share/doc/odk/LICENSE",
-            "usr/share/doc/odk/THIRD-PARTY-LICENSES",
-            "usr/share/mime/packages/oma.xml",
-            "var/lib/oma/runtime.toml",
-        ]
-    );
-    let unit =
-        |name: &str| fs::read_to_string(dest.join("usr/lib/systemd/user").join(name)).unwrap();
-    assert!(unit("odkd.service").contains("ExecStart=/usr/lib/odk/odkd\n"));
-    assert!(unit("oma-register.service").contains("ExecStart=/usr/lib/odk/odk-oma --register\n"));
-    assert!(!unit("odkd.service").contains("%h/.local"));
-    // Each user's own inbox stays in that user's home.
-    assert!(unit("oma-inbox@.path").contains("%h/.local/share/oma/apps/%I/inbox"));
-
-    // Enabled for every user under the root written to; nothing is started, nothing acts on this
-    // machine's kernel or its user manager, and nothing reaches the home or sudo.
-    let enable = format!(
-        "--root={} --global enable odkd.socket odkd-files.socket",
-        dest.display()
-    );
-    assert!(w.log().contains(&enable), "{:?}", w.log());
-    assert!(
-        w.log()
-            .iter()
-            .all(|l| !l.contains("--user") && !l.contains("systemd-binfmt")),
-        "{:?}",
-        w.log()
-    );
-    assert!(w.tree().is_empty(), "{:?}", w.tree());
-    assert!(!w.sudo_called());
-
-    let o = w.install_with(&["sh"], &["--system", "--uninstall"], &destdir);
-    assert!(o.status.success(), "{}", out(&o));
-    assert_eq!(
-        World::tree_of(&dest)
-            .into_iter()
-            .filter(|p| dest.join(p).is_file())
-            .collect::<Vec<_>>(),
-        ["var/lib/oma/runtime.toml"],
-        "everything but the record of the release goes"
-    );
 }
 
 #[test]

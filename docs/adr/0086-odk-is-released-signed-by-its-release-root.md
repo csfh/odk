@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0087
 ---
 
 # odk is released signed by its release root
@@ -36,12 +36,12 @@ ADR 0063's script still downloads from GitHub Releases and checks a `.sha256` fi
   - It carries `algorithm`, `root_key_id`, `version`, `issued_at`, and the tarball's name, `sha256` and `length`, and `install.sh`'s `sha256` and `length`.
   - `release.sig` is the root's Ed25519ctx signature over it, in the context `odk-oma release v1`. The script's signature does not stand in for it (section 8).
 - **The version.** A release's version is a `u64`: the Unix seconds when it was packaged. `odk --version` still prints the workspace's semver (ADR 0064).
-- **The receipt.** `runtime.toml`, at `~/.local/share/oma/runtime.toml` or `/var/lib/oma/runtime.toml`, holds the installed release's version. The script writes it, mode `0644`, and an uninstall keeps it.
+- **The receipt.** `runtime.toml`, at `~/.local/share/oma/runtime.toml` or `/var/lib/oma/runtime.toml`, holds the installed release's version and the root's key id. The script writes it.
   - The script refuses a version below the receipt's, so an old signed script cannot downgrade an install. The same version again is a repair.
 - **`--system`.** The script installs for one user by default.
   - `--system` installs under `/usr`, as section 8 says: the programs, the user units with the system path, the type, the handler and the `binfmt_misc` line.
   - Effective uid 0 without `--system` writes nothing. `--system` without uid 0 writes nothing, and `sudo` is never called.
-  - `ODK_DESTDIR` puts every file under another root, for tests. It moves where files go, and nothing about what is trusted. Under it, nothing acts on the machine running the script: `systemctl` enables the units under that root, and the `binfmt_misc` line is left for that system's next boot.
+  - `ODK_DESTDIR` puts every file under another root, for tests. It moves where files go, and nothing about what is trusted.
 - **`odk oma self-upgrade`.** The running binary decides everything.
   1. It refuses when pacman owns its own path.
   2. It fetches `release` and `release.sig` under ADR 0066's rules, verifies them under the compiled root, and requires a version above the receipt's. A document naming another root is refused.
