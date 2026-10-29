@@ -85,6 +85,14 @@ impl Layout {
             .join(format!("{app}.toml"))
     }
 
+    /// The version of a root's key set last accepted (ADR 0060, section 3), beside its pairs'
+    /// records. Its name is not an Identifier's record, so `grants::pairs` passes over it.
+    pub fn keys_version_file(&self, root: &KeyId) -> PathBuf {
+        self.pairs_dir()
+            .join(root.to_string())
+            .join("oma-keys.version")
+    }
+
     /// Where every pair's record is, one directory per root.
     pub fn pairs_dir(&self) -> PathBuf {
         self.state.join("grants")

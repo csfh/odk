@@ -2,6 +2,7 @@
 //! `install` and `consent`. Everything privileged lives elsewhere; this decides what to ask,
 //! acts on the answer and fails closed on anything unexpected.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::consent::{self, Button, Identity, Request};
@@ -11,7 +12,9 @@ use crate::image::Image;
 use crate::layout::Layout;
 use crate::sandbox::launch::{self, HostEnv, Options};
 use crate::trust::keys::Signer;
-use crate::trust::{self, KeyId, Mark, Publisher, Sealed, SelfSigned, Timestamp, VerifiedKeys};
+use crate::trust::{
+    self, KeyId, Mark, Publisher, Sealed, SelfSigned, SetChange, Timestamp, Verdict, VerifiedKeys,
+};
 use crate::{dev, fetch, grants, image, install, userdirs};
 
 /// Shows the dialog. The real one is [`consent::ask`].
@@ -85,13 +88,21 @@ pub enum Error {
         at: Timestamp,
     },
     #[error(
-        "{app}'s publisher key is already pinned; installing again under a pinned key is not built yet (issue #14)"
-    )]
-    PinnedRootNotBuilt { app: Identifier },
-    #[error(
         "this {app} is not the installed one; install it with `odk oma install` (opening a Bundle file that is not installed is not built yet, issue #14)"
     )]
     NotInstalledFile { app: Identifier },
+    #[error(
+        "{app} {version} is not newer than the installed {marked}, or is that version with other contents; it is not installed"
+    )]
+    Version {
+        app: Identifier,
+        version: u64,
+        marked: u64,
+    },
+    #[error(
+        "the publisher's key set is version {fetched}, older than the version {stored} already accepted; nothing was installed"
+    )]
+    KeySetLower { stored: u64, fetched: u64 },
 }
 
 /// What the Bundle's consent record does not cover yet.
@@ -355,7 +366,8 @@ pub enum Admission {
 /// the permissions, and Cancel writes a denial. Run once writes nothing. A host one edit away
 /// from a host pinned for another root is confirmed on its own first. Matching a Unicode
 /// confusable is open (question 15). A pinned root whose file asks for more than was allowed is
-/// refused for now: asking about that is not built.
+/// asked about by `odk oma install`, Install or Cancel, and Cancel there writes no denial; a
+/// launch refuses it for now.
 pub fn admit(
     layout: &Layout,
     file: &SelfSigned,
@@ -400,10 +412,31 @@ pub fn admit(
         }
         if !pair.denied {
             let granted = pair.permissions.clone().unwrap_or_default();
-            if grants::is_empty(&grants::missing(&granted, requested)) {
+            let missing = grants::missing(&granted, requested);
+            if grants::is_empty(&missing) {
                 return Ok(Admission::Pinned);
             }
-            return Err(Error::MoreThanAllowed { app: app.clone() });
+            let Occasion::Install { accept_permissions } = occasion else {
+                return Err(Error::MoreThanAllowed { app: app.clone() });
+            };
+            if !accept_permissions {
+                let identity = Identity {
+                    app_id: app,
+                    version: manifest.version,
+                    root,
+                    publisher: &manifest.publisher,
+                    fetched,
+                };
+                let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
+                let request = Request::more(&identity, &missing, &named_dirs);
+                if ask(&request).map_err(Error::Dialog)? != Button::Install {
+                    return Err(Error::Cancelled);
+                }
+            }
+            let mut pair = pair.clone();
+            pair.permissions = Some(requested.clone());
+            grants::save_pair(layout, app, &pair)?;
+            return Ok(Admission::Pinned);
         }
     }
     let denied = || Error::Denied {
@@ -500,10 +533,12 @@ pub fn admit(
 /// `~/Applications`, and only then is the high-water mark written. A failure after the dialog
 /// leaves the pin, which the person gave.
 ///
-/// A root that is already pinned, for this app id or another, is not built yet: a key set
-/// fetched for it would have to be held to the version stored for the root (section 3), and
-/// nothing stores that yet. The same file again is a no-op. A revoked release key is not
-/// checked: the revocation document has no schema yet (`docs/oma-trust-plan.md`, question 2).
+/// Under a root already pinned, the key set is verified under the pin and never older than the
+/// last accepted for the root (section 3), and a file of the same app id must be newer than its
+/// mark (section 4): the same file again is a no-op. An upgrade asks only for permissions not
+/// allowed yet, and keeps the file it replaces as the previous one. A revoked release key is
+/// not checked: the revocation document has no schema yet (`docs/oma-trust-plan.md`,
+/// question 2).
 pub fn install_file(
     layout: &Layout,
     path: &Path,
@@ -532,30 +567,66 @@ pub fn install_file(
         payload_sha256: signed.payload_sha256,
     };
 
-    let pinned: Vec<_> = grants::pairs(layout)?
+    let root_id = &signed.root_key_id;
+    let pinned = grants::pairs(layout)?
         .into_iter()
-        .filter(|(_, pair)| pair.root.key_id() == signed.root_key_id && !pair.denied)
-        .collect();
-    let same_again = pinned
+        .filter(|(_, pair)| pair.root.key_id() == *root_id && !pair.denied)
+        .collect::<Vec<_>>();
+    let pair = pinned
         .iter()
-        .any(|(other, pair)| other == app && pair.mark == Some(mark));
-    if same_again && target.is_file() {
-        return Ok(target);
+        .find(|(other, _)| other == app)
+        .map(|(_, p)| p);
+    let installed = pair.and_then(|_| install::find_file(layout, app));
+
+    // The high-water rule (section 4): the same file again is a no-op, and a lower version, or
+    // the same version with another payload, is refused.
+    match Verdict::of(
+        pair.and_then(|p| p.mark.as_ref()),
+        signed.version,
+        &signed.payload_sha256,
+    ) {
+        Verdict::Same => {
+            return match installed {
+                Some(path) => Ok(path),
+                None => {
+                    install::place_file(&sealed, &target)?;
+                    Ok(target)
+                }
+            };
+        }
+        Verdict::Lower | Verdict::SameVersionOtherPayload => {
+            return Err(Error::Version {
+                app: app.clone(),
+                version: signed.version,
+                marked: pair.and_then(|p| p.mark).map_or(0, |m| m.version),
+            });
+        }
+        Verdict::First | Verdict::Higher => {}
     }
-    if !pinned.is_empty() {
-        return Err(Error::PinnedRootNotBuilt { app: app.clone() });
-    }
-    if target.symlink_metadata().is_ok() {
+    if target.symlink_metadata().is_ok() && installed.as_deref() != Some(target.as_path()) {
         return Err(install::Error::Exists(target).into());
     }
 
+    // The key set: under the pin when the root is pinned for any app id, and never older than
+    // the last one accepted for the root (section 3).
     let fetched = fetch(&signed.publisher).map_err(Error::Fetch)?;
-    let keys = trust::keys::verify(&fetched.body, &fetched.signature, Signer::FirstContact)?;
-    if keys.root().key_id() != signed.root_key_id {
+    let signer = match pinned.first() {
+        Some((_, pair)) => Signer::Pinned(&pair.root),
+        None => Signer::FirstContact,
+    };
+    let keys = trust::keys::verify(&fetched.body, &fetched.signature, signer)?;
+    if keys.root().key_id() != *root_id {
         return Err(Error::OtherRoot {
             app: app.clone(),
-            named: signed.root_key_id,
+            named: *root_id,
             fetched: keys.root().key_id(),
+        });
+    }
+    let stored = grants::keys_version(layout, root_id)?;
+    if SetChange::of(stored, keys.set().version) == SetChange::Lower {
+        return Err(Error::KeySetLower {
+            stored: stored.unwrap_or_default(),
+            fetched: keys.set().version,
         });
     }
     let release_key = &file.header().release_key;
@@ -576,16 +647,34 @@ pub fn install_file(
     let occasion = Occasion::Install { accept_permissions };
     let requested = &image.manifest().permissions;
     match admit(layout, file, &keys, None, occasion, requested, ask)? {
-        Admission::Installed => {}
-        Admission::Pinned | Admission::RunOnce => {
-            unreachable!("a root not pinned, asked with Install and Cancel only")
-        }
+        Admission::Installed | Admission::Pinned => {}
+        Admission::RunOnce => unreachable!("install offers Install and Cancel only"),
     }
-    install::place_file(&sealed, &target)?;
-    let mut pair = grants::load_pair(layout, &signed.root_key_id, app)?
-        .expect("Install wrote the pair's record");
+
+    // The file it replaces is kept as the previous one (ADR 0011), and put back if the new one
+    // cannot be placed.
+    let previous = layout.pair_previous_file(root_id, app);
+    if let Some(old) = &installed {
+        let dir = previous.parent().expect("a pair's directory");
+        fs::create_dir_all(dir).map_err(|e| install::Error::Io {
+            path: dir.to_owned(),
+            source: e,
+        })?;
+        fs::rename(old, &previous).map_err(|e| install::Error::Io {
+            path: old.clone(),
+            source: e,
+        })?;
+    }
+    if let Err(e) = install::place_file(&sealed, &target) {
+        if let Some(old) = &installed {
+            let _ = fs::rename(&previous, old);
+        }
+        return Err(e.into());
+    }
+    let mut pair = grants::load_pair(layout, root_id, app)?.expect("the pair is pinned");
     pair.mark = Some(mark);
     grants::save_pair(layout, app, &pair)?;
+    grants::save_keys_version(layout, root_id, stored.unwrap_or(0).max(keys.set().version))?;
     Ok(target)
 }
 
@@ -920,12 +1009,16 @@ mod signed_tests {
     /// The root of `root_seed`'s key set naming `release` until 2027-01-01, as a publisher
     /// serves it: the body and the root's signature.
     fn key_set_bytes(root_seed: u8, release: &SigningKey) -> fetch::KeySet {
+        key_set_version(root_seed, release, 1)
+    }
+
+    fn key_set_version(root_seed: u8, release: &SigningKey, version: u64) -> fetch::KeySet {
         let root = root(root_seed);
         let release = release.public_key();
         let set = OmaKeys {
             root_public_key: root.public_key(),
             root_key_id: root.public_key().key_id(),
-            version: 1,
+            version,
             keys: vec![ReleaseKey {
                 id: release.key_id(),
                 not_after: Timestamp::parse("2027-01-01T00:00:00Z").unwrap(),
@@ -1776,28 +1869,132 @@ mod signed_tests {
     }
 
     #[test]
-    fn another_file_under_a_pinned_root_is_not_built_yet() {
+    fn a_newer_file_under_the_pin_upgrades_and_keeps_the_previous_one() {
         let dir = TempDir::new().unwrap();
         let layout = layout(&dir);
-        let path = bundle_file(&dir, |t| t, |_| {});
-        let publisher = Site::serving(key_set_bytes(1, &release_key()));
-        install_with(
-            &layout,
-            &path,
-            false,
-            soon(),
-            &Dialog::answering(&[Button::Install]),
-            &publisher,
-        )
-        .unwrap();
-        // A higher version of the same application.
-        let newer = bundle_file(&dir, |t| t, |m| m.version = 8);
-        let dialog = Dialog::answering(&[]);
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let v7_bytes = std::fs::read(&v7).unwrap();
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+
+        // Asking for nothing new, an upgrade asks nothing.
+        let v8 = bundle_file(&dir, |t| t, |m| m.version = 8);
+        let quiet = Dialog::answering(&[]);
+        assert_eq!(
+            install_with(&layout, &v8, false, soon(), &quiet, &site).unwrap(),
+            target
+        );
+        assert_eq!(std::fs::read(&target).unwrap(), std::fs::read(&v8).unwrap());
+        let root_id = root(1).public_key().key_id();
+        let app: Identifier = APP.parse().unwrap();
+        assert_eq!(
+            std::fs::read(layout.pair_previous_file(&root_id, &app)).unwrap(),
+            v7_bytes
+        );
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 8);
+        assert_eq!(grants::keys_version(&layout, &root_id).unwrap(), Some(1));
+        assert_eq!(site.fetches.get(), 2);
+
+        // Lower, or the same version with other contents: refused, and nothing fetched.
+        let lower = bundle_file(&dir, |t| t, |m| m.version = 7);
         assert!(matches!(
-            install_with(&layout, &newer, false, soon(), &dialog, &publisher),
-            Err(Error::PinnedRootNotBuilt { .. })
+            install_with(&layout, &lower, false, soon(), &quiet, &site),
+            Err(Error::Version { .. })
         ));
-        assert_eq!(publisher.fetches.get(), 1, "no key set is fetched for it");
+        let other = bundle_file(
+            &dir,
+            |t| t.replace("version = \"1.0.0\"", "version = \"1.0.1\""),
+            |m| m.version = 8,
+        );
+        assert!(matches!(
+            install_with(&layout, &other, false, soon(), &quiet, &site),
+            Err(Error::Version { .. })
+        ));
+        assert_eq!(site.fetches.get(), 2);
+        assert!(quiet.shown.borrow().is_empty());
+    }
+
+    #[test]
+    fn an_upgrade_that_asks_for_more_asks_install_or_cancel_and_cancel_denies_nothing() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let v8 = bundle_file(&dir, with_network, |m| m.version = 8);
+
+        let cancel = Dialog::answering(&[Button::Cancel]);
+        assert!(matches!(
+            install_with(&layout, &v8, false, soon(), &cancel, &site),
+            Err(Error::Cancelled)
+        ));
+        let shown = cancel.shown.borrow();
+        assert_eq!(shown[0].buttons, ["install", "cancel"]);
+        assert_eq!(
+            shown[0].lines.len(),
+            1,
+            "only the network line, which is new"
+        );
+        let pair = pair_of(&layout).unwrap();
+        assert!(!pair.denied, "cancelling more is not a denial of the pin");
+        assert_eq!(pair.mark.unwrap().version, 7);
+
+        let install = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v8, false, soon(), &install, &site).unwrap();
+        let pair = pair_of(&layout).unwrap();
+        assert!(pair.permissions.unwrap().network);
+        assert_eq!(pair.mark.unwrap().version, 8);
+    }
+
+    #[test]
+    fn an_older_key_set_than_the_last_accepted_is_refused() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let site = Site::serving(key_set_version(1, &release_key(), 5));
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let v8 = bundle_file(&dir, |t| t, |m| m.version = 8);
+        let older = Site::serving(key_set_version(1, &release_key(), 4));
+        assert!(matches!(
+            install_with(&layout, &v8, false, soon(), &Dialog::answering(&[]), &older),
+            Err(Error::KeySetLower {
+                stored: 5,
+                fetched: 4
+            })
+        ));
         assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 7);
+    }
+
+    #[test]
+    fn a_second_app_under_a_pinned_key_is_asked_about_and_named_beside_the_first() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let notes = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &notes, false, soon(), &first, &site).unwrap();
+        let other = bundle_file(
+            &dir,
+            |t| {
+                t.replace("dev.csfh.notes", "dev.csfh.other")
+                    .replace("\"Notes\"", "\"Other\"")
+            },
+            |m| m.app_id = "dev.csfh.other".parse().unwrap(),
+        );
+        let dialog = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &other, false, soon(), &dialog, &site).unwrap();
+        assert_eq!(target, layout.applications().join("Other.oma"));
+        let shown = dialog.shown.borrow();
+        assert!(
+            shown[0]
+                .notes
+                .iter()
+                .any(|n| n.contains("already pinned for dev.csfh.notes")),
+            "{:?}",
+            shown[0].notes
+        );
     }
 }

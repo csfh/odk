@@ -340,6 +340,24 @@ pub fn save_pair(layout: &Layout, app: &Identifier, pair: &Pair) -> Result<(), E
     )
 }
 
+/// The version of `root`'s key set last accepted (ADR 0060, section 3), or `None` before one is
+/// stored: a pin made at first contact before this was kept takes the next set that verifies
+/// under it as the first.
+pub fn keys_version(layout: &Layout, root: &KeyId) -> Result<Option<u64>, Error> {
+    let path = layout.keys_version_file(root);
+    let Some(text) = read(&path)? else {
+        return Ok(None);
+    };
+    text.trim().parse().map(Some).map_err(|_| Error::Damaged {
+        path,
+        reason: format!("{:?} is not a version", text.trim()),
+    })
+}
+
+pub fn save_keys_version(layout: &Layout, root: &KeyId, version: u64) -> Result<(), Error> {
+    write_private(&layout.keys_version_file(root), &format!("{version}\n"))
+}
+
 /// Every pair that has a record, for asking which roots are pinned and from which hosts. A
 /// directory or file that is not a pair's is skipped; a pair's record that is damaged is an error.
 pub fn pairs(layout: &Layout) -> Result<Vec<(Identifier, Pair)>, Error> {
