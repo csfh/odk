@@ -18,6 +18,7 @@
 #       oma-register.service,oma-applications.path,oma-inbox@.path}
 #   odk/share/mime/packages/oma.xml
 #   odk/share/doc/odk/{LICENSE,THIRD-PARTY-LICENSES}
+#   odk/share/binfmt.d/odk.conf   odk/share/applications/oma.desktop   (for --system)
 #
 # A release and the installer's test both call this, so the asset names and the layout cannot
 # drift.
@@ -40,7 +41,8 @@ done
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/odk/bin" "$stage/odk/lib/odk" "$stage/odk/share/systemd/user" \
-    "$stage/odk/share/mime/packages" "$stage/odk/share/doc/odk" "$out"
+    "$stage/odk/share/mime/packages" "$stage/odk/share/doc/odk" "$stage/odk/share/binfmt.d" \
+    "$stage/odk/share/applications" "$out"
 install -m 755 "$bin/odk" "$stage/odk/bin/odk"
 for program in odk-oma oma-consent odkd; do
     install -m 755 "$bin/$program" "$stage/odk/lib/odk/$program"
@@ -52,6 +54,8 @@ install -m 644 "$root/packaging/systemd/user/odkd.socket" \
     "$root/packaging/systemd/user/oma-inbox@.path" \
     "$stage/odk/share/systemd/user/"
 install -m 644 "$root/packaging/mime/oma.xml" "$stage/odk/share/mime/packages/oma.xml"
+install -m 644 "$root/packaging/binfmt.d/odk.conf" "$stage/odk/share/binfmt.d/odk.conf"
+install -m 644 "$root/packaging/applications/oma.desktop" "$stage/odk/share/applications/oma.desktop"
 install -m 644 "$root/LICENSE" "$bin/THIRD-PARTY-LICENSES" "$stage/odk/share/doc/odk/"
 printf '%s\n' "$version" >"$stage/odk/VERSION"
 

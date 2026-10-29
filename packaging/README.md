@@ -58,17 +58,22 @@ signature covers it too. `crates/oma/tests/release.rs` runs these two commands a
 Before the tag, `version` in `[workspace.package]` of the root `Cargo.toml` is set to the tag without its `v`, with
 `Cargo.lock`, in a commit on `main`, and the built `odk --version` must say it (ADR 0064) before anything is uploaded.
 
-Text for a system install, which nothing installs yet (ADR 0053, ADR 0056, ADR 0060 on pull
-request #9):
+`sh install.sh --system`, as root and never through `sudo`, installs the same release for every user under `/usr`
+(ADR 0060, section 8; ADR 0086):
 
-| File | Would be installed as |
+| Installed as | From |
 |---|---|
-| `binfmt.d/odk.conf` | `/usr/lib/binfmt.d/odk.conf`, the `binfmt_misc` line that runs `/usr/lib/odk/odk-oma` with the path of a `.oma` file; it needs root |
-| `mime/oma.xml` | `/usr/share/mime/packages/oma.xml`, the type `application/x-oma`, a sub-class of the raw disk image |
-| `applications/oma.desktop` | `/usr/share/applications/oma.desktop`, the handler `Exec=/usr/bin/odk oma run %f` |
+| `/usr/bin/odk`, `/usr/lib/odk/odk-oma`, `oma-consent`, `odkd` | the programs |
+| `/usr/lib/systemd/user/` | `systemd/user/`, with the programs named under `/usr/lib/odk` in place of `%h/.local/lib/odk`, enabled for every user with `systemctl --global` and started at each user's next login |
+| `/usr/lib/binfmt.d/odk.conf` | `binfmt.d/odk.conf`, the `binfmt_misc` line that runs `/usr/lib/odk/odk-oma` with the path of a `.oma` file, registered by restarting `systemd-binfmt` |
+| `/usr/share/mime/packages/oma.xml` | `mime/oma.xml`, the type `application/x-oma`, a sub-class of the raw disk image |
+| `/usr/share/applications/oma.desktop` | `applications/oma.desktop`, the handler `Exec=/usr/bin/odk oma run %f` |
+| `/usr/share/doc/odk/` | the licences |
+| `/var/lib/oma/runtime.toml` | the release installed |
 
-A per-user install rewrites that `Exec` to the home directory's `odk`. `install.sh` installs the
-type for the user, and not the `binfmt_misc` line or the handler, because nothing makes a
-single-file `.oma` yet and `odk oma run` refuses one. Until the handler is installed, the
-default for the type is a disk image's, Disk Image Mounter, so double-clicking a `.oma` file
-mounts it (ADR 0065).
+As root without `--system`, or with `--system` but not as root, it writes nothing. A per-user install puts down neither the
+`binfmt_misc` line nor the handler, so the default for the type there is a disk image's, Disk Image Mounter, and
+double-clicking a `.oma` file mounts it (ADR 0065). Both kinds keep the release's version in `runtime.toml`
+(`~/.local/share/oma/runtime.toml` for one user) and refuse a release older than it, so an old signed script cannot take an
+install back; the same release again repairs one. `ODK_DESTDIR` writes under another root, for the installer's tests,
+which never run as root, never call `sudo` and never register `binfmt_misc` on this machine.
