@@ -46,7 +46,7 @@ The image is read only from the sealed copy (ADR 0060, section 5), only after th
 
 - Each inode is in the tree once. There are no hard links, and a directory that holds itself or an ancestor is refused as the same.
 - Nothing claims a byte anything else claims. The prefix and the superblock (bytes 0 to 1151), each inode with its inline tail, and each inode's whole blocks are all distinct. So the files an image unpacks to never add up to more than the file, and no inode sits inside another file's data.
-- At most 65 536 entries, 64 directories deep, 4095 bytes in a path, and 4 MiB in one directory.
+- At most 65 536 entries, none nested more than 64 deep (the root's entries are 1 deep), 4095 bytes in a path, and 4 MiB in one directory.
 
 ## The Manifest
 
@@ -58,4 +58,4 @@ A launch writes the tree into a tmpfs at `/app` in the application's mount names
 
 ## What the writer emits
 
-ADR 0067's writer (`docs/oma-trust-plan.md`, phase 7) emits a subset of the above. It does not use the checksum or mtime flags. It writes compact inodes with mtime 0, owned by root. Each directory is inline when its entries fit after its inode, and every file is plain. `mkfs.erofs` 1.9.4 with `-b 4096 -T 0 --all-root -U clear -E noinline_data` writes an image the reader accepts, and the reader's tests keep one (`crates/oma/src/image/testdata/`).
+ADR 0067's writer (`docs/oma-trust-plan.md`, phase 7) emits a subset of the above. It does not use the checksum or mtime flags. It writes compact inodes with mtime 0, owned by root, in the tree's order: each directory, then what it holds, by name. Each directory is inline when its entries fit after its inode in one block, and plain across whole blocks when they do not; every file is plain. Modes are `0755` for a directory and for a file with any executable bit, and `0644` for any other file: setuid, setgid, the sticky bit and the other permission bits are not kept. A symlink to a regular file inside the tree is written as that file, and each path is its own inode, so a hard link is written twice. It refuses a tree that passes any limit above, before it writes anything. `mkfs.erofs` 1.9.4 with `-b 4096 -T 0 --all-root -U clear -E noinline_data` writes an image the reader accepts, and the reader's tests keep one (`crates/oma/src/image/testdata/`).

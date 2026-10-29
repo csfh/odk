@@ -40,6 +40,17 @@ jobs:
           # The 4 ms draw budget is for the development machine; a shared runner is slower.
           GALLERY_FRAME_BUDGET_MS: 12
           DRAW_BUDGET_MS: 30
+      # ADR 0067: the kernel mounts what odk-oma's writer writes, behind the prefix. The runner
+      # has root and a loop device; the development machine never mounts anything, and the test
+      # does nothing unless it is root and ODK_KERNEL_MOUNT=1.
+      - name: Load the kernel's EROFS
+        run: sudo modprobe erofs
+      - name: Mount the writer's image with the kernel, and show that the tmpfs test ran
+        run: |
+          bin=$(cargo test -p oma --lib --all-features --locked --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "oma" and (.target.kind | index("lib"))) | .executable')
+          "$bin" --exact sandbox::mounts::tests::a_launchs_app_is_the_images_tree_read_only_nosuid_and_nodev --nocapture
+          sudo env ODK_KERNEL_MOUNT=1 "$bin" --ignored --exact image::tests::the_kernel_mounts_what_the_writer_writes --nocapture
 
   # Typechecks every target on the exact rust-version in the workspace manifest.
   msrv:

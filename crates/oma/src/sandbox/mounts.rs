@@ -410,5 +410,6 @@ mod tests {
         assert_eq!(found, wanted);
         // The tmpfs went with the namespace: nothing reached the host's directory.
         assert_eq!(fs::read_dir(dir.path().join("app")).unwrap().count(), 0);
+        eprintln!("ran: /app held the image's tree, read-only, nosuid and nodev");
     }
 }
