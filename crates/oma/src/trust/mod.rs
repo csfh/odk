@@ -5,7 +5,8 @@
 //! Nothing here decides that a publisher is trusted. [`check`] says a file is signed by the
 //! release key in its own header and that its digests hold; whether that key is the pinned
 //! root's is for the pin and the key set, which the consent and install phases add
-//! (`docs/oma-trust-plan.md`). No command calls this module yet.
+//! (`docs/oma-trust-plan.md`). Only the `binfmt_misc` entry calls it yet, and it still refuses the
+//! file.
 
 pub mod canonical;
 pub mod container;
@@ -19,7 +20,7 @@ pub mod signature;
 pub mod time;
 
 pub use container::{Header, Prefix};
-pub use envelope::{SelfSigned, check, stamp};
+pub use envelope::{Checked, SelfSigned, check, stamp};
 pub use highwater::{Mark, Verdict};
 pub use id::{Fingerprint, KeyId, PublicKey};
 pub use keys::{OmaKeys, ReleaseKey, SetChange, Signer, VerifiedKeys};

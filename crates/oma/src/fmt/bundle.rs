@@ -161,10 +161,23 @@ fn plain_file(root: &Path, field: &'static str, relative: &str) -> Result<PathBu
 /// Checks the ELF header of a 64-bit little-endian x86-64 executable or position-independent
 /// executable (ADR 0002). Nothing else about the file is inspected.
 fn check_x86_64_elf(path: &Path, field: &'static str, relative: &str) -> Result<(), Error> {
-    let mut header = [0u8; 20];
+    let mut header = [0u8; ELF_HEADER_CHECKED];
     File::open(path)
         .and_then(|mut f| f.read_exact(&mut header))
         .map_err(|_| path_error(field, relative, "is not an ELF file"))?;
+    check_elf_header(&header, field, relative)
+}
+
+/// How many bytes at the start of a file [`check_elf_header`] reads.
+pub(crate) const ELF_HEADER_CHECKED: usize = 20;
+
+/// The start of an executable, as ADR 0002 accepts it: an x86_64 ELF executable or shared object
+/// (a position-independent executable is one), 64-bit and little-endian.
+pub(crate) fn check_elf_header(
+    header: &[u8; ELF_HEADER_CHECKED],
+    field: &'static str,
+    relative: &str,
+) -> Result<(), Error> {
     if header[..4] != ELF_MAGIC {
         return Err(path_error(field, relative, "is not an ELF file"));
     }

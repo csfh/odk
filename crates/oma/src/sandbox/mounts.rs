@@ -11,6 +11,7 @@ use std::os::unix::fs::{DirBuilderExt, PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 
 use super::plan::Op;
+use crate::image::Image;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{what}: {source}")]
@@ -154,6 +155,37 @@ pub fn enter(root: &Path, ops: &[Op]) -> Result<(), Error> {
     Ok(())
 }
 
+/// A Bundle file's tree at `target` (ADR 0067): a tmpfs sized to the image's files, the verified
+/// tree written into it, then read-only, `nosuid` and `nodev`, with execution still allowed. It
+/// runs where the plan's other mounts are made, in the child that is about to become the init,
+/// inside its namespaces, so the tmpfs is that mount namespace's and goes with it. The init does
+/// nothing for it (ADR 0024).
+pub fn unpack_image(target: &Path, image: &Image<'_>) -> Result<(), Error> {
+    make_dir(target, 0o755)?;
+    let options = format!(
+        "mode=0755,size={},nr_inodes={}",
+        image.unpacked_size(),
+        image.nodes().len() + 1
+    );
+    mount(
+        Some("tmpfs"),
+        target,
+        Some("tmpfs"),
+        libc::MS_NOSUID | libc::MS_NODEV,
+        Some(&options),
+    )
+    .map_err(|e| err(format!("mounting a tmpfs at {}", target.display()), e))?;
+    image
+        .unpack(target)
+        .map_err(|e| err(format!("unpacking the Bundle at {}", target.display()), e))?;
+    set_attr(
+        target,
+        MOUNT_ATTR_RDONLY | MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV,
+        false,
+    )
+    .map_err(|e| err(format!("making {} read-only", target.display()), e))
+}
+
 fn apply(root: &Path, op: &Op) -> Result<(), Error> {
     match op {
         Op::Dir(dst) => {
@@ -241,5 +273,142 @@ fn apply(root: &Path, op: &Op) -> Result<(), Error> {
             set_attr(&target, set, true)
                 .map_err(|e| err(format!("restricting {}", dst.display()), e))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    use sha2::{Digest, Sha256};
+
+    use super::*;
+    use crate::image::fixture::{Item, build, notes};
+    use crate::trust::{self, Sealed};
+
+    const CHILD: &str = "ODK_UNPACK_IMAGE_CHILD";
+
+    /// Every file and directory under `dir`: its path, its permission bits and its bytes' digest.
+    fn listing(dir: &Path, base: &Path, out: &mut Vec<String>) {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let meta = fs::symlink_metadata(&path).unwrap();
+            let rel = path.strip_prefix(base).unwrap().display().to_string();
+            let mode = meta.permissions().mode() & 0o7777;
+            if meta.is_dir() {
+                out.push(format!("{rel} {mode:o} dir"));
+                listing(&path, base, out);
+            } else {
+                let digest = Sha256::digest(fs::read(&path).unwrap());
+                out.push(format!("{rel} {mode:o} {}", crate::trust::hex(&digest)));
+            }
+        }
+    }
+
+    /// The other half of the next test: it runs only inside the namespaces that test makes, where
+    /// it is root, and prints what it finds.
+    #[test]
+    fn unpack_image_inside_a_namespace() {
+        let Ok(dir) = std::env::var(CHILD) else {
+            return;
+        };
+        let dir = Path::new(&dir);
+        // A host can allow the namespaces and still refuse a mount in them.
+        let probe = dir.join("probe");
+        make_dir(&probe, 0o755).unwrap();
+        if let Err(e) = mount(Some("tmpfs"), &probe, Some("tmpfs"), 0, Some("size=4096")) {
+            println!("unsupported: {e}");
+            return;
+        }
+        let path = dir.join("Notes.oma");
+        fs::write(&path, build(&notes()).signed()).unwrap();
+        let sealed = Sealed::memfd(&path).unwrap();
+        let checked = trust::check(&sealed).unwrap();
+        let image = Image::read(&checked).unwrap();
+        let app = dir.join("app");
+        unpack_image(&app, &image).unwrap();
+
+        let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+        assert_eq!(unsafe { libc::statvfs(c(&app).as_ptr(), &mut st) }, 0);
+        println!("flags={}", st.f_flag);
+        println!("size={}", st.f_blocks * st.f_frsize);
+        let write = fs::write(app.join("new"), b"x").err();
+        println!("write={:?}", write.and_then(|e| e.raw_os_error()));
+        let mut files = Vec::new();
+        listing(&app, &app, &mut files);
+        files.sort();
+        for line in files {
+            println!("entry {line}");
+        }
+    }
+
+    #[test]
+    fn a_launchs_app_is_the_images_tree_read_only_nosuid_and_nodev() {
+        let namespaces = ["--user", "--map-root-user", "--mount", "--"];
+        let userns = Command::new("unshare")
+            .args(namespaces)
+            .arg("true")
+            .status()
+            .is_ok_and(|s| s.success());
+        if !userns {
+            eprintln!("skipped: needs unprivileged user and mount namespaces");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let out = Command::new("unshare")
+            .args(namespaces)
+            .arg(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "sandbox::mounts::tests::unpack_image_inside_a_namespace",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD, dir.path())
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if let Some(why) = stdout.lines().find_map(|l| l.split_once("unsupported: ")) {
+            eprintln!(
+                "skipped: a tmpfs cannot be mounted in the namespace ({})",
+                why.1
+            );
+            return;
+        }
+        assert!(
+            out.status.success(),
+            "{stdout}{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let value = |key: &str| {
+            stdout
+                .lines()
+                .find_map(|l| l.split_once(key).map(|(_, v)| v))
+                .unwrap_or_else(|| panic!("no {key} in {stdout}"))
+        };
+        let flags: u64 = value("flags=").parse().unwrap();
+        let wanted = libc::ST_RDONLY | libc::ST_NOSUID | libc::ST_NODEV;
+        assert_eq!(flags & wanted, wanted, "read-only, nosuid and nodev");
+        assert_eq!(flags & libc::ST_NOEXEC, 0, "execution stays allowed");
+        assert_eq!(value("write="), format!("Some({})", libc::EROFS));
+        // Sized to the files: a page each for three, two for `share/big`, none for `share/empty`.
+        assert_eq!(value("size="), (5 * 4096).to_string());
+
+        let mut wanted = vec!["bin 755 dir".to_owned(), "share 755 dir".to_owned()];
+        for (path, item) in notes() {
+            if let Item::File { bytes, mode, .. } = item {
+                let digest = crate::trust::hex(&Sha256::digest(&bytes));
+                wanted.push(format!("{path} {mode:o} {digest}"));
+            }
+        }
+        wanted.sort();
+        let found: Vec<&str> = stdout
+            .lines()
+            .filter_map(|l| l.strip_prefix("entry "))
+            .collect();
+        assert_eq!(found, wanted);
+        // The tmpfs went with the namespace: nothing reached the host's directory.
+        assert_eq!(fs::read_dir(dir.path().join("app")).unwrap().count(), 0);
     }
 }

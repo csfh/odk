@@ -28,4 +28,6 @@ pub enum Error {
     },
     #[error("invalid permissions: {0}")]
     Permissions(String),
+    #[error("invalid {0}")]
+    Publisher(String),
 }

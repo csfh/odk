@@ -6,6 +6,7 @@ use semver::Version;
 use serde::Deserialize;
 
 use crate::fmt::{Error, Identifier};
+use crate::trust::Publisher;
 
 /// A validated `manifest.toml`. Path fields are checked for shape only; whether the files
 /// exist and stay inside the Bundle is checked by [`crate::fmt::Bundle::open`].
@@ -19,6 +20,9 @@ pub struct Manifest {
     pub description: Option<String>,
     pub icon: Option<String>,
     pub categories: Vec<String>,
+    /// The publisher host the signed manifest names (ADR 0060). A Bundle file's image must
+    /// carry it and match; a directory Bundle may still leave it out (`docs/spec/manifest.md`).
+    pub publisher: Option<Publisher>,
 }
 
 /// What a Bundle asks for beyond the baseline. Anything absent is denied (ADR 0012).
@@ -120,6 +124,7 @@ struct Raw {
     icon: Option<String>,
     #[serde(default)]
     categories: Vec<String>,
+    publisher: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -217,6 +222,10 @@ impl Manifest {
         }
         let mut permissions = permissions(raw.permissions)?;
         permissions.daemon = raw.daemon.map(daemon).transpose()?;
+        let publisher = raw
+            .publisher
+            .map(|host| Publisher::parse(&host).map_err(|e| Error::Publisher(e.to_string())))
+            .transpose()?;
         Ok(Self {
             identifier,
             name: raw.name,
@@ -226,6 +235,7 @@ impl Manifest {
             description: raw.description,
             icon: raw.icon,
             categories: raw.categories,
+            publisher,
         })
     }
 }
@@ -678,6 +688,35 @@ executable = "min"
             // the first component's prefix, which errs toward refusing.
             let parsed = Manifest::parse(&text);
             assert_eq!(parsed.is_ok(), !fine.starts_with("hypr"), "{fine}");
+        }
+    }
+
+    #[test]
+    fn a_publisher_is_optional_here_and_a_host_name_when_given() {
+        assert_eq!(Manifest::parse(MINIMAL).unwrap().publisher, None);
+        let m = Manifest::parse(&with(
+            MINIMAL,
+            "executable = \"min\"",
+            "executable = \"min\"\npublisher = \"apps.example.com\"",
+        ))
+        .unwrap();
+        assert_eq!(m.publisher.unwrap().as_str(), "apps.example.com");
+        for bad in [
+            "https://example.com",
+            "Example.com",
+            "example.com:443",
+            "192.0.2.1",
+            "",
+        ] {
+            let text = with(
+                MINIMAL,
+                "executable = \"min\"",
+                &format!("executable = \"min\"\npublisher = \"{bad}\""),
+            );
+            assert!(
+                matches!(Manifest::parse(&text), Err(Error::Publisher(_))),
+                "{bad}"
+            );
         }
     }
 

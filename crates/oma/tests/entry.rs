@@ -68,8 +68,11 @@ fn the_command_is_called_odk_oma_in_its_help_and_version() {
     assert!(String::from_utf8_lossy(&out.stdout).contains("Usage: odk oma"));
 }
 
+/// The image of a Bundle whose `manifest.toml` matches [`self_signed`]'s manifest, made by
+/// `mkfs.erofs` (see `src/image/tests.rs`). Its first 1024 bytes are the prefix's.
+const IMAGE: &[u8] = include_bytes!("../src/image/testdata/notes-mkfs-1.9.4.erofs");
+
 /// A Bundle file whose envelope holds: signed by its own release key, with both digests right.
-/// The payload is a program that would leave a mark if anything ran it.
 fn self_signed(payload: &[u8]) -> Vec<u8> {
     use oma::trust::{Publisher, SignedManifest, SigningKey, Timestamp};
     // A fixture key, never a real one.
@@ -77,7 +80,7 @@ fn self_signed(payload: &[u8]) -> Vec<u8> {
     let manifest = SignedManifest {
         app_id: "dev.csfh.notes".parse().unwrap(),
         version: 3,
-        entry: "notes".to_owned(),
+        entry: "bin/notes".to_owned(),
         payload_sha256: [0; 32],
         header_sha256: [0; 32],
         key_id: key.public_key().key_id(),
@@ -91,10 +94,33 @@ fn self_signed(payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn a_file_whose_envelope_holds_is_still_refused_and_nothing_in_it_runs() {
+fn a_file_whose_envelope_and_image_hold_is_still_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("Notes.oma");
+    fs::write(&file, self_signed(&IMAGE[1024..])).unwrap();
+
+    let out = odk_oma().arg(&file).env_clear().output().unwrap();
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.starts_with("odk oma: "), "{err}");
+    assert!(
+        err.contains("dev.csfh.notes 3 is signed by release key")
+            && err.contains("its image matches it"),
+        "{err}"
+    );
+    assert!(err.contains("not run yet"), "{err}");
+    assert!(
+        !err.contains("trusted") && !err.contains("verified"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_signed_payload_that_is_not_an_image_is_refused_and_nothing_in_it_runs() {
     let dir = tempfile::tempdir().unwrap();
     let marker = dir.path().join("ran");
     let file = dir.path().join("Notes.oma");
+    // A program that would leave a mark if anything ran it.
     let payload = format!("#!/bin/sh\ntouch {}\n", marker.display());
     fs::write(&file, self_signed(payload.as_bytes())).unwrap();
     fs::set_permissions(&file, fs::Permissions::from_mode(0o755)).unwrap();
@@ -105,10 +131,9 @@ fn a_file_whose_envelope_holds_is_still_refused_and_nothing_in_it_runs() {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.starts_with("odk oma: "), "{err}");
     assert!(
-        err.contains("dev.csfh.notes 3 is signed by release key"),
+        err.contains("the image is not EROFS") && err.contains("never run"),
         "{err}"
     );
-    assert!(err.contains("not run yet"), "{err}");
     assert!(
         !err.contains("trusted") && !err.contains("verified"),
         "{err}"

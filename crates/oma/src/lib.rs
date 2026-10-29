@@ -9,6 +9,7 @@ pub mod entry;
 pub mod flow;
 pub mod fmt;
 pub mod grants;
+pub mod image;
 pub mod install;
 pub mod layout;
 pub mod sandbox;
