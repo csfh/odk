@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::fmt::{self, Bundle, Identifier};
 use crate::grants;
 use crate::layout::Layout;
+use crate::trust::Sealed;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -49,6 +50,49 @@ fn io(path: &Path, source: std::io::Error) -> Error {
         path: path.to_owned(),
         source,
     }
+}
+
+/// Writes a Bundle file's sealed bytes to `target` in `~/Applications`, which must not exist
+/// (ADR 0052, ADR 0060 section 5): the bytes that verified, never the source path again. They go
+/// to a hidden name first, without `.oma`, so nothing that watches the directory sees half a
+/// file. They are then linked in, which never replaces anything, so neither a directory Bundle
+/// nor another file is ever removed or renamed. The file is `0644`: a Bundle file is inert.
+pub fn place_file(file: &Sealed, target: &Path) -> Result<(), Error> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let dir = target.parent().expect("a file in ~/Applications");
+    fs::create_dir_all(dir).map_err(|e| io(dir, e))?;
+    let name = target.file_name().expect("a file name").to_string_lossy();
+    let partial = dir.join(format!(".{name}.{}.partial", std::process::id()));
+    let written = (|| {
+        let mut out = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o644)
+            .open(&partial)?;
+        let mut buf = vec![0u8; 1 << 16];
+        let mut at = 0;
+        while at < file.len() {
+            let n = (file.len() - at).min(buf.len() as u64) as usize;
+            file.read_exact_at(&mut buf[..n], at)?;
+            out.write_all(&buf[..n])?;
+            at += n as u64;
+        }
+        out.sync_all()
+    })();
+    let linked = written.and_then(|()| fs::hard_link(&partial, target));
+    let _ = fs::remove_file(&partial);
+    match linked {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(Error::Exists(target.to_owned()));
+        }
+        Err(e) => return Err(io(target, e)),
+    }
+    fs::File::open(dir)
+        .and_then(|d| d.sync_all())
+        .map_err(|e| io(dir, e))
 }
 
 /// Every valid Bundle in `~/Applications`. Directories that are not valid Bundles are skipped.

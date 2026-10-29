@@ -162,3 +162,38 @@ fn a_file_whose_envelope_does_not_hold_says_why_and_is_refused() {
         "{err}"
     );
 }
+
+/// `odk oma install` of a file goes the file's way: sealed, checked and read before anything is
+/// fetched, so a file that fails is refused with nothing written, and no network is reached.
+#[test]
+fn install_of_a_file_that_does_not_verify_writes_nothing() {
+    let mut tampered = self_signed(&IMAGE[1024..]);
+    *tampered.last_mut().unwrap() ^= 1;
+    let not_an_image = self_signed(b"#!/bin/sh\nexit 0\n");
+    for (bytes, said) in [
+        (tampered, "the payload digest does not match the manifest"),
+        (not_an_image, "the image is not EROFS"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("home");
+        fs::create_dir(&home).unwrap();
+        let file = dir.path().join("Notes.oma");
+        fs::write(&file, bytes).unwrap();
+
+        let out = odk_oma()
+            .arg("install")
+            .arg(&file)
+            .env_clear()
+            .env("HOME", &home)
+            .output()
+            .unwrap();
+        assert!(!out.status.success());
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.starts_with("odk oma: ") && err.contains(said), "{err}");
+        assert_eq!(
+            fs::read_dir(&home).unwrap().count(),
+            0,
+            "no ~/Applications, no state: {said}"
+        );
+    }
+}

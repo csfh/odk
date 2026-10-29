@@ -36,8 +36,8 @@ enum Command {
     },
     /// Copy a Bundle into ~/Applications
     Install {
-        /// Path to a Bundle directory
-        bundle_dir: PathBuf,
+        /// A Bundle file, or a Bundle directory
+        bundle: PathBuf,
         /// Record consent for exactly the permissions the Bundle asks for now, without a dialog
         #[arg(long)]
         accept_permissions: bool,
@@ -147,14 +147,30 @@ fn main() -> ExitCode {
             }
         }
         Command::Install {
-            bundle_dir,
+            bundle,
             accept_permissions,
         } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
                 eprintln!("odk oma: $HOME is not set");
                 return ExitCode::FAILURE;
             };
-            match oma::flow::install(&layout, &bundle_dir, accept_permissions, &oma::consent::ask) {
+            let installed = if bundle.is_file() {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs() as i64);
+                let agent = oma::fetch::agent();
+                oma::flow::install_file(
+                    &layout,
+                    &bundle,
+                    accept_permissions,
+                    now,
+                    &oma::consent::ask,
+                    &|publisher| oma::fetch::oma_keys(&agent, publisher),
+                )
+            } else {
+                oma::flow::install(&layout, &bundle, accept_permissions, &oma::consent::ask)
+            };
+            match installed {
                 Ok(path) => {
                     println!("{}", path.display());
                     ExitCode::SUCCESS

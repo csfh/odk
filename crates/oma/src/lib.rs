@@ -6,6 +6,7 @@ pub mod consent;
 pub mod daemon;
 pub mod dev;
 pub mod entry;
+pub mod fetch;
 pub mod flow;
 pub mod fmt;
 pub mod grants;
