@@ -35,6 +35,17 @@ impl Layout {
         Some(Self::new(home, data_home))
     }
 
+    /// Where `odk-oma` keeps its state: `<data home>/oma`.
+    pub fn state_dir(&self) -> &Path {
+        &self.state
+    }
+
+    /// The record of the odk release installed for this user, which `install.sh` writes and
+    /// `odk oma self-upgrade` is held to (ADR 0086, ADR 0087).
+    pub fn receipt_file(&self) -> PathBuf {
+        self.state.join("runtime.toml")
+    }
+
     pub fn home(&self) -> &Path {
         &self.home
     }

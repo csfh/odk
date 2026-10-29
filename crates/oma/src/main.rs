@@ -62,6 +62,9 @@ enum Command {
         #[arg(long)]
         wait: bool,
     },
+    /// Replace this user's odk with the newer release odk.csfh.dev serves, when it verifies under
+    /// the release root compiled into this program (ADR 0086)
+    SelfUpgrade,
     /// Sign the odk release `tools/package-release` made in DIR with the release root, whose
     /// 32-byte seed is read on standard input (ADR 0086)
     SignRelease {
@@ -302,6 +305,59 @@ fn main() -> ExitCode {
                 &fetch,
             ) {
                 Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
+                Err(e) => {
+                    eprintln!("odk oma: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Command::SelfUpgrade => {
+            let Some(layout) = oma::layout::Layout::from_env() else {
+                eprintln!("odk oma: $HOME is not set");
+                return ExitCode::FAILURE;
+            };
+            let documents = oma::fetch::agent();
+            let files = oma::fetch::release_agent();
+            // The release document and its signature are fetched as ADR 0066 says; `install.sh`
+            // and the tarball wait only for a stall (ADR 0086).
+            let get = |name: &str, limit: u64| {
+                let agent = if matches!(name, "release" | "release.sig") {
+                    &documents
+                } else {
+                    &files
+                };
+                oma::fetch::get(agent, oma::self_upgrade::HOST, &format!("/{name}"), limit)
+            };
+            let install = |dir: &std::path::Path| {
+                let status = std::process::Command::new("sh")
+                    .arg(dir.join("install.sh"))
+                    .env("ODK_BASE_URL", format!("file://{}", dir.display()))
+                    .status()
+                    .map_err(|e| e.to_string())?;
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(status.to_string())
+                }
+            };
+            let root = oma::odk_release::release_root();
+            let euid = rustix::process::geteuid().as_raw();
+            match oma::self_upgrade::self_upgrade(&layout, root.as_ref(), euid, &get, &install) {
+                Ok(oma::self_upgrade::Outcome::UpToDate { installed, offered }) => {
+                    eprintln!(
+                        "odk oma: release {installed} is installed, and {} offers {offered}; nothing to do",
+                        oma::self_upgrade::HOST
+                    );
+                    ExitCode::SUCCESS
+                }
+                Ok(oma::self_upgrade::Outcome::Upgraded { installed, to }) => {
+                    let from = installed.map_or(
+                        "an install from before releases were signed".to_owned(),
+                        |v| format!("release {v}"),
+                    );
+                    eprintln!("odk oma: upgraded from {from} to release {to}");
+                    ExitCode::SUCCESS
+                }
                 Err(e) => {
                     eprintln!("odk oma: {e}");
                     ExitCode::FAILURE

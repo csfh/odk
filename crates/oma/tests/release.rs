@@ -183,3 +183,93 @@ fn a_tarball_that_is_not_the_one_the_script_names_is_not_signed() {
     ));
     assert_eq!(signed_files(&made.out), [false; 3]);
 }
+
+/// `odk oma self-upgrade` end to end, against a signed release in a directory standing in for
+/// `odk.csfh.dev`: the release's own `install.sh` runs in a throwaway home, with `systemctl` and
+/// `update-mime-database` stubs, and the receipt it writes holds the new release.
+#[test]
+fn self_upgrade_runs_the_signed_install_sh_and_the_receipt_follows() {
+    use oma::layout::Layout;
+    use oma::self_upgrade::{self, Outcome};
+
+    let made = made();
+    sign(&made, &root(), Some(&root())).unwrap();
+    let home = made.out.parent().unwrap().join("home");
+    let stubs = made.out.parent().unwrap().join("stubs");
+    fs::create_dir_all(&stubs).unwrap();
+    for (name, text) in [
+        // No user manager answers: nothing reaches the real one.
+        ("systemctl", "#!/bin/sh\nexit 1\n"),
+        ("update-mime-database", "#!/bin/sh\nexit 0\n"),
+    ] {
+        fs::write(stubs.join(name), text).unwrap();
+        fs::set_permissions(stubs.join(name), fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let layout = Layout::new(&home, home.join(".local/share"));
+    let receipt = layout.receipt_file();
+    fs::create_dir_all(receipt.parent().unwrap()).unwrap();
+    fs::write(&receipt, format!("version = {}\n", VERSION - 1)).unwrap();
+
+    let get = |name: &str, limit: u64| {
+        let bytes =
+            fs::read(made.out.join(name)).map_err(|e| oma::fetch::Failure::Unreachable {
+                host: self_upgrade::HOST.to_owned(),
+                reason: e.to_string(),
+            })?;
+        assert!(bytes.len() as u64 <= limit, "{name} within its limit");
+        Ok(bytes)
+    };
+    let install = |dir: &Path| {
+        let out = Command::new("sh")
+            .arg(dir.join("install.sh"))
+            .env_clear()
+            .env("HOME", &home)
+            .env("PATH", format!("{}:/usr/bin:/bin", stubs.display()))
+            .env("TMPDIR", made.out.parent().unwrap())
+            .env("ODK_BASE_URL", format!("file://{}", dir.display()))
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).into_owned())
+        }
+    };
+    let key = root().public_key();
+    let done = self_upgrade::self_upgrade(&layout, Some(&key), 1000, &get, &install).unwrap();
+    assert_eq!(
+        done,
+        Outcome::Upgraded {
+            installed: Some(VERSION - 1),
+            to: VERSION
+        }
+    );
+    assert_eq!(self_upgrade::installed(&layout).unwrap(), Some(VERSION));
+    assert_eq!(
+        fs::read(home.join(".local/lib/odk/odk-oma")).unwrap(),
+        fs::read(&made.odk_oma).unwrap()
+    );
+    // Again: the same release is not run twice.
+    let again = self_upgrade::self_upgrade(&layout, Some(&key), 1000, &get, &install).unwrap();
+    assert!(matches!(again, Outcome::UpToDate { .. }), "{again:?}");
+}
+
+/// This build has no release root: `self-upgrade` says so, and fetches nothing.
+#[test]
+fn the_binary_with_no_release_root_refuses_to_self_upgrade() {
+    // Only a build with no root: one with the owner's key would fetch from odk.csfh.dev, and a
+    // test reaches no network.
+    if oma::odk_release::release_root().is_some() {
+        return;
+    }
+    let home = TempDir::new().unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_odk-oma"))
+        .arg("self-upgrade")
+        .env_clear()
+        .env("HOME", home.path())
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("no release root"), "{err}");
+}
