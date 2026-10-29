@@ -411,6 +411,35 @@ pub fn save_keys_version(layout: &Layout, root: &KeyId, version: u64) -> Result<
     write_private(&layout.keys_version_file(root), format!("{version}\n"))
 }
 
+/// The release keys `root` has revoked, as kept (ADR 0060, section 3).
+pub fn revoked(layout: &Layout, root: &KeyId) -> Result<std::collections::BTreeSet<KeyId>, Error> {
+    let path = layout.revoked_file(root);
+    let Some(text) = read(&path)? else {
+        return Ok(Default::default());
+    };
+    text.lines()
+        .map(|line| {
+            line.parse().map_err(|()| Error::Damaged {
+                path: path.clone(),
+                reason: format!("{line:?} is not a key id"),
+            })
+        })
+        .collect()
+}
+
+/// Adds a verified revocation's keys to those its root has revoked. Nothing is ever taken off:
+/// a later key set that omits a key, or lists it again, does not bring it back.
+pub fn keep_revocation(
+    layout: &Layout,
+    revocation: &crate::trust::revocation::Revocation,
+) -> Result<(), Error> {
+    let root = revocation.root_key_id();
+    let mut ids = revoked(layout, root)?;
+    ids.extend(revocation.ids().iter().copied());
+    let text: String = ids.iter().map(|id| format!("{id}\n")).collect();
+    write_private(&layout.revoked_file(root), text)
+}
+
 /// Every pair that has a record, for asking which roots are pinned and from which hosts. A
 /// directory or file that is not a pair's is skipped; a pair's record that is damaged is an error.
 pub fn pairs(layout: &Layout) -> Result<Vec<(Identifier, Pair)>, Error> {

@@ -16,6 +16,7 @@ pub mod id;
 pub mod keys;
 pub mod manifest;
 pub mod release;
+pub mod revocation;
 pub mod sealed;
 pub mod signature;
 pub mod time;

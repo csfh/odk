@@ -149,9 +149,8 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   3. It asks Install or Cancel, listing the image's permissions.
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
 - `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
-- Not yet:
-  - a `.desktop` entry's icon, which is inside the image;
-  - revocation (question 2).
+- Revocation, as section 3 states it: the release keys a root revoked are kept in `grants/<root>/revoked` (`grants::keep_revocation`, `trust::revocation::Revocation`). Such a key authorizes no new install or upgrade, through `install`, opening, `--register` or an inbox, and a later `oma-keys` that omits it or lists it again does not bring it back. A file it signed that is installed still runs. The document that revokes has no schema (question 2), so nothing records a revocation yet: the tests take one as already verified, as issue #14 says.
+- Not yet: a `.desktop` entry's icon, which is inside the image.
 - Installs under a pinned root:
   - an upgrade, or a second app id, verifies the key set under the pin;
   - the version last accepted for the root is kept in `grants/<root>/oma-keys.version`, and an older set is refused;
