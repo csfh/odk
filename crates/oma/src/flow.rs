@@ -166,7 +166,7 @@ pub fn run(
     match target.parse::<Identifier>() {
         Ok(id) if install::find(layout, &id).is_none() => {
             if let Some(file) = installed_file(layout, &id)? {
-                return run_file(layout, host, &file, wait, now);
+                return run_file(layout, host, &file, wait, now, ask);
             }
         }
         Ok(_) => {}
@@ -759,7 +759,7 @@ pub fn open_file(
         .collect::<Vec<_>>();
     if let Some((_, pair)) = pinned.iter().find(|(other, _)| other == app) {
         return match Verdict::of(pair.mark.as_ref(), signed.version, &signed.payload_sha256) {
-            Verdict::Same => run_file(layout, host, path, wait, now),
+            Verdict::Same => run_file(layout, host, path, wait, now, ask),
             Verdict::Higher => Err(Error::UpgradeByOpening { app: app.clone() }),
             Verdict::Lower | Verdict::SameVersionOtherPayload => Err(Error::Version {
                 app: app.clone(),
@@ -795,7 +795,7 @@ pub fn open_file(
     match admit(layout, file, &keys, None, Occasion::Launch, requested, ask)? {
         Admission::Installed => {
             commit(layout, file, None, &sealed, &target, keys.set().version)?;
-            run_file(layout, host, &target, wait, now)
+            run_file(layout, host, &target, wait, now, ask)
         }
         Admission::RunOnce => Ok(launch::run_file(
             layout, &image, root_id, requested, host, wait, true,
@@ -956,20 +956,48 @@ pub enum Registered {
 /// `~/Applications` is reconciled, and no dialog is opened. A file that does not verify, an
 /// expired one, and a version lower than the mark, or the marked version with other contents,
 /// are deleted. A valid file under a root not pinned for its app id is held at
-/// `held/<root>/<app>.oma`, and not launched. A newer version under the pin is applied when its
-/// key set authorizes it and it asks for nothing new; otherwise it waits for `odk oma install`.
-/// Directory Bundles, and anything that is not a regular `*.oma` file there, are not touched.
-/// `.desktop` entries and inbox watches are not built yet.
+/// `held/<root>/<app>.oma`, and not launched. A newer version under the pin, dropped there or
+/// staged in its application's inbox, is applied when its key set authorizes it, and takes
+/// effect even when it asks for more, which its next launch asks about (ADR 0015). Directory
+/// Bundles, and anything that is not a regular `*.oma` file, are not touched. `.desktop` entries
+/// and inbox watches are not built yet.
 pub fn register(layout: &Layout, now: i64, fetch: Fetch) -> Vec<Registered> {
-    install::bundle_files(layout)
+    let or_waiting = |path: PathBuf, result: Result<Registered, Error>| {
+        result.unwrap_or_else(|e| Registered::Waiting {
+            why: e.to_string(),
+            path,
+        })
+    };
+    let mut done: Vec<Registered> = install::bundle_files(layout)
         .into_iter()
         .map(|(path, _)| {
-            register_one(layout, &path, now, fetch).unwrap_or_else(|e| Registered::Waiting {
-                why: e.to_string(),
-                path,
-            })
+            let result = register_one(layout, &path, now, fetch);
+            or_waiting(path, result)
         })
-        .collect()
+        .collect();
+    // Each installed application's inbox, for what it staged there (ADR 0015).
+    for (app, pair) in grants::pairs(layout)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, pair)| !pair.denied)
+    {
+        let inbox = layout.pair_inbox_dir(&pair.root.key_id(), &app);
+        let Ok(entries) = fs::read_dir(&inbox) else {
+            continue;
+        };
+        let mut staged: Vec<PathBuf> = entries
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "oma"))
+            .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_file()))
+            .collect();
+        staged.sort();
+        for path in staged {
+            let result = take_from_inbox(layout, &app, &pair, &path, now, fetch);
+            done.push(or_waiting(path, result));
+        }
+    }
+    done
 }
 
 fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<Registered, Error> {
@@ -1035,27 +1063,42 @@ fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<
         }
         Verdict::Higher => {}
     }
+    apply_newer(layout, &checked, &image, &sealed, &pair, path, now, fetch)
+}
+
+/// Applies a newer version of an installed application, under its pin, from `source`: a file
+/// dropped in `~/Applications` or staged in its inbox. It takes effect even when it asks for
+/// more, which its next launch asks about (ADR 0015). A key set that cannot be fetched leaves it
+/// where it is, for the next pass.
+#[allow(clippy::too_many_arguments)]
+fn apply_newer(
+    layout: &Layout,
+    checked: &trust::Checked<'_>,
+    image: &Image<'_>,
+    sealed: &Sealed,
+    pair: &grants::Pair,
+    source: &Path,
+    now: i64,
+    fetch: Fetch,
+) -> Result<Registered, Error> {
+    let file = checked.signed();
+    let signed = file.manifest();
+    let (app, root_id) = (&signed.app_id, &signed.root_key_id);
+    let waiting = |why: String| {
+        Ok(Registered::Waiting {
+            path: source.to_owned(),
+            why,
+        })
+    };
     let keys = match authorized_keys(layout, file, Some(&pair.root), now, fetch) {
         Ok(keys) => keys,
-        Err(e) => {
-            return Ok(Registered::Waiting {
-                path: path.to_owned(),
-                why: e.to_string(),
-            });
-        }
+        Err(e) => return waiting(e.to_string()),
     };
-    let granted = pair.permissions.clone().unwrap_or_default();
-    if !grants::is_empty(&grants::missing(&granted, &image.manifest().permissions)) {
-        return Ok(Registered::Waiting {
-            path: path.to_owned(),
-            why: "it asks for more than was allowed; install it with `odk oma install`".to_owned(),
-        });
-    }
     let installed = installed_file(layout, app)?;
     let target = layout
         .applications()
         .join(format!("{}.oma", image.manifest().name.replace('/', "-")));
-    if target == path {
+    if target == source {
         // Copied over the installed file: it is in place, and only the records change.
         let mark = Mark {
             version: signed.version,
@@ -1070,21 +1113,74 @@ fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<
         return Ok(Registered::Applied(target));
     }
     if target.symlink_metadata().is_ok() && installed.as_deref() != Some(target.as_path()) {
-        return Ok(Registered::Waiting {
-            path: path.to_owned(),
-            why: format!("{} is taken", target.display()),
-        });
+        return waiting(format!("{} is taken", target.display()));
     }
     commit(
         layout,
         file,
         installed.as_deref(),
-        &sealed,
+        sealed,
         &target,
         keys.set().version,
     )?;
-    fs::remove_file(path).map_err(io)?;
+    fs::remove_file(source).map_err(|e| install::Error::Io {
+        path: source.to_owned(),
+        source: e,
+    })?;
     Ok(Registered::Applied(target))
+}
+
+/// A Bundle file an application staged in its own inbox (ADR 0015, ADR 0052): its bytes are
+/// sealed at once, so the application cannot change them while they are checked. It is accepted
+/// only as a newer version of that application under that root, and deleted if it is not.
+fn take_from_inbox(
+    layout: &Layout,
+    app: &Identifier,
+    pair: &grants::Pair,
+    path: &Path,
+    now: i64,
+    fetch: Fetch,
+) -> Result<Registered, Error> {
+    let delete = |why: String| -> Result<Registered, Error> {
+        fs::remove_file(path).map_err(|source| install::Error::Io {
+            path: path.to_owned(),
+            source,
+        })?;
+        Ok(Registered::Deleted {
+            path: path.to_owned(),
+            why,
+        })
+    };
+    let sealed = Sealed::memfd(path)?;
+    let checked = match trust::check(&sealed) {
+        Ok(checked) => checked,
+        Err(trust::Error::Io(e)) => return Err(trust::Error::Io(e).into()),
+        Err(e) => return delete(e.to_string()),
+    };
+    let image = match Image::read(&checked) {
+        Ok(image) => image,
+        Err(image::Error::Io(e)) => return Err(image::Error::Io(e).into()),
+        Err(e) => return delete(e.to_string()),
+    };
+    let signed = checked.signed().manifest();
+    if signed.app_id != *app || signed.root_key_id != pair.root.key_id() {
+        return delete(format!(
+            "it is not {app} under the key it is installed under"
+        ));
+    }
+    if signed.expires_at.unix_seconds() < now {
+        return delete(format!(
+            "its signature expired at {}",
+            signed.expires_at.as_str()
+        ));
+    }
+    if Verdict::of(pair.mark.as_ref(), signed.version, &signed.payload_sha256) != Verdict::Higher {
+        return delete(format!(
+            "version {} is not newer than the installed one",
+            signed.version
+        ));
+    }
+    apply_newer(layout, &checked, &image, &sealed, pair, path, now, fetch)
 }
 
 /// `odk oma run` of an installed Bundle file (ADR 0060, sections 4 and 5; ADR 0067). It is
@@ -1100,6 +1196,7 @@ pub fn run_file(
     path: &Path,
     wait: bool,
     now: i64,
+    ask: Ask,
 ) -> Result<i32, Error> {
     let sealed = Sealed::memfd(path)?;
     let checked = trust::check(&sealed)?;
@@ -1119,7 +1216,39 @@ pub fn run_file(
     if signed.expires_at.unix_seconds() < now {
         eprintln!("odk oma: {app} is past its signature window and keeps running.");
     }
-    let granted = pair.permissions.unwrap_or_default();
+    // An upgrade that took effect while asking for more does not launch until the person
+    // allows it, or goes back to the previous version (ADR 0015).
+    let requested = &image.manifest().permissions;
+    let mut granted = pair.permissions.clone().unwrap_or_default();
+    let missing = grants::missing(&granted, requested);
+    if !grants::is_empty(&missing) {
+        let identity = Identity {
+            app_id: app,
+            version: signed.version,
+            root: &pair.root,
+            publisher: &signed.publisher,
+            fetched: None,
+        };
+        let has_previous = layout
+            .pair_previous_file(&signed.root_key_id, app)
+            .is_file();
+        let already = crate::fmt::permission_lines(&granted).len();
+        let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
+        let request = Request::upgrade(&identity, &missing, already, has_previous, &named_dirs);
+        match ask(&request).map_err(Error::Dialog)? {
+            Button::Allow => {
+                let mut pair = pair.clone();
+                pair.permissions = Some(requested.clone());
+                grants::save_pair(layout, app, &pair)?;
+                granted = requested.clone();
+            }
+            Button::KeepPrevious if has_previous => {
+                let back = rollback(layout, app)?;
+                return run_file(layout, host, &back, wait, now, ask);
+            }
+            _ => return Err(Error::Cancelled),
+        }
+    }
     Ok(launch::run_file(
         layout,
         &image,
@@ -2252,7 +2381,10 @@ mod signed_tests {
         };
         // Not installed at all.
         assert!(matches!(
-            run_file(&layout, &host, &path, true, soon()),
+            run_file(&layout, &host, &path, true, soon(), &|r| Dialog::answering(
+                &[]
+            )
+            .ask(r)),
             Err(Error::NotInstalledFile { .. })
         ));
         let site = Site::serving(key_set_bytes(1, &release_key()));
@@ -2268,12 +2400,16 @@ mod signed_tests {
         // Another version under the same pin is not the installed one.
         let newer = bundle_file(&dir, |t| t, |m| m.version = 8);
         assert!(matches!(
-            run_file(&layout, &host, &newer, true, soon()),
+            run_file(&layout, &host, &newer, true, soon(), &|r| {
+                Dialog::answering(&[]).ask(r)
+            }),
             Err(Error::NotInstalledFile { .. })
         ));
         // The installed one gets as far as the launch, which needs a runtime directory.
         assert!(!matches!(
-            run_file(&layout, &host, &installed, true, soon()),
+            run_file(&layout, &host, &installed, true, soon(), &|r| {
+                Dialog::answering(&[]).ask(r)
+            }),
             Err(Error::NotInstalledFile { .. })
         ));
     }
@@ -2441,7 +2577,9 @@ mod signed_tests {
         // The installed file now is the one that runs: it passes the check, and stops only at
         // the launch, which has no runtime directory here.
         assert!(!matches!(
-            run_file(&layout, &host, &target, true, soon()),
+            run_file(&layout, &host, &target, true, soon(), &|r| {
+                Dialog::answering(&[]).ask(r)
+            }),
             Err(Error::NotInstalledFile { .. })
         ));
 
@@ -2676,29 +2814,59 @@ mod signed_tests {
     }
 
     #[test]
-    fn register_leaves_an_upgrade_that_asks_for_more_or_cannot_be_checked() {
+    fn an_upgrade_that_asks_for_more_takes_effect_and_its_launch_asks() {
         let dir = TempDir::new().unwrap();
         let layout = layout(&dir);
         let apps = layout.applications();
+        let host = HostEnv {
+            uid: 1000,
+            gid: 1000,
+            runtime_dir: None,
+            wayland_display: None,
+        };
         let site = Site::serving(key_set_bytes(1, &release_key()));
         let v7 = bundle_file(&dir, |t| t, |_| {});
         let first = Dialog::answering(&[Button::Install]);
-        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
 
         let more = apps.join("More.oma");
         std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 8), &more).unwrap();
         let done = register(&layout, soon(), &|p| site.fetch(p));
         assert!(
-            done.iter()
-                .any(|r| matches!(r, Registered::Waiting { path, .. } if *path == more)),
+            done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
         );
-        assert!(more.exists());
-        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 7);
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 8);
+        assert!(!pair_of(&layout).unwrap().permissions.unwrap().network);
 
-        std::fs::remove_file(&more).unwrap();
+        // Its launch asks; Cancel runs nothing.
+        let cancel = Dialog::answering(&[Button::Cancel]);
+        assert!(matches!(
+            run_file(&layout, &host, &target, true, soon(), &|r| cancel.ask(r)),
+            Err(Error::Cancelled)
+        ));
+        let shown = cancel.shown.borrow();
+        assert_eq!(shown[0].situation, "upgrade");
+        assert_eq!(shown[0].buttons, ["allow", "keep-previous", "cancel"]);
+        assert_eq!(shown[0].lines.len(), 1, "only the new network line");
+
+        // Keep previous version goes back to 7 and runs that.
+        let keep = Dialog::answering(&[Button::KeepPrevious]);
+        let e = run_file(&layout, &host, &target, true, soon(), &|r| keep.ask(r)).unwrap_err();
+        assert!(matches!(e, Error::Launch(_)), "{e}");
+        assert_eq!(pair_of(&layout).unwrap().installed.unwrap().version, 7);
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 8);
+
+        // Back on 8, Allow records the network and runs it.
+        rollback(&layout, &APP.parse().unwrap()).unwrap();
+        let allow = Dialog::answering(&[Button::Allow]);
+        let e = run_file(&layout, &host, &target, true, soon(), &|r| allow.ask(r)).unwrap_err();
+        assert!(matches!(e, Error::Launch(_)), "{e}");
+        assert!(pair_of(&layout).unwrap().permissions.unwrap().network);
+
+        // A newer file whose key set cannot be fetched is left for the next pass.
         let newer = apps.join("Newer.oma");
-        std::fs::copy(bundle_file(&dir, |t| t, |m| m.version = 8), &newer).unwrap();
+        std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 9), &newer).unwrap();
         let offline = Site::failing(fetch::Failure::HostNotFound { host: HOST.into() });
         let done = register(&layout, soon(), &|p| offline.fetch(p));
         assert!(
@@ -2707,5 +2875,53 @@ mod signed_tests {
             "{done:?}"
         );
         assert!(newer.exists());
+    }
+
+    #[test]
+    fn register_takes_a_newer_version_from_the_inbox_and_deletes_anything_else_there() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let app: Identifier = APP.parse().unwrap();
+        let inbox = layout.pair_inbox_dir(&root(1).public_key().key_id(), &app);
+        std::fs::create_dir_all(&inbox).unwrap();
+        let put = |name: &str, from: PathBuf| {
+            std::fs::copy(from, inbox.join(name)).unwrap();
+            inbox.join(name)
+        };
+        let older = put("Older.oma", bundle_file(&dir, |t| t, |m| m.version = 6));
+        let other = put(
+            "Other.oma",
+            bundle_file(
+                &dir,
+                |t| t.replace("dev.csfh.notes", "dev.csfh.other"),
+                |m| {
+                    m.app_id = "dev.csfh.other".parse().unwrap();
+                    m.version = 9;
+                },
+            ),
+        );
+        let staged = put("Up.oma", bundle_file(&dir, |t| t, |m| m.version = 8));
+        let partial = put("Up.oma.stage", bundle_file(&dir, |t| t, |m| m.version = 8));
+
+        let done = register(&layout, soon(), &|p| site.fetch(p));
+        assert!(
+            done.contains(&Registered::Applied(target.clone())),
+            "{done:?}"
+        );
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 8);
+        assert!(!staged.exists());
+        for gone in [older, other] {
+            assert!(
+                done.iter()
+                    .any(|r| matches!(r, Registered::Deleted { path, .. } if *path == gone)),
+                "{done:?}"
+            );
+            assert!(!gone.exists());
+        }
+        assert!(partial.exists(), "a file still being staged is not touched");
     }
 }
