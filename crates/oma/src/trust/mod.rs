@@ -15,6 +15,7 @@ pub mod highwater;
 pub mod id;
 pub mod keys;
 pub mod manifest;
+pub mod release;
 pub mod sealed;
 pub mod signature;
 pub mod time;
@@ -66,6 +67,10 @@ pub enum Error {
     SignatureLength { len: usize },
     #[error("oma-keys is {len} bytes; at most 16384 are read")]
     KeysTooLarge { len: usize },
+    #[error("a release document is {len} bytes; at most 16384 are read")]
+    ReleaseTooLarge { len: usize },
+    #[error("the release is signed for root {found}, and this odk trusts {trusted}")]
+    OtherReleaseRoot { found: KeyId, trusted: KeyId },
     #[error("oma-keys names root {found}, and the pinned root is {pinned}")]
     DifferentRoot { found: KeyId, pinned: KeyId },
     #[error("the manifest names release key {named}, and the header carries {carried}")]

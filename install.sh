@@ -1,17 +1,18 @@
 #!/bin/sh
-# Installs odk for the user who runs it (ADR 0063): the `odk` command, the programs behind it, and
-# the `odkd` daemon with its systemd user units, and the `.oma` file type (ADR 0065). No root,
-# nothing outside the home directory.
+# Installs odk for the user who runs it (ADR 0063, ADR 0086): the `odk` command, the programs
+# behind it, and the `odkd` daemon with its systemd user units, and the `.oma` file type
+# (ADR 0065). No root, nothing outside the home directory.
 #
-#   curl --proto '=https' --tlsv1.2 -fsSL https://github.com/csfh/odk/releases/latest/download/install.sh | sh
+#   curl --proto '=https' --tlsv1.2 -fsS -o install.sh https://odk.csfh.dev/install.sh
+#   curl --proto '=https' --tlsv1.2 -fsS -o install.sh.sig https://odk.csfh.dev/install.sh.sig
 #
-# The same, saved and read first:
+# Check install.sh.sig against the odk release root, as packaging/README.md says, and only then:
 #
-#   curl --proto '=https' --tlsv1.2 -fsSL -o install.sh https://github.com/csfh/odk/releases/latest/download/install.sh
 #   sh install.sh
 #
-# Options:  --version TAG   install that release instead of the latest
-#           --uninstall     remove what this script installed (application data is kept)
+# The signature covers the tarball too: this script names it by length and SHA-256.
+#
+# Options:  --uninstall     remove what this script installed (application data is kept)
 #           --help
 #
 # Where things go:  ~/.local/bin/odk
@@ -24,8 +25,13 @@
 # Running it again upgrades. `ODK_BASE_URL` names another place to download from, for tests.
 set -eu
 
-repo=https://github.com/csfh/odk/releases
-tag=
+# --- the release --------------------------------------------------------------------------
+# `tools/package-release` writes these when it makes a release, and the release root's signature
+# over this script covers them (ADR 0086). In the repository they are empty.
+release_version=
+tarball_sha256=
+tarball_length=
+
 action=install
 
 say() { printf 'odk install: %s\n' "$*"; }
@@ -34,12 +40,7 @@ die() { printf 'odk install: %s\n' "$*" >&2; exit 1; }
 while [ $# -gt 0 ]; do
     case $1 in
         --uninstall) action=uninstall ;;
-        --version)
-            [ $# -ge 2 ] || die "--version needs a release tag"
-            tag=$2
-            shift
-            ;;
-        --help | -h) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help | -h) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option '$1' (try --help)" ;;
     esac
     shift
@@ -113,18 +114,13 @@ for tool in curl tar gzip sha256sum mktemp install; do
 done
 
 # --- download -----------------------------------------------------------------------------
+[ -n "$release_version" ] && [ -n "$tarball_sha256" ] && [ -n "$tarball_length" ] \
+    || die "this install.sh names no release; download the one at https://odk.csfh.dev/install.sh"
 name=odk-x86_64-linux
-if [ -n "${ODK_BASE_URL:-}" ]; then
-    base=$ODK_BASE_URL
-elif [ -n "$tag" ]; then
-    base=$repo/download/$tag
-else
-    base=$repo/latest/download
-fi
-# Only HTTPS, or a local file for tests. A redirect is followed, but only to HTTPS: a release
-# download is a redirect to GitHub's CDN.
+base=${ODK_BASE_URL:-https://odk.csfh.dev}
+# Only HTTPS, or a local file for tests, and no redirect is followed (ADR 0060, section 8).
 case $base in
-    https://*) fetch="curl --proto =https --proto-redir =https --tlsv1.2 -fsSL" ;;
+    https://*) fetch="curl --proto =https --tlsv1.2 -fsS" ;;
     file://*) fetch="curl --proto =file -fsS" ;;
     *) die "the download address must be https:// (or file:// for a test): $base" ;;
 esac
@@ -135,20 +131,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 say "downloading $base/$name.tar.gz"
 $fetch -o "$work/$name.tar.gz" "$base/$name.tar.gz" || die "cannot download $base/$name.tar.gz"
-$fetch -o "$work/$name.tar.gz.sha256" "$base/$name.tar.gz.sha256" \
-    || die "cannot download $base/$name.tar.gz.sha256"
 
-# The checksum says the download is the file the release published. It does not say who
-# published it: that is the trust in GitHub over HTTPS (ADR 0063).
-# The line names the file it is the sum of; it must name this tarball, or a sum of some other
-# file would pass without the tarball being looked at.
-read -r want named <"$work/$name.tar.gz.sha256" || die "the checksum file is empty; nothing was installed"
-[ "${named#\*}" = "$name.tar.gz" ] \
-    || die "the checksum is for '$named', not $name.tar.gz; nothing was installed"
+# The tarball must be the one this script names. The release root's signature over the script
+# is what says who published it (ADR 0086).
+have_length=$(wc -c <"$work/$name.tar.gz" | tr -d ' ')
 have=$(sha256sum "$work/$name.tar.gz" | cut -d' ' -f1)
-[ -n "$want" ] && [ "$have" = "$want" ] \
-    || die "the download does not match its checksum; nothing was installed"
-say "checksum ok"
+[ "$have_length" = "$tarball_length" ] && [ "$have" = "$tarball_sha256" ] \
+    || die "the download is not the tarball this script names; nothing was installed"
+say "release $release_version, tarball ok"
 
 # --- unpack, and look before touching anything ------------------------------------------------
 tar -tzf "$work/$name.tar.gz" >"$work/entries" || die "the download is not a tarball; nothing was installed"

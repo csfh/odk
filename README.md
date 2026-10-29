@@ -21,11 +21,15 @@ Pre-release: every crate is 0.0.0. Stable Rust (edition 2024), Linux x86_64.
 
 ## Install
 
+The signed install (ADR 0060, section 8; ADR 0086) is not published yet: no release has been signed with the odk release root. Once one is, `install.sh` and `install.sh.sig` are downloaded from `https://odk.csfh.dev` and checked against the root's fingerprint as `packaging/README.md` says, before `sh install.sh`.
+
+Until then, `v0.1.0-rc.3` is on GitHub, installed by its own, unsigned script (ADR 0063):
+
 ```sh
-curl --proto '=https' --tlsv1.2 -fsSL https://github.com/csfh/odk/releases/latest/download/install.sh | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/csfh/odk/releases/download/v0.1.0-rc.3/install.sh | sh
 ```
 
-Puts `odk`, `odk oma` and the `odkd` daemon under your home directory (ADR 0063); no root. Releases are not published yet, so until the first tag that address does not exist.
+Either puts `odk`, `odk oma` and the `odkd` daemon under your home directory; no root.
 
 ## Commands
 

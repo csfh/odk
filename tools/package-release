@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# Assembles the release tarball and its checksum from built programs (ADR 0063).
+# Assembles the release tarball from built programs, and the `install.sh` that names it (ADR 0063,
+# ADR 0086).
 #
 #   tools/package-release BIN_DIR OUT_DIR VERSION
 #
 # BIN_DIR holds the built `odk`, `odk-oma`, `oma-consent` and `odkd`, and THIRD-PARTY-LICENSES,
 # their licences as `tools/third-party-licenses Cargo.toml BIN_DIR/THIRD-PARTY-LICENSES odk-cli
 # oma oma-consent odkd` writes them (ADR 0081); this script runs no cargo. OUT_DIR gets
-# `odk-x86_64-linux.tar.gz` and `odk-x86_64-linux.tar.gz.sha256`, and a copy of `install.sh`.
+# `odk-x86_64-linux.tar.gz` and a copy of `install.sh` with the release's version and the
+# tarball's length and SHA-256 written into it, which `odk oma sign-release OUT_DIR` then signs.
+# The release's version is the Unix seconds now, or SOURCE_DATE_EPOCH when it is set; VERSION is
+# the name `odk/VERSION` carries.
 # The layout inside the tarball is the one `install.sh` installs:
 #
 #   odk/VERSION   odk/bin/odk   odk/lib/odk/{odk-oma,oma-consent,odkd}
@@ -15,7 +19,8 @@
 #   odk/share/mime/packages/oma.xml
 #   odk/share/doc/odk/{LICENSE,THIRD-PARTY-LICENSES}
 #
-# CI and the installer's test both call this, so the asset names and the layout cannot drift.
+# A release and the installer's test both call this, so the asset names and the layout cannot
+# drift.
 set -euo pipefail
 
 [[ $# -eq 3 ]] || { sed -n 3,4p "$0" >&2; exit 2; }
@@ -53,6 +58,20 @@ printf '%s\n' "$version" >"$stage/odk/VERSION"
 # The same bytes for the same inputs: sorted, no owner, no times, no gzip name or time.
 tar --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -C "$stage" -cf - odk \
     | gzip -n -9 >"$out/$name.tar.gz"
-(cd "$out" && sha256sum "$name.tar.gz" >"$name.tar.gz.sha256")
-install -m 755 "$root/install.sh" "$out/install.sh"
+
+# The script names the tarball, so the release root's signature over the script covers it.
+release_version=${SOURCE_DATE_EPOCH:-$(date +%s)}
+[[ $release_version =~ ^[0-9]+$ ]] || { echo "package-release: bad SOURCE_DATE_EPOCH" >&2; exit 2; }
+sha256=$(sha256sum "$out/$name.tar.gz" | cut -d' ' -f1)
+length=$(stat -c %s "$out/$name.tar.gz")
+for line in release_version tarball_sha256 tarball_length; do
+    [[ $(grep -c "^$line=\$" "$root/install.sh") -eq 1 ]] \
+        || { echo "package-release: install.sh has no empty '$line=' line" >&2; exit 1; }
+done
+sed -e "s/^release_version=\$/release_version=$release_version/" \
+    -e "s/^tarball_sha256=\$/tarball_sha256=$sha256/" \
+    -e "s/^tarball_length=\$/tarball_length=$length/" \
+    "$root/install.sh" >"$out/install.sh"
+chmod 755 "$out/install.sh"
+rm -f "$out/$name.tar.gz.sha256" "$out/install.sh.sig" "$out/release" "$out/release.sig"
 echo "$out/$name.tar.gz"

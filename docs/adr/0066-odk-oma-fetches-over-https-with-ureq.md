@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0077
+status: amended by ADR 0077 and ADR 0086
 ---
 
 # odk-oma fetches over HTTPS with ureq

@@ -25,6 +25,8 @@ impl Context {
     pub const REVOCATION: Context = Context::new(b"odk-oma revocation v1", "revocation");
     /// An algorithm policy. Its body is not specified yet (question 6).
     pub const ALGORITHM: Context = Context::new(b"odk-oma algorithm v1", "algorithm policy");
+    /// An odk release, signed by the release root (ADR 0086).
+    pub const RELEASE: Context = Context::new(b"odk-oma release v1", "release");
 
     const fn new(bytes: &'static [u8], document: &'static str) -> Self {
         // RFC 8032: a context is at most 255 bytes, and these are never empty.
@@ -91,6 +93,12 @@ pub fn verify(
     }
 }
 
+/// Plain Ed25519 over `message`, as [`SigningKey::sign_plain`] makes it.
+pub fn verify_plain(key: &PublicKey, message: &[u8], signature: &Signature) -> bool {
+    crrl::ed25519::PublicKey::decode(key.as_bytes())
+        .is_some_and(|key| key.verify_raw(&signature.0, message))
+}
+
 /// A release key or a root, from its 32-byte seed. It signs for `odk oma bundle --sign` and for
 /// the tests' fixtures; `odk-oma` itself only verifies. Its `Debug` shows the public key, never
 /// the seed.
@@ -110,6 +118,12 @@ impl SigningKey {
 
     pub fn sign(&self, context: Context, message: &[u8]) -> Signature {
         Signature(self.0.sign_ctx(context.bytes, message))
+    }
+
+    /// Plain Ed25519, with no context: what OpenSSL 3 `pkeyutl` verifies, for `install.sh`
+    /// (ADR 0060, section 8). Nothing `odk-oma` reads is signed this way.
+    pub fn sign_plain(&self, message: &[u8]) -> Signature {
+        Signature(self.0.sign_raw(message))
     }
 }
 
