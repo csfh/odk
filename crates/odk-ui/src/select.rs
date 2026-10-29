@@ -388,7 +388,7 @@ impl RenderOnce for Select {
             }
         };
         let choose = Rc::new(choose);
-        let mut menu = Menu::new();
+        let mut menu = Menu::new().of_select();
         for (i, item) in self.items.iter().enumerate() {
             let choose = choose.clone();
             menu = menu.item(

@@ -106,6 +106,18 @@ impl ComponentTokens {
         }
     }
 
+    /// An option in a select's list: a menu item whose label starts where the box's value does,
+    /// at every density. Its padding is the field's inset less the menu's own border and padding.
+    pub fn select_item(&self, density: Density, states: States) -> MenuItemStyle {
+        let f = &self.foundation;
+        let field = geometry::control(f, density, TypeRole::Body);
+        let menu = menu_geometry(f);
+        let mut style = self.menu_item(density, states, false);
+        style.geometry.padding_x =
+            (field.border_width + field.padding_x - menu.border_width - menu.padding_x).max(0.0);
+        style
+    }
+
     /// A `HoverCard`, or any popover.
     pub fn popover(&self) -> OverlayStyle {
         let f = &self.foundation;
