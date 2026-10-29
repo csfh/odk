@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::fetch::KeySet;
 use crate::fmt::{Access, Daemon, FsGrant, Identifier, Permissions, UserDir};
 use crate::layout::Layout;
 use crate::trust::{KeyId, Mark, PublicKey, Publisher};
@@ -146,7 +147,8 @@ fn read(path: &Path) -> Result<Option<String>, Error> {
 }
 
 /// Writes `text` to `path`, private to the user and replaced atomically.
-fn write_private(path: &Path, text: &str) -> Result<(), Error> {
+fn write_private(path: &Path, text: impl AsRef<[u8]>) -> Result<(), Error> {
+    let text = text.as_ref();
     let io = |path: &Path, source| Error::Io {
         path: path.to_owned(),
         source,
@@ -163,7 +165,7 @@ fn write_private(path: &Path, text: &str) -> Result<(), Error> {
         .create_new(true)
         .mode(0o600)
         .open(&staging)
-        .and_then(|mut f| f.write_all(text.as_bytes()).and_then(|()| f.sync_all()))
+        .and_then(|mut f| f.write_all(text).and_then(|()| f.sync_all()))
         .and_then(|()| fs::rename(&staging, path));
     if let Err(source) = result {
         let _ = fs::remove_file(&staging);
@@ -221,7 +223,7 @@ pub fn save(layout: &Layout, id: &Identifier, permissions: &Permissions) -> Resu
     };
     write_private(
         &layout.grants_file(id),
-        &toml::to_string(&file).expect("a grant serialises"),
+        toml::to_string(&file).expect("a grant serialises"),
     )
 }
 
@@ -353,7 +355,7 @@ pub fn save_pair(layout: &Layout, app: &Identifier, pair: &Pair) -> Result<(), E
     };
     write_private(
         &layout.pair_grants_file(&pair.root.key_id(), app),
-        &toml::to_string(&file).expect("a pair's record serialises"),
+        toml::to_string(&file).expect("a pair's record serialises"),
     )
 }
 
@@ -371,8 +373,42 @@ pub fn keys_version(layout: &Layout, root: &KeyId) -> Result<Option<u64>, Error>
     })
 }
 
+/// The last accepted key set of `root`, as stored: unverified bytes, which every use checks
+/// again under the pin (ADR 0082).
+pub fn stored_key_set(layout: &Layout, root: &KeyId) -> Result<Option<KeySet>, Error> {
+    let (body, signature) = layout.key_set_files(root);
+    let read = |path: &Path| match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(Error::Io {
+            path: path.to_owned(),
+            source,
+        }),
+    };
+    Ok(read(&body)?
+        .zip(read(&signature)?)
+        .map(|(body, signature)| KeySet { body, signature }))
+}
+
+/// Keeps `root`'s key set and its version, when it is not older than the version kept.
+pub fn save_key_set(
+    layout: &Layout,
+    root: &KeyId,
+    body: &[u8],
+    signature: &[u8],
+    version: u64,
+) -> Result<(), Error> {
+    if keys_version(layout, root)?.is_some_and(|stored| version < stored) {
+        return Ok(());
+    }
+    let (body_file, signature_file) = layout.key_set_files(root);
+    write_private(&body_file, body)?;
+    write_private(&signature_file, signature)?;
+    save_keys_version(layout, root, version)
+}
+
 pub fn save_keys_version(layout: &Layout, root: &KeyId, version: u64) -> Result<(), Error> {
-    write_private(&layout.keys_version_file(root), &format!("{version}\n"))
+    write_private(&layout.keys_version_file(root), format!("{version}\n"))
 }
 
 /// Every pair that has a record, for asking which roots are pinned and from which hosts. A

@@ -102,6 +102,12 @@ impl Layout {
             .join("oma-keys.version")
     }
 
+    /// The last accepted `oma-keys` body of a root, and the root's signature over it (ADR 0082).
+    pub fn key_set_files(&self, root: &KeyId) -> (PathBuf, PathBuf) {
+        let dir = self.pairs_dir().join(root.to_string());
+        (dir.join("oma-keys"), dir.join("oma-keys.sig"))
+    }
+
     /// The inbox watches `--register` has enabled, one unit name a line (ADR 0015).
     pub fn inbox_watches_file(&self) -> PathBuf {
         self.state.join("inbox-watches")

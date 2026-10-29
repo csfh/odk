@@ -120,6 +120,10 @@ pub enum Error {
     )]
     KeySetLower { stored: u64, fetched: u64 },
     #[error(
+        "the key set kept for this publisher is version {found}, not the version {kept} accepted last; it is not used"
+    )]
+    KeptKeySet { kept: u64, found: u64 },
+    #[error(
         "this is a newer {app} than the installed one; install it with `odk oma install` (opening a newer version is not built yet, issue #14)"
     )]
     UpgradeByOpening { app: Identifier },
@@ -661,11 +665,19 @@ pub fn install_file(
     }
 
     let pinned_root = pinned.first().map(|(_, pair)| pair.root);
-    let keys = authorized_keys(layout, file, pinned_root.as_ref(), now, fetch)?;
+    let authorized = authorized_keys(layout, file, pinned_root.as_ref(), now, fetch)?;
 
     let occasion = Occasion::Install { accept_permissions };
     let requested = &image.manifest().permissions;
-    match admit(layout, file, &keys, None, occasion, requested, ask)? {
+    match admit(
+        layout,
+        file,
+        &authorized.keys,
+        None,
+        occasion,
+        requested,
+        ask,
+    )? {
         Admission::Installed | Admission::Pinned => {}
         Admission::RunOnce => unreachable!("install offers Install and Cancel only"),
     }
@@ -676,32 +688,65 @@ pub fn install_file(
         installed.as_deref(),
         &sealed,
         &target,
-        keys.set().version,
+        &authorized,
     )?;
     list(layout, app, image.manifest(), None);
     Ok(target)
 }
 
+/// A key set that authorizes a file, and the bytes it was fetched as, which [`commit`] keeps. A
+/// set read back from what was kept has no bytes to keep again.
+struct Authorized {
+    keys: VerifiedKeys,
+    fetched: Option<fetch::KeySet>,
+}
+
 /// The publisher's key set for `file`, fetched and checked before anyone is asked (ADR 0060,
 /// section 3): verified under `pinned_root` when the root is pinned for any app id and on first
 /// contact otherwise, never older than the last accepted for the root, and naming the file's
-/// release key inside its `not_after`.
+/// release key inside its `not_after`. When the fetch fails under a pinned root, the set kept
+/// from the last one is used, verified again under the pin and only at the version kept: a file
+/// in hand is an upgrade while the host cannot be reached (section 2, ADR 0082).
 fn authorized_keys(
     layout: &Layout,
     file: &SelfSigned,
     pinned_root: Option<&trust::PublicKey>,
     now: i64,
     fetch: Fetch,
-) -> Result<VerifiedKeys, Error> {
+) -> Result<Authorized, Error> {
     let signed = file.manifest();
     let app = &signed.app_id;
     let root_id = &signed.root_key_id;
-    let fetched = fetch(&signed.publisher).map_err(Error::Fetch)?;
-    let signer = match pinned_root {
-        Some(root) => Signer::Pinned(root),
-        None => Signer::FirstContact,
+    let (keys, fetched) = match (fetch(&signed.publisher), pinned_root) {
+        (Ok(fetched), _) => {
+            let signer = match pinned_root {
+                Some(root) => Signer::Pinned(root),
+                None => Signer::FirstContact,
+            };
+            let keys = trust::keys::verify(&fetched.body, &fetched.signature, signer)?;
+            (keys, Some(fetched))
+        }
+        (Err(failure), Some(root)) => {
+            let Some(kept) = grants::stored_key_set(layout, root_id)? else {
+                return Err(Error::Fetch(failure));
+            };
+            let keys = trust::keys::verify(&kept.body, &kept.signature, Signer::Pinned(root))?;
+            let kept = grants::keys_version(layout, root_id)?;
+            if kept != Some(keys.set().version) {
+                return Err(Error::KeptKeySet {
+                    kept: kept.unwrap_or_default(),
+                    found: keys.set().version,
+                });
+            }
+            if let fetch::Failure::HostNotFound { host } = &failure {
+                eprintln!(
+                    "odk oma: `{host}` does not resolve; the name may have been lost. {app} keeps running. Updates that have to be fetched from this host are held."
+                );
+            }
+            (keys, None)
+        }
+        (Err(failure), None) => return Err(Error::Fetch(failure)),
     };
-    let keys = trust::keys::verify(&fetched.body, &fetched.signature, signer)?;
     if keys.root().key_id() != *root_id {
         return Err(Error::OtherRoot {
             app: app.clone(),
@@ -730,18 +775,27 @@ fn authorized_keys(
             at: release.not_after.clone(),
         });
     }
-    Ok(keys)
+    Ok(Authorized { keys, fetched })
+}
+
+/// Keeps the key set that authorized a file just installed, when it was fetched (ADR 0082).
+fn keep_key_set(layout: &Layout, root: &KeyId, authorized: &Authorized) -> Result<(), Error> {
+    if let Some(set) = &authorized.fetched {
+        let version = authorized.keys.set().version;
+        grants::save_key_set(layout, root, &set.body, &set.signature, version)?;
+    }
+    Ok(())
 }
 
 /// Puts an admitted file in place of `installed`, the pair's file now if it has one, and records
-/// it: the mark, what is installed, and the root's key-set version.
+/// it: the mark, what is installed, and the key set that authorized it.
 fn commit(
     layout: &Layout,
     file: &SelfSigned,
     installed: Option<&Path>,
     sealed: &Sealed,
     target: &Path,
-    set_version: u64,
+    authorized: &Authorized,
 ) -> Result<(), Error> {
     let signed = file.manifest();
     let (root_id, app) = (&signed.root_key_id, &signed.app_id);
@@ -754,9 +808,7 @@ fn commit(
     pair.mark = Some(mark);
     pair.installed = Some(mark);
     grants::save_pair(layout, app, &pair)?;
-    let stored = grants::keys_version(layout, root_id)?;
-    grants::save_keys_version(layout, root_id, stored.unwrap_or(0).max(set_version))?;
-    Ok(())
+    keep_key_set(layout, root_id, authorized)
 }
 
 /// `odk oma run` of a Bundle file that is not the installed one: opening it (ADR 0060, section 7;
@@ -818,11 +870,19 @@ pub fn open_file(
         return Err(install::Error::Exists(target).into());
     }
     let pinned_root = pinned.first().map(|(_, pair)| pair.root);
-    let keys = authorized_keys(layout, file, pinned_root.as_ref(), now, fetch)?;
+    let authorized = authorized_keys(layout, file, pinned_root.as_ref(), now, fetch)?;
     let requested = &image.manifest().permissions;
-    match admit(layout, file, &keys, None, Occasion::Launch, requested, ask)? {
+    match admit(
+        layout,
+        file,
+        &authorized.keys,
+        None,
+        Occasion::Launch,
+        requested,
+        ask,
+    )? {
         Admission::Installed => {
-            commit(layout, file, None, &sealed, &target, keys.set().version)?;
+            commit(layout, file, None, &sealed, &target, &authorized)?;
             run_file(layout, host, &target, wait, now, ask)
         }
         Admission::RunOnce => Ok(launch::run_file(
@@ -1256,8 +1316,8 @@ fn apply_newer(
             why,
         })
     };
-    let keys = match authorized_keys(layout, file, Some(&pair.root), now, fetch) {
-        Ok(keys) => keys,
+    let authorized = match authorized_keys(layout, file, Some(&pair.root), now, fetch) {
+        Ok(authorized) => authorized,
         Err(e) => return waiting(e.to_string()),
     };
     let installed = installed_file(layout, app)?;
@@ -1274,8 +1334,7 @@ fn apply_newer(
         pair.mark = Some(mark);
         pair.installed = Some(mark);
         grants::save_pair(layout, app, &pair)?;
-        let stored = grants::keys_version(layout, root_id)?;
-        grants::save_keys_version(layout, root_id, stored.unwrap_or(0).max(keys.set().version))?;
+        keep_key_set(layout, root_id, &authorized)?;
         return Ok(Registered::Applied(target));
     }
     if target.symlink_metadata().is_ok() && installed.as_deref() != Some(target.as_path()) {
@@ -1287,7 +1346,7 @@ fn apply_newer(
         installed.as_deref(),
         sealed,
         &target,
-        keys.set().version,
+        &authorized,
     )?;
     fs::remove_file(source).map_err(|e| install::Error::Io {
         path: source.to_owned(),
@@ -3103,17 +3162,16 @@ mod signed_tests {
         assert!(matches!(e, Error::Launch(_)), "{e}");
         assert!(pair_of(&layout).unwrap().permissions.unwrap().network);
 
-        // A newer file whose key set cannot be fetched is left for the next pass.
+        // Offline, the key set kept from the install still authorizes a newer file in hand.
         let newer = apps.join("Newer.oma");
         std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 9), &newer).unwrap();
         let offline = Site::failing(fetch::Failure::HostNotFound { host: HOST.into() });
         let done = register(&layout, soon(), &|p| offline.fetch(p), &|_| Ok(()));
         assert!(
-            done.iter()
-                .any(|r| matches!(r, Registered::Waiting { path, .. } if *path == newer)),
+            done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
         );
-        assert!(newer.exists());
+        assert!(!newer.exists());
     }
 
     #[test]
@@ -3242,5 +3300,78 @@ mod signed_tests {
             "0123456789abcdef-dev.csfh.my\\x2dapp"
         );
         assert_eq!(unit_escape(".hidden"), "\\x2ehidden");
+    }
+
+    #[test]
+    fn an_upgrade_in_hand_installs_offline_from_the_kept_key_set_checked_again() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let root_id = root(1).public_key().key_id();
+        let site = Site::serving(key_set_version(1, &release_key(), 5));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let (body_file, signature_file) = layout.key_set_files(&root_id);
+        let kept = std::fs::read(&body_file).unwrap();
+        assert_eq!(kept, key_set_version(1, &release_key(), 5).body);
+
+        let offline = Site::failing(fetch::Failure::HostNotFound { host: HOST.into() });
+        let quiet = Dialog::answering(&[]);
+        let v8 = bundle_file(&dir, |t| t, |m| m.version = 8);
+        install_with(&layout, &v8, false, soon(), &quiet, &offline).unwrap();
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 8);
+
+        // The kept set with a byte changed does not verify under the pin.
+        let mut changed = kept.clone();
+        let last = changed.len() - 2;
+        changed[last] ^= 1;
+        std::fs::write(&body_file, &changed).unwrap();
+        let v9 = bundle_file(&dir, |t| t, |m| m.version = 9);
+        assert!(matches!(
+            install_with(&layout, &v9, false, soon(), &quiet, &offline),
+            Err(Error::Trust(_))
+        ));
+
+        // An older set the root really signed, swapped in, is not the version kept.
+        let older = key_set_version(1, &release_key(), 4);
+        std::fs::write(&body_file, &older.body).unwrap();
+        std::fs::write(&signature_file, &older.signature).unwrap();
+        assert!(matches!(
+            install_with(&layout, &v9, false, soon(), &quiet, &offline),
+            Err(Error::KeptKeySet { kept: 5, found: 4 })
+        ));
+
+        // Its release key past its `not_after` (well past: the boundary is question 7's).
+        std::fs::write(&body_file, &kept).unwrap();
+        std::fs::write(
+            &signature_file,
+            key_set_version(1, &release_key(), 5).signature,
+        )
+        .unwrap();
+        let later = Timestamp::parse("2027-06-01T00:00:00Z")
+            .unwrap()
+            .unix_seconds();
+        assert!(matches!(
+            install_with(&layout, &v9, false, later, &quiet, &offline),
+            Err(Error::ReleaseKeyExpired { .. })
+        ));
+        assert!(quiet.shown.borrow().is_empty());
+
+        // A first contact is never made from a kept set.
+        let other = bundle_file(
+            &dir,
+            |t| {
+                t.replace("dev.csfh.notes", "dev.csfh.other")
+                    .replace("\"Notes\"", "\"Other\"")
+            },
+            |m| {
+                m.app_id = "dev.csfh.other".parse().unwrap();
+                m.root_key_id = root(2).public_key().key_id();
+            },
+        );
+        assert!(matches!(
+            install_with(&layout, &other, false, soon(), &quiet, &offline),
+            Err(Error::Fetch(_))
+        ));
     }
 }

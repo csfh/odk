@@ -151,7 +151,6 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
 - `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
 - Not yet:
   - a `.desktop` entry's icon, which is inside the image;
-  - applying a held or dropped upgrade without the network, which needs the root's key set stored (question 14);
   - revocation (question 2).
 - Installs under a pinned root:
   - an upgrade, or a second app id, verifies the key set under the pin;
@@ -176,6 +175,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   - it creates `~/Applications` if it is missing, writes `<app id>.desktop` under `applications/` in the data home for each installed application, file or directory (`Exec` the absolute `odk oma run <app id>`, marked `X-Oma-Identifier=`; `oma::desktop`, issue #42), and removes the marked entries of anything gone;
   - it does not touch directory Bundles.
 - The launch of an installed file that asks for more than was allowed shows the upgrade screen: Allow, Keep previous version (when there is one) or Cancel. Only the new permissions are listed. Allow records them, Keep previous version rolls back and runs that, and Cancel runs nothing.
+- Offline upgrades (ADR 0082): each pinned root's last accepted key set is kept. When a fetch fails, an upgrade already in hand from `install`, `--register` or an inbox is authorized by that set, verified again under the pin and only at the version kept. A first contact still needs the fetch.
 - `odk oma rollback <app id>` swaps the installed file and `previous.oma`, after checking the previous one, and leaves the mark; the pair records which file is installed (`installed`), so `run` runs exactly that one. `odk oma purge <app id>` refuses while the app is in `~/Applications`, then deletes each of its pairs' data, previous file, inbox, held file and record.
 
 ### 6. Bootstrap and self-upgrade
@@ -236,7 +236,7 @@ Question 1 is decided by ADR 0061. The rest are not settled by ADR 0060. An impl
 
 13. **The mode-0700 store.** Section 5 allows a sealed memfd or a file in a directory mode `0700` that only the user running `odk-oma` can write, not writable after the copy. It does not say what "not writable after the copy" requires of that file, or whether a memfd that cannot be sealed must fail or must use the store. A planning note made a seal failure fatal and allowed no other file. That is narrower than the ADR and is not adopted. Phase 1 accepts either object the ADR names.
 
-14. **Grant-file schema.** The path and the facts are fixed: consent, the pin, the high-water mark, denials. The TOML fields are not. Whether the grant file must keep the signed `oma-keys` body from install time, so a later launch can show why that release key was accepted, is not said. Launch still re-checks the signature, the digests, and the pin on the sealed object. It does not treat a rewritten grant file as a reason to skip those checks.
+14. **Grant-file schema.** The key set is decided by [ADR 0082](adr/0082-odk-oma-keeps-each-pinned-roots-key-set.md), as the owner agreed on 2026-10-29. Each pinned root's last accepted `oma-keys` body and signature are kept beside its records, verified again under the pin on every use, and used only when a fetch fails, for a file already in hand. The grant file's other field names stay as phase 4 wrote them. The number stays, because the issues cite it.
 
 15. **UTS #39.** The warning applies when the publisher host is a Unicode confusable (UTS #39) of a host stored for a different pinned root, or within edit distance 1 of that host's punycode form. The ADR does not name a Unicode version, a confusable skeleton, or a restriction level.
 
