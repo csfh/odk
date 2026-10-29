@@ -27,3 +27,13 @@ pub(crate) fn last<T: Any + Clone>(part: &str) -> T {
             .clone()
     })
 }
+
+/// Records the inks `icon` was last drawn in (`icon::drawn`).
+pub(crate) fn record_icon(icon: crate::Icon, inks: crate::icon::Inks) {
+    record(&format!("icon {icon:?}"), inks);
+}
+
+/// The inks `icon` was last drawn in. Panics if it has not been drawn.
+pub(crate) fn last_icon(icon: crate::Icon) -> crate::icon::Inks {
+    last(&format!("icon {icon:?}"))
+}

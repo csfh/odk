@@ -22,12 +22,12 @@ use odk_a11y::{Accessible, Role};
 use odk_theme::component::{ComponentTokens, MenuItemStyle, States};
 use odk_theme::foundation::{Density, MotionDuration, TypeRole};
 
-use crate::components;
 use crate::decoration::{self, ClipFit, FlowKind, SizeMode};
 use crate::focus::{
     Axis, FocusNext, FocusPrevious, child_id, focus_handle, move_focus, part_name, roving_target,
 };
-use crate::input::field_glyph;
+use crate::icon::Glyph;
+use crate::input::field_mark;
 use crate::interaction::{Pointer, pointer_states};
 use crate::layout::{
     StyledExt, h_flex, inside_window, middle_ellipsis, tail, text_width, truncate_end, v_flex,
@@ -36,6 +36,7 @@ use crate::overlay::{Layer, Transition, dismiss_catcher, during_overlay, layer_o
 use crate::placement::{Align, Placement, place};
 use crate::select::{Typed, find, typed_char};
 use crate::theme::{colour, mono};
+use crate::{Icon, components};
 
 type Action = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 
@@ -43,8 +44,7 @@ type Action = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 /// (ADR 0035).
 const MENU_MIN_WIDTH: f32 = 192.0;
 
-/// The mark of the selected item, and of the chosen one of a radio set.
-const CHECK: &str = "✓";
+/// The mark of the chosen one of a radio set; a selected item's is [`Icon::Check`].
 const CHOSEN: &str = "●";
 
 /// A shortcut at the end of a menu item, as text in the item's hint colour (muted, and the
@@ -134,8 +134,8 @@ impl MenuItem {
         self
     }
 
-    /// A glyph before the label, in the item's own colour. ODK has no icon set yet, so it is
-    /// text. Items without one keep the column, so labels line up.
+    /// A glyph before the label, in the item's own colour. It is text; an item does not take
+    /// ODK's icons (ADR 0080) yet. Items without one keep the column, so labels line up.
     pub fn icon(mut self, glyph: impl Into<SharedString>) -> Self {
         self.icon = Some(glyph.into());
         self
@@ -511,8 +511,12 @@ pub(crate) fn surface(
             .flex_shrink_0()
             .size(px(ig.icon_size))
             .when_some(s.indicator, |d, ink| {
-                let mark = if item.radio { CHOSEN } else { CHECK };
-                d.child(field_glyph(mark.into(), ig.icon_size, colour(ink)))
+                let mark = if item.radio {
+                    Glyph::from(CHOSEN)
+                } else {
+                    Glyph::Icon(Icon::Check)
+                };
+                d.child(field_mark(mark, ig.icon_size, ink))
             });
         let (leading, trailing) = if select {
             (None, Some(check))

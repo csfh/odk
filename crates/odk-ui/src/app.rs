@@ -25,20 +25,22 @@ pub fn run(start: impl FnOnce(&mut App) + 'static) {
     // The first load happens before any window, so the first frame has the theme.
     manager.reload();
 
-    Application::new().run(move |cx: &mut App| {
-        theme::follow(cx, manager, true);
+    Application::new()
+        .with_assets(crate::icon::Assets)
+        .run(move |cx: &mut App| {
+            theme::follow(cx, manager, true);
 
-        cx.on_window_closed(|cx| {
-            if cx.windows().is_empty() {
-                cx.quit();
-            }
-        })
-        .detach();
+            cx.on_window_closed(|cx| {
+                if cx.windows().is_empty() {
+                    cx.quit();
+                }
+            })
+            .detach();
 
-        init(cx);
-        start(cx);
-        cx.activate(true);
-    });
+            init(cx);
+            start(cx);
+            cx.activate(true);
+        });
 }
 
 /// What every ODK application gets before its first window: the Tab bindings and their

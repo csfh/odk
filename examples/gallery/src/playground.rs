@@ -58,8 +58,12 @@ impl ButtonProps {
     pub fn build(&self, id: &'static str) -> Button {
         let mut button = match self.content {
             Content::Text => Button::new(id).label("Save changes"),
-            Content::Leading => Button::new(id).leading_icon("✓").label("Save changes"),
-            Content::Trailing => Button::new(id).label("Save changes").trailing_icon("→"),
+            Content::Leading => Button::new(id)
+                .leading_icon(Icon::Check)
+                .label("Save changes"),
+            Content::Trailing => Button::new(id)
+                .label("Save changes")
+                .trailing_icon(Icon::ArrowRight),
             Content::IconOnly => Button::icon(id, "⚙", "Settings"),
         }
         .variant(self.variant);

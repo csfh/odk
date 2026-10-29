@@ -8,15 +8,14 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{Check, CheckboxStyle, ComponentTokens, States};
 use odk_theme::foundation::Density;
 
-use crate::components;
 use crate::focus::{child_id, focus_handle, part_name};
+use crate::icon;
 use crate::interaction::{Pointer, focus_ring, pointer_states};
-use crate::theme::mono;
 use crate::toggle::{ChangeHandler, Label, labelled, toggle_state};
+use crate::{Icon, components};
 
-/// The marks of a ticked and a mixed box. ODK has no icon set yet, so they are characters.
-const TICK: &str = "✓";
-const DASH: &str = "–";
+/// The GPUI group a box gives its mark, which follows the box's pointer states.
+const BOX_GROUP: &str = "odk-checkbox-box";
 
 /// A box that is checked or not, with a label beside it.
 ///
@@ -158,18 +157,26 @@ impl RenderOnce for Checkbox {
         let g = s.geometry;
         #[cfg(test)]
         drawn::record(&self.id, s);
-        let glyph = match s.check {
-            Check::Indeterminate => DASH,
-            Check::Checked => TICK,
-            Check::Unchecked => "",
+        // The mark is ODK's icon (ADR 0080) in the box's foreground in each pointer state, as
+        // text in the box would be.
+        let mark = match s.check {
+            Check::Indeterminate => Some(Icon::Minus),
+            Check::Checked => Some(Icon::Check),
+            Check::Unchecked => None,
         };
+        #[cfg(test)]
+        crate::drawn::record(&part_name(&self.id, "mark"), mark);
+        let inks = [s.colours.default, s.colours.hover, s.colours.pressed].map(|t| t.foreground);
+        let pointer = s
+            .responds
+            .then(|| (BOX_GROUP.into(), child_id(&self.id, "mark")));
         let radius = g.shape.corner_radius(g.size, g.size);
 
-        // A box of fixed size, which flex layout would otherwise shrink. The mark is text in
-        // the box's foreground, so it follows the pointer states with the fill.
+        // A box of fixed size, which flex layout would otherwise shrink.
         let mut check = div()
             .id(child_id(&self.id, "box"))
             .debug_selector(|| part_name(&self.id, "box"))
+            .group(BOX_GROUP)
             .relative()
             .flex_shrink_0()
             .size(px(g.size))
@@ -178,10 +185,7 @@ impl RenderOnce for Checkbox {
             .justify_center()
             .rounded(px(radius))
             .border(px(g.border_width))
-            .font_family(mono())
-            .text_size(px(g.mark))
-            .line_height(px(g.mark))
-            .child(glyph);
+            .children(mark.map(|icon| icon::drawn(icon, g.mark, inks, pointer)));
         check = pointer_states(check, &s.colours, s.responds, &Pointer::Own);
         if s.focus_visible {
             check = check.child(focus_ring(&s.focus, radius, g.border_width));

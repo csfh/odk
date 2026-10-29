@@ -12,7 +12,7 @@ use super::dialog::dialog_around;
 use super::stability::{Step, assert_still};
 use super::{Count, open, press, redraw, reduce_motion};
 use crate::overlay::probe;
-use crate::{Button, Input, Select, Size, h_flex, v_flex};
+use crate::{Button, Icon, Input, Select, Size, h_flex, v_flex};
 
 type Changes = Rc<RefCell<Vec<String>>>;
 /// A density or size given to a select.
@@ -587,4 +587,21 @@ fn the_lists_labels_line_up_with_the_value(cx: &mut TestAppContext) {
             "{density}: the chosen row's check is in the column every row keeps"
         );
     }
+}
+
+/// The box's indicator is ODK's chevron icon (ADR 0080) in the field's icon colour, and the
+/// chosen option's check is the check icon in the option's own colour.
+#[gpui::test]
+fn the_indicator_and_the_check_are_icons(cx: &mut TestAppContext) {
+    let changes = Changes::default();
+    let c = changes.clone();
+    let cx = open(cx, move |_, _| fruit(&c).default_value("b"));
+    redraw(cx);
+    let icon = crate::input::drawn::last("sl/trigger").icon;
+    assert_eq!(crate::drawn::last_icon(Icon::ChevronDown), [icon; 3]);
+    press(cx, "tab enter");
+    redraw(cx);
+    let row = crate::menu_list::drawn::last("sl/row-1");
+    let ink = row.indicator.expect("the chosen option is marked");
+    assert_eq!(crate::drawn::last_icon(Icon::Check), [ink; 3]);
 }

@@ -217,14 +217,14 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
                 )
                 .child(
                     Button::new(("d-lead", n))
-                        .leading_icon("✓")
+                        .leading_icon(Icon::Check)
                         .label("Apply")
                         .density(d),
                 )
                 .child(
                     Button::new(("d-trail", n))
                         .label("Continue")
-                        .trailing_icon("→")
+                        .trailing_icon(Icon::ArrowRight)
                         .variant(ButtonVariant::Outline)
                         .density(d),
                 )
@@ -235,14 +235,14 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
                 )
                 .child(
                     Button::new(("d-delete", n))
-                        .leading_icon("×")
+                        .leading_icon(Icon::Close)
                         .label("Delete")
                         .variant(ButtonVariant::Destructive)
                         .density(d),
                 )
                 .child(
                     Button::new(("d-busy", n))
-                        .leading_icon("✓")
+                        .leading_icon(Icon::Check)
                         .label("Saving…")
                         .loading(true)
                         .density(d),
@@ -272,14 +272,14 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
                 )
                 .child(
                     Button::new("s-saving")
-                        .leading_icon("✓")
+                        .leading_icon(Icon::Check)
                         .label("Saving…")
                         .variant(ButtonVariant::Primary)
                         .loading(true),
                 )
                 .child(
                     Button::new("s-try")
-                        .leading_icon("✓")
+                        .leading_icon(Icon::Check)
                         .label(if g.saving { "Saving…" } else { "Save" })
                         .variant(ButtonVariant::Primary)
                         .loading(g.saving)
@@ -329,8 +329,8 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
         .child(
             row()
                 .child(Button::new("c-text").label("Save changes"))
-                .child(Button::new("c-lead").leading_icon("✓").label("Save changes"))
-                .child(Button::new("c-trail").label("Continue").trailing_icon("→"))
+                .child(Button::new("c-lead").leading_icon(Icon::Check).label("Save changes"))
+                .child(Button::new("c-trail").label("Continue").trailing_icon(Icon::ArrowRight))
                 .child(Button::icon("c-icon", "⚙", "Settings"))
                 .child(
                     Button::icon("c-target", "⚙", "Settings")

@@ -5,7 +5,7 @@ use gpui::{Modifiers, ParentElement, Styled, TestAppContext, VisualTestContext, 
 use odk_a11y::{Describe, Role};
 
 use super::{open, press, redraw};
-use crate::{Button, Checkbox, v_flex};
+use crate::{Button, Checkbox, Icon, v_flex};
 
 type Seen = Rc<RefCell<Vec<bool>>>;
 
@@ -247,4 +247,25 @@ fn each_density_has_its_square_and_a_wrong_box_its_edge(cx: &mut TestAppContext)
     let off = crate::checkbox::drawn::last("off");
     assert_eq!(off.check, odk_theme::component::Check::Checked);
     assert!(!off.responds && !off.focus_visible);
+}
+
+/// A checked box draws ODK's check icon and a mixed one its minus (ADR 0080), in the box's
+/// foreground in each pointer state, as text in the box would be; an unchecked box draws none.
+#[gpui::test]
+fn the_marks_are_icons_in_the_boxs_foreground(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        v_flex()
+            .child(Checkbox::new("on", "Wrap").checked(true))
+            .child(Checkbox::new("mixed", "All").indeterminate(true))
+    });
+    redraw(cx);
+    let inks = |id: &str| {
+        let c = crate::checkbox::drawn::last(id).colours;
+        [c.default, c.hover, c.pressed].map(|t| t.foreground)
+    };
+    let mark = |id: &str| crate::drawn::last::<Option<Icon>>(&format!("{id}/mark"));
+    assert_eq!(mark("on"), Some(Icon::Check));
+    assert_eq!(mark("mixed"), Some(Icon::Minus));
+    assert_eq!(crate::drawn::last_icon(Icon::Check), inks("on"));
+    assert_eq!(crate::drawn::last_icon(Icon::Minus), inks("mixed"));
 }

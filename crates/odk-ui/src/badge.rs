@@ -80,8 +80,8 @@ impl Badge {
         self
     }
 
-    /// A glyph before the label, at the label's size. ODK has no icon set yet, so an icon is a
-    /// character.
+    /// A glyph before the label, at the label's size. It is a character; a badge does not take
+    /// ODK's icons (ADR 0080) yet.
     pub fn icon(mut self, icon: impl Into<SharedString>) -> Self {
         self.icon = Some(icon.into());
         self
