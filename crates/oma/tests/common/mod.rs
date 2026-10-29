@@ -167,6 +167,7 @@ impl World {
                 version: 1,
                 payload_sha256: checked.signed().manifest().payload_sha256,
             }),
+            installed: None,
             denied: false,
         };
         oma::grants::save_pair(&layout, &id, &pair).unwrap();

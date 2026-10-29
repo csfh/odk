@@ -42,6 +42,17 @@ enum Command {
         #[arg(long)]
         accept_permissions: bool,
     },
+    /// Put an installed Bundle file's previous version back, and the current one aside
+    Rollback {
+        /// The application's identifier
+        identifier: String,
+    },
+    /// Delete an application's data, previous version, inbox, consent and pin, once it is no
+    /// longer in ~/Applications
+    Purge {
+        /// The application's identifier
+        identifier: String,
+    },
     /// Build a project, install its Bundle over the installed copy and run it (needs an oma.toml)
     Dev {
         /// The project's directory, which holds manifest.toml and oma.toml
@@ -181,6 +192,16 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Command::Rollback { identifier } => by_identifier(&identifier, |layout, app| {
+            oma::flow::rollback(layout, app).map(|path| println!("{}", path.display()))
+        }),
+        Command::Purge { identifier } => by_identifier(&identifier, |layout, app| {
+            oma::flow::purge(layout, app).map(|roots| {
+                for root in roots {
+                    println!("purged {app} under publisher key {root}");
+                }
+            })
+        }),
         Command::Dev { project, wait } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
                 eprintln!("odk oma: $HOME is not set");
@@ -293,4 +314,29 @@ fn inspect_text(bundle: &Bundle) -> String {
         out.push_str(&format!("  {line}\n"));
     }
     out
+}
+
+/// Runs `act` on the application `identifier` names, and says why not on standard error.
+fn by_identifier(
+    identifier: &str,
+    act: impl FnOnce(&oma::layout::Layout, &oma::fmt::Identifier) -> Result<(), oma::flow::Error>,
+) -> ExitCode {
+    let Some(layout) = oma::layout::Layout::from_env() else {
+        eprintln!("odk oma: $HOME is not set");
+        return ExitCode::FAILURE;
+    };
+    let app: oma::fmt::Identifier = match identifier.parse() {
+        Ok(app) => app,
+        Err(e) => {
+            eprintln!("odk oma: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match act(&layout, &app) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("odk oma: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }

@@ -150,7 +150,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
 - `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
 - Not yet:
-  - `--register`, held files, the inbox, `rollback` and `purge`;
+  - `--register`, held files and the inbox;
   - revocation (question 2).
 - Installs under a pinned root:
   - an upgrade, or a second app id, verifies the key set under the pin;
@@ -159,6 +159,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   - a lower version, or the same version with another payload, is refused;
   - an upgrade asks Install or Cancel only for permissions not allowed yet, and Cancel there writes no denial;
   - the replaced file is kept as `previous.oma`.
+- `odk oma rollback <app id>` swaps the installed file and `previous.oma`, after checking the previous one, and leaves the mark; the pair records which file is installed (`installed`), so `run` runs exactly that one. `odk oma purge <app id>` refuses while the app is in `~/Applications`, then deletes each of its pairs' data, previous file, inbox, held file and record.
 
 ### 6. Bootstrap and self-upgrade
 
