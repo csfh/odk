@@ -962,6 +962,8 @@ pub enum Registered {
 /// Bundles, and anything that is not a regular `*.oma` file, are not touched. `.desktop` entries
 /// and inbox watches are not built yet.
 pub fn register(layout: &Layout, now: i64, fetch: Fetch) -> Vec<Registered> {
+    // The path unit watches `~/Applications`, which has to be there to be watched (ADR 0053).
+    let _ = fs::create_dir_all(layout.applications());
     let or_waiting = |path: PathBuf, result: Result<Registered, Error>| {
         result.unwrap_or_else(|e| Registered::Waiting {
             why: e.to_string(),
@@ -997,7 +999,79 @@ pub fn register(layout: &Layout, now: i64, fetch: Fetch) -> Vec<Registered> {
             done.push(or_waiting(path, result));
         }
     }
+    if let Err(e) = desktop_entries(layout) {
+        eprintln!("odk oma: the .desktop entries were not all written: {e}");
+    }
     done
+}
+
+/// The line that marks a `.desktop` entry as one `--register` writes, and names its app id.
+const ENTRY_MARK: &str = "X-Oma-Identifier=";
+
+/// Writes a `.desktop` entry for each installed Bundle file and removes the entries it wrote for
+/// any that is gone (ADR 0014, ADR 0053). Its `Exec` runs the app id through `odk oma run`, never
+/// the program, so the sandbox applies. An entry is rewritten only when it would change, and
+/// entries without its mark are not touched. The icon is in the image and is not written out.
+fn desktop_entries(layout: &Layout) -> Result<(), Error> {
+    let dir = layout.desktop_entries();
+    let io = |path: &Path| {
+        let path = path.to_owned();
+        move |source| install::Error::Io { path, source }
+    };
+    let mut listed = Vec::new();
+    for (app, _) in grants::pairs(layout)?
+        .into_iter()
+        .filter(|(_, pair)| !pair.denied)
+    {
+        let Some(path) = installed_file(layout, &app)? else {
+            continue;
+        };
+        let sealed = Sealed::memfd(&path)?;
+        let checked = trust::check(&sealed)?;
+        let image = Image::read(&checked)?;
+        let manifest = image.manifest();
+        let mut text = format!(
+            "[Desktop Entry]\nType=Application\nName={}\nExec=odk oma run {app}\n",
+            escape(&manifest.name)
+        );
+        if let Some(description) = &manifest.description {
+            text.push_str(&format!("Comment={}\n", escape(description)));
+        }
+        if !manifest.categories.is_empty() {
+            text.push_str(&format!("Categories={};\n", manifest.categories.join(";")));
+        }
+        text.push_str(&format!("{ENTRY_MARK}{app}\n"));
+        let entry = dir.join(format!("oma-{app}.desktop"));
+        if fs::read_to_string(&entry).ok().as_deref() != Some(text.as_str()) {
+            fs::create_dir_all(&dir).map_err(io(&dir))?;
+            let partial = dir.join(format!(".oma-{app}.desktop.partial"));
+            fs::write(&partial, &text).map_err(io(&partial))?;
+            fs::rename(&partial, &entry).map_err(io(&entry))?;
+        }
+        listed.push(entry);
+    }
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Ok(());
+    };
+    for entry in entries.filter_map(Result::ok).map(|e| e.path()) {
+        let named = entry
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("oma-") && n.ends_with(".desktop"));
+        let marked = || {
+            fs::read_to_string(&entry).is_ok_and(|t| t.lines().any(|l| l.starts_with(ENTRY_MARK)))
+        };
+        if named && !listed.contains(&entry) && marked() {
+            fs::remove_file(&entry).map_err(io(&entry))?;
+        }
+    }
+    Ok(())
+}
+
+/// A `.desktop` string value: `\` is the one escape a Manifest's text can need, since it holds
+/// no control characters (`docs/spec/manifest.md`).
+fn escape(text: &str) -> String {
+    text.replace('\\', "\\\\")
 }
 
 fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<Registered, Error> {
@@ -2923,5 +2997,37 @@ mod signed_tests {
             assert!(!gone.exists());
         }
         assert!(partial.exists(), "a file still being staged is not touched");
+    }
+
+    #[test]
+    fn register_lists_each_installed_file_in_the_launcher_and_unlists_it_when_it_goes() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        assert!(register(&layout, soon(), &|_| unreachable!()).is_empty());
+        assert!(layout.applications().is_dir(), "created for the path unit");
+
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let entries = layout.desktop_entries();
+        std::fs::create_dir_all(&entries).unwrap();
+        // Someone else's entry, even one named like ours, is never touched.
+        let foreign = entries.join("oma-dev.csfh.foreign.desktop");
+        std::fs::write(&foreign, "[Desktop Entry]\nName=Foreign\n").unwrap();
+
+        register(&layout, soon(), &|p| site.fetch(p));
+        let entry = entries.join(format!("oma-{APP}.desktop"));
+        assert_eq!(
+            std::fs::read_to_string(&entry).unwrap(),
+            format!(
+                "[Desktop Entry]\nType=Application\nName=Notes\nExec=odk oma run {APP}\nX-Oma-Identifier={APP}\n"
+            )
+        );
+
+        std::fs::remove_file(&target).unwrap();
+        register(&layout, soon(), &|p| site.fetch(p));
+        assert!(!entry.exists());
+        assert!(foreign.exists());
     }
 }
