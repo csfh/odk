@@ -530,59 +530,58 @@ fn items(c: &Content) -> Div {
     v_flex()
         .gap(Space::Sm)
         .child(caption(
-            "A title, a description and lines under them, actions at the end and a footer across. Padded above and below by the density and not at the sides, so its text lines up with the heading over it. Not a tab stop: Tab reaches its actions.",
+            "A group of items: a title and a description, then its items with a line between one and the next. An item is a title, a description and lines under them, actions at the end and a footer across. Padded above and below by the density and not at the sides, so its text lines up with the heading over it. Not a tab stop: Tab reaches its actions.",
         ))
         .child(
-            v_flex()
-                .w_full()
-                .max_w(px(ITEMS_WIDTH))
-                .child(
-                    Item::new(scroll.0)
-                        .description(scroll.1)
-                        .children(line(scroll.2))
-                        .action(Switch::new("data-item-switch", scroll.0).default_checked(true)),
-                )
-                .child(Separator::horizontal())
-                .child(
-                    Item::new(accel.0)
-                        .description(accel.1)
-                        .children(line(accel.2))
-                        .action(
-                            Select::new("data-item-select", accel.0)
-                                .item("default", "Default")
-                                .item("flat", "Flat")
-                                .item("adaptive", "Adaptive")
-                                .default_value("default"),
-                        ),
-                )
-                .child(Separator::horizontal())
-                .child(
-                    Item::new(speed.0)
-                        .description(speed.1)
-                        .children(line(speed.2))
-                        .footer(
-                            NumberInput::new("data-item-number", speed.0)
-                                .min(-1.0)
-                                .max(1.0)
-                                .step(0.1)
-                                .default_value(-0.6),
-                        ),
-                )
-                .child(Separator::horizontal())
-                .child(
-                    Item::new("Work")
-                        .description("A profile with two actions at its end.")
-                        .action(Button::new("data-item-apply").label("Apply"))
-                        .action(
-                            Button::icon("data-item-star", Icon::Star, "Add to favorites")
-                                .variant(ButtonVariant::Ghost),
-                        ),
-                )
-                .child(Separator::horizontal())
-                .child(
-                    Item::new("Keyboard layout")
-                        .action(Badge::new("Unknown").tone(Tone::Warning).marked()),
-                ),
+            v_flex().w_full().max_w(px(ITEMS_WIDTH)).child(
+                ItemGroup::new(c.item_group.0)
+                    .description(c.item_group.1)
+                    .child(
+                        Item::new(scroll.0)
+                            .description(scroll.1)
+                            .children(line(scroll.2))
+                            .action(
+                                Switch::new("data-item-switch", scroll.0).default_checked(true),
+                            ),
+                    )
+                    .child(
+                        Item::new(accel.0)
+                            .description(accel.1)
+                            .children(line(accel.2))
+                            .action(
+                                Select::new("data-item-select", accel.0)
+                                    .item("default", "Default")
+                                    .item("flat", "Flat")
+                                    .item("adaptive", "Adaptive")
+                                    .default_value("default"),
+                            ),
+                    )
+                    .child(
+                        Item::new(speed.0)
+                            .description(speed.1)
+                            .children(line(speed.2))
+                            .footer(
+                                NumberInput::new("data-item-number", speed.0)
+                                    .min(-1.0)
+                                    .max(1.0)
+                                    .step(0.1)
+                                    .default_value(-0.6),
+                            ),
+                    )
+                    .child(
+                        Item::new("Work")
+                            .description("A profile with two actions at its end.")
+                            .action(Button::new("data-item-apply").label("Apply"))
+                            .action(
+                                Button::icon("data-item-star", Icon::Star, "Add to favorites")
+                                    .variant(ButtonVariant::Ghost),
+                            ),
+                    )
+                    .child(
+                        Item::new("Keyboard layout")
+                            .action(Badge::new("Unknown").tone(Tone::Warning).marked()),
+                    ),
+            ),
         )
 }
 

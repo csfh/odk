@@ -121,6 +121,10 @@ _Avoid_: list item, settings row, row (for this), cell
 Equal columns that a page's content is set in, row after row, with as many columns as the page has room for; a child can take a row of its own across every column.
 _Avoid_: table (for this), layout, masonry, columns (for the whole)
 
+**Item group**:
+Items under a title and a description, with a line between one item and the next.
+_Avoid_: section, list (for this), fieldset, card
+
 **Field action**:
 A button drawn inside a Field, lower than it, that acts on the Field's value: clearing it, showing a password, stepping a number.
 _Avoid_: adornment, addon (for a button), inline button

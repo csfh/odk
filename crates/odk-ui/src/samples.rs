@@ -273,6 +273,21 @@ pub static SAMPLES: &[Sample] = &[
             .action(Switch::new(("item-switch", n), "Natural scroll"))
             .into_any_element()
     }),
+    sample("ItemGroup", 10, |n| {
+        ItemGroup::new(format!("Touchpad {n}"))
+            .description("Feel for the trackpad.")
+            .child(
+                Item::new("Natural scroll")
+                    .description("Content moves with your fingers.")
+                    .action(Switch::new(("item-group-natural", n), "Natural scroll")),
+            )
+            .child(
+                Item::new("Tap to click")
+                    .description("A light tap is a click.")
+                    .action(Switch::new(("item-group-tap", n), "Tap to click")),
+            )
+            .into_any_element()
+    }),
     sample("Kbd", 60, |_| Kbd::new("Ctrl+Shift+K").into_any_element()),
     sample("NavList", 10, |n| {
         NavList::new(("nav-list", n), "Settings")

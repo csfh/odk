@@ -368,8 +368,15 @@ impl Page {
                 id: "data",
                 title: "Data",
                 category: Category::Data,
-                description: "Resizable panels, a data table that draws only the rows in view, charts on a canvas, images, and items: rows of content with their actions at the end.",
-                components: &["Resizable", "DataTable", "Chart", "Image", "Item"],
+                description: "Resizable panels, a data table that draws only the rows in view, charts on a canvas, images, and items: rows of content with their actions at the end, in groups.",
+                components: &[
+                    "Resizable",
+                    "DataTable",
+                    "Chart",
+                    "Image",
+                    "Item",
+                    "ItemGroup",
+                ],
                 keywords: &[
                     "resizable",
                     "split",
@@ -400,6 +407,9 @@ impl Page {
                     "list item",
                     "settings row",
                     "preferences",
+                    "item group",
+                    "settings group",
+                    "section",
                 ],
                 tokens: &[
                     "resize handle",
@@ -407,8 +417,9 @@ impl Page {
                     "table header",
                     "chart",
                     "item",
+                    "item group",
                 ],
-                accessibility: "Each handle is a tab stop and a separator whose value is the size of the panel before it. The arrow keys along the group move it, Home and End take that panel to its limits, and Escape puts back a drag in progress. A table's sortable headers are one tab stop (Left and Right, Enter sorts) and its rows the next (Up and Down select, Enter activates, the Menu key opens a row's menu); a cell's button takes the pointer only, and its action is in the menu. A chart reports an image with a description in words; one that pans or zooms is a tab stop, with the arrows, + and - and Enter. An item reports a group named by its title, with its description; it is not a tab stop, and Tab reaches its actions.",
+                accessibility: "Each handle is a tab stop and a separator whose value is the size of the panel before it. The arrow keys along the group move it, Home and End take that panel to its limits, and Escape puts back a drag in progress. A table's sortable headers are one tab stop (Left and Right, Enter sorts) and its rows the next (Up and Down select, Enter activates, the Menu key opens a row's menu); a cell's button takes the pointer only, and its action is in the menu. A chart reports an image with a description in words; one that pans or zooms is a tab stop, with the arrows, + and - and Enter. An item reports a group named by its title, with its description; it is not a tab stop, and Tab reaches its actions. A group of items reports a group named by its title, with its description, and takes no focus.",
             },
             Page::Colors => &Meta {
                 id: "colors",
