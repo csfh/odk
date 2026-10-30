@@ -337,6 +337,45 @@ impl ComponentTokens {
     }
 }
 
+/// A group of items: its title, its description and its items, with a separator between one
+/// item and the next.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ItemGroupStyle {
+    /// Its title, as a level 2 heading draws it.
+    pub title: Color,
+    pub title_role: TypeRole,
+    /// Its description, as secondary body text.
+    pub description: Color,
+    pub description_role: TypeRole,
+    /// Between its title, its description and its first item: `s1`.
+    pub gap: f32,
+}
+
+impl ComponentTokens {
+    /// A group of items. It has no density: its items pad themselves by theirs.
+    pub fn item_group(&self) -> ItemGroupStyle {
+        let (title, description) = (self.heading(2), self.text(true));
+        ItemGroupStyle {
+            title: title.colour,
+            title_role: title.role,
+            description: description.colour,
+            description_role: description.role,
+            gap: self.foundation.spacing.s1,
+        }
+    }
+}
+
+/// A group of items has no box: as high as its content, square, its title a level 2 heading.
+fn item_group_summary(f: &FoundationTokens, _: Density) -> Summary {
+    Summary {
+        height: None,
+        shape: Shape::Rect {
+            radius: f.geometry.radius.none,
+        },
+        type_role: Some(super::feedback::heading_role(2)),
+    }
+}
+
 /// An item has no box: as high as its content, square, its title `body_strong`.
 fn item_summary(f: &FoundationTokens, _: Density) -> Summary {
     Summary {
@@ -467,6 +506,19 @@ pub(super) fn catalogue(out: &mut Vec<Entry>) {
         TreatmentRef::new(C::None, C::Text(T::Primary), C::None),
     );
     item.entry(
+        out,
+        "description",
+        &[Measure::Text],
+        TreatmentRef::new(C::None, C::Text(T::Secondary), C::None),
+    );
+    let group = Template::new("item group", "", item_group_summary);
+    group.entry(
+        out,
+        "title",
+        &[Measure::Text],
+        TreatmentRef::new(C::None, C::Text(T::Primary), C::None),
+    );
+    group.entry(
         out,
         "description",
         &[Measure::Text],

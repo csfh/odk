@@ -44,6 +44,8 @@ pub struct Content {
     pub processes: &'static [&'static str],
     /// Three items: each one's title, description and the line under them (none when empty).
     pub items: [(&'static str, &'static str, &'static str); 3],
+    /// The group the items are in: its title and description.
+    pub item_group: (&'static str, &'static str),
     pub alignment: [&'static str; 4],
     pub tabs: &'static [&'static str],
     /// Three periods for a segmented control: day, week and month.
@@ -181,6 +183,10 @@ impl Content {
                     "~/.config/hypr/input.lua · input.sensitivity",
                 ),
             ],
+            item_group: (
+                "Pointer",
+                "Sensitivity and acceleration for the mouse and trackpad.",
+            ),
             alignment: ["Left", "Center", "Right", "Justify"],
             tabs: &["General", "Display", "Advanced", "About"],
             periods: ["Day", "Week", "Month"],
@@ -357,6 +363,10 @@ impl Content {
                 ),
                 ("L", "x", ""),
             ],
+            item_group: (
+                "Zeigegeräte, Berührungsflächen und alles, was den Mauszeiger bewegt 🔥",
+                "Empfindlichkeit und Beschleunigung. Diese Beschreibung ist absichtlich so lang, dass sie in einer schmalen Spalte mehrmals umbricht, bevor das erste Element beginnt.",
+            ),
             processes: &[
                 "x",
                 "Hintergrunddienstverwaltungsprozessüberwachung",

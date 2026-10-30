@@ -25,6 +25,7 @@ mod input;
 mod input_group;
 mod interaction;
 mod item;
+mod item_group;
 mod kbd;
 mod layout;
 mod menu;

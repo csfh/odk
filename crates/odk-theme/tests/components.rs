@@ -1827,6 +1827,26 @@ fn an_item_reads_as_a_form_field_and_pads_by_its_density() {
     }
 }
 
+#[test]
+fn an_item_group_is_titled_as_a_heading_and_described_as_secondary_text() {
+    for name in ["tokyo-night", "catppuccin-latte", "vantablack"] {
+        let c = tokens(name);
+        let (heading, text) = (c.heading(2), c.text(true));
+        let group = c.item_group();
+        assert_eq!(
+            (group.title, group.title_role),
+            (heading.colour, heading.role),
+            "{name}"
+        );
+        assert_eq!(
+            (group.description, group.description_role),
+            (text.colour, text.role),
+            "{name}"
+        );
+        assert_eq!(group.gap, 4.0, "{name}");
+    }
+}
+
 // A data table (ADR 0070).
 
 #[test]
