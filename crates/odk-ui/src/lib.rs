@@ -20,6 +20,7 @@ mod editor;
 mod files;
 mod focus;
 mod form_field;
+mod grid;
 mod hover_card;
 mod icon;
 mod image;
@@ -87,6 +88,7 @@ pub use dialog::Dialog;
 pub use files::{FileChooser, FileChooserError, StartFolder};
 pub use focus::{FocusNext, FocusPrevious, focused_component};
 pub use form_field::{FieldControl, Fielded, FormField, form};
+pub use grid::{ContentColumn, Grid, content_column_for_grid};
 pub use hover_card::HoverCard;
 pub use icon::{Glyph, Icon};
 pub use image::{Image, ImageFit};
@@ -146,15 +148,16 @@ pub mod prelude {
 
     pub use crate::{
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Chart,
-        ChartHeight, ChartPath, Checkbox, Chord, Clamp, Column, Command, CommandItem, ContextMenu,
-        DataTable, Density, Dialog, DropdownMenu, Emphasis, EndEllipsis, FileChooser, FixedWidth,
-        FormField, Glyph, Heading, HoverCard, Icon, Image, ImageFit, Ink, Input, InputGroup, Item,
-        Kbd, Menu, MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover,
-        Progress, RadioGroup, Resizable, ResizablePanel, Scene, SearchInput, Select, Separator,
-        Sheet, Side, Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
-        StatusIndicator, StrokeWidth, StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline,
-        Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column, form,
-        h_flex, middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end,
-        truncate_lines, v_flex,
+        ChartHeight, ChartPath, Checkbox, Chord, Clamp, Column, Command, CommandItem,
+        ContentColumn, ContextMenu, DataTable, Density, Dialog, DropdownMenu, Emphasis,
+        EndEllipsis, FileChooser, FixedWidth, FormField, Glyph, Grid, Heading, HoverCard, Icon,
+        Image, ImageFit, Ink, Input, InputGroup, Item, Kbd, Menu, MenuItem, MiddleEllipsis,
+        NavList, NumberInput, PasswordInput, Popover, Progress, RadioGroup, Resizable,
+        ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side, Size, Skeleton,
+        SortDirection, SortKey, Space, Spinner, StartFolder, Status, StatusIndicator, StrokeWidth,
+        StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline, Textarea, Toast, ToggleGroup,
+        Tone, Tooltip, WindowConfig, Wrap, content_column, content_column_for_grid, form, h_flex,
+        middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end, truncate_lines,
+        v_flex,
     };
 }

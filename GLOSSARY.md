@@ -117,6 +117,10 @@ _Avoid_: field (for the whole), form item, form row
 A row of content: a title, an optional description and lines under them, actions at its end, and optionally something across it under its words. Unlike a Form field, what it holds at its end can be anything, not only a form control; the entries of a menu, a select, a command palette or a table are not Items.
 _Avoid_: list item, settings row, row (for this), cell
 
+**Grid**:
+Equal columns that a page's content is set in, row after row, with as many columns as the page has room for; a child can take a row of its own across every column.
+_Avoid_: table (for this), layout, masonry, columns (for the whole)
+
 **Field action**:
 A button drawn inside a Field, lower than it, that acts on the Field's value: clearing it, showing a password, stepping a number.
 _Avoid_: adornment, addon (for a button), inline button

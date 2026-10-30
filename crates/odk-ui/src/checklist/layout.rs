@@ -1,11 +1,18 @@
-//! The layout helpers (`layout.rs`): `sidebar_frame`, `content_column` and `scroll_y`. They are not
-//! components, so no checklist item applies to them as such; these tests check that the sizes they
-//! lay out are the foundation's (item 2) and that they behave in a window of any size.
+//! The layout helpers (`layout.rs`, `grid.rs`): `sidebar_frame`, `content_column`, `scroll_y`,
+//! `Grid` and `content_column_for_grid`. They are not components, so no checklist item applies to
+//! them as such; these tests check that the sizes they lay out are the foundation's (item 2) and
+//! that they behave in a window of any size.
+
+use std::cell::Cell;
+use std::rc::Rc;
 
 use gpui::{InteractiveElement, ParentElement, Styled, TestAppContext, div, px, size};
 
 use super::open;
-use crate::{content_column, foundation, scroll_y, sidebar_frame};
+use crate::{
+    Grid, Item, Select, content_column, content_column_for_grid, foundation, scroll_y,
+    sidebar_frame,
+};
 
 fn resize(cx: &mut gpui::VisualTestContext, width: f32, height: f32) {
     cx.simulate_resize(size(px(width), px(height)));
@@ -209,4 +216,234 @@ fn the_sidebars_content_is_inset_by_its_padding(cx: &mut TestAppContext) {
     assert_eq!(frame.right() - side.right(), pad, "right");
     assert_eq!(side.top() - frame.top(), pad, "top");
     assert_eq!(frame.bottom() - side.bottom(), pad, "bottom");
+}
+
+/// A page of `cells` cells and the `wide` children after them, as an application puts a page of
+/// groups: the column for a grid in a scroll region, the grid in the column under a heading.
+fn grid_page(
+    cells: usize,
+    wide: usize,
+) -> impl Fn(&mut gpui::Window, &mut gpui::App) -> gpui::Stateful<gpui::Div> {
+    move |window, cx| {
+        let column = content_column_for_grid("page-column", 2, cells, window, cx);
+        let grid = (0..wide).fold(
+            Grid::new(column.columns()).children((0..cells).map(|i| {
+                div()
+                    .debug_selector(move || format!("cell-{i}"))
+                    .h(px(40.0 + 10.0 * i as f32))
+            })),
+            |grid, i| {
+                grid.wide(
+                    div()
+                        .debug_selector(move || format!("wide-{i}"))
+                        .h(px(30.0)),
+                )
+            },
+        );
+        scroll_y("page").child(
+            column
+                .child(div().debug_selector(|| "heading".into()).h(px(20.0)))
+                .child(grid),
+        )
+    }
+}
+
+/// The column grows to the wide content width only once two of the grid's columns fit beside
+/// each other: one pixel short and it is the content column, with one column of cells.
+#[gpui::test]
+fn the_column_grows_for_two_columns_only_once_they_fit(cx: &mut TestAppContext) {
+    let page = grid_page(2, 0);
+    let cx = open(cx, move |window, cx| page(window, cx));
+    let layout = foundation().layout.clone();
+    let pad = layout.panel_padding;
+    // Two columns, the gap and the padding on both sides.
+    let fits = 2.0 * layout.grid_column_width + layout.section_gap + 2.0 * pad;
+
+    resize(cx, fits - 1.0, 700.0);
+    let (heading, a, b) = (
+        cx.debug_bounds("heading").unwrap(),
+        cx.debug_bounds("cell-0").unwrap(),
+        cx.debug_bounds("cell-1").unwrap(),
+    );
+    assert_eq!(f32::from(a.size.width), layout.content_width - 2.0 * pad);
+    assert_eq!(
+        a.origin.x, heading.origin.x,
+        "the cells line up with the heading"
+    );
+    assert!(b.top() > a.bottom(), "one column: {a:?} then {b:?}");
+
+    resize(cx, fits, 700.0);
+    let (heading, a, b) = (
+        cx.debug_bounds("heading").unwrap(),
+        cx.debug_bounds("cell-0").unwrap(),
+        cx.debug_bounds("cell-1").unwrap(),
+    );
+    assert_eq!(
+        f32::from(heading.size.width),
+        fits - 2.0 * pad,
+        "the column grew"
+    );
+    assert_eq!(a.top(), b.top(), "two columns: {a:?} beside {b:?}");
+    assert_eq!(f32::from(a.size.width), layout.grid_column_width);
+    assert_eq!(f32::from(b.left() - a.right()), layout.section_gap);
+    assert_eq!(a.origin.x, heading.origin.x);
+
+    resize(cx, 2400.0, 700.0);
+    let heading = cx.debug_bounds("heading").unwrap();
+    assert_eq!(
+        f32::from(heading.size.width),
+        layout.wide_content_width - 2.0 * pad,
+        "up to the wide content width"
+    );
+    assert_eq!(
+        f32::from(heading.origin.x),
+        (2400.0 - layout.wide_content_width) / 2.0 + pad,
+        "centred"
+    );
+
+    resize(cx, fits - 1.0, 700.0);
+    let (a, b) = (
+        cx.debug_bounds("cell-0").unwrap(),
+        cx.debug_bounds("cell-1").unwrap(),
+    );
+    assert!(b.top() > a.bottom(), "and one column again when it narrows");
+}
+
+/// A page with one cell keeps the content width however wide the window is.
+#[gpui::test]
+fn a_page_with_one_cell_stays_at_the_content_width(cx: &mut TestAppContext) {
+    let page = grid_page(1, 1);
+    let cx = open(cx, move |window, cx| page(window, cx));
+    resize(cx, 2400.0, 700.0);
+    let layout = foundation().layout.clone();
+    let width = layout.content_width - 2.0 * layout.panel_padding;
+    assert_eq!(
+        f32::from(cx.debug_bounds("heading").unwrap().size.width),
+        width
+    );
+    assert_eq!(
+        f32::from(cx.debug_bounds("cell-0").unwrap().size.width),
+        width
+    );
+    assert_eq!(
+        f32::from(cx.debug_bounds("wide-0").unwrap().size.width),
+        width
+    );
+}
+
+/// A wide child takes a row of its own across every column, after the cells before it, and a
+/// row is as tall as its tallest cell.
+#[gpui::test]
+fn a_wide_child_takes_a_row_across_every_column(cx: &mut TestAppContext) {
+    let page = grid_page(3, 1);
+    let cx = open(cx, move |window, cx| page(window, cx));
+    resize(cx, 2400.0, 700.0);
+    let mut cell = |n: &'static str| cx.debug_bounds(n).unwrap();
+    let (heading, a, b, c, wide) = (
+        cell("heading"),
+        cell("cell-0"),
+        cell("cell-1"),
+        cell("cell-2"),
+        cell("wide-0"),
+    );
+    assert_eq!(a.top(), b.top());
+    assert_eq!(c.origin.x, a.origin.x, "the third cell starts the next row");
+    assert_eq!(c.size.height, px(60.0));
+    assert_eq!(
+        f32::from(c.top() - a.top()),
+        50.0 + foundation().layout.section_gap,
+        "under the taller of the first row"
+    );
+    assert_eq!(wide.origin.x, a.origin.x);
+    assert_eq!(wide.size.width, heading.size.width, "across every column");
+    assert!(wide.top() > c.bottom(), "on a row of its own");
+    assert!(
+        b.right() > c.right(),
+        "leaving the third row's second cell empty"
+    );
+}
+
+/// The column asks for one more frame when the count changes and none while it holds: a page
+/// at rest does not draw again (item 35).
+#[gpui::test]
+fn the_column_draws_again_only_when_the_count_changes(cx: &mut TestAppContext) {
+    let frames = Rc::new(Cell::new(0_u32));
+    let page = grid_page(2, 0);
+    let counted = frames.clone();
+    let cx = open(cx, move |window, cx| {
+        counted.set(counted.get() + 1);
+        page(window, cx)
+    });
+    resize(cx, 1600.0, 700.0);
+    let settled = frames.get();
+    cx.run_until_parked();
+    assert_eq!(frames.get(), settled, "a page at rest draws nothing");
+    resize(cx, 1700.0, 700.0);
+    let same = frames.get() - settled;
+    resize(cx, 900.0, 700.0);
+    let changed = frames.get() - settled - same;
+    assert_eq!(
+        changed,
+        same + 1,
+        "one frame more when the count changes, and only then"
+    );
+}
+
+/// The #75 case on a page of columns: an item whose description wraps is its column's width and
+/// keeps its words inside it.
+#[gpui::test]
+fn a_wrapped_item_stays_inside_its_cell(cx: &mut TestAppContext) {
+    let long = "How a high-resolution or free-spin mouse wheel is turned into scroll events. \
+                Smooth keeps the fine motion. Stepped turns it into clicks.";
+    let cx = open(cx, move |window, cx| {
+        let column = content_column_for_grid("page-column", 2, 2, window, cx);
+        // Words of different lengths, which a row that sized its cells by them would not
+        // share out evenly.
+        let item = |title: &'static str, description: &'static str| {
+            div().debug_selector(move || format!("cell/{title}")).child(
+                Item::new(title)
+                    .description(description)
+                    .action(Select::new(title, title).item("1", "Default")),
+            )
+        };
+        let columns = column.columns();
+        scroll_y("page").child(
+            column.child(
+                Grid::new(columns)
+                    .child(item("Scroll inertia", long))
+                    .child(item("Scroll factor", "How far one notch scrolls.")),
+            ),
+        )
+    });
+    resize(cx, 1600.0, 700.0);
+    for (cell, item, words) in [
+        (
+            "cell/Scroll inertia",
+            "odk-item/Scroll inertia",
+            "odk-item/Scroll inertia/words",
+        ),
+        (
+            "cell/Scroll factor",
+            "odk-item/Scroll factor",
+            "odk-item/Scroll factor/words",
+        ),
+    ] {
+        let layout = foundation().layout.clone();
+        let column =
+            (layout.wide_content_width - 2.0 * layout.panel_padding - layout.section_gap) / 2.0;
+        let cell = cx.debug_bounds(cell).unwrap();
+        let item = cx.debug_bounds(item).unwrap();
+        let words = cx.debug_bounds(words).unwrap();
+        assert_eq!(f32::from(cell.size.width), column, "the cell is a column");
+        assert_eq!(item.size.width, cell.size.width);
+        assert!(
+            words.top() >= item.top() && words.bottom() <= item.bottom(),
+            "the words {words:?} spill out of the item {item:?}"
+        );
+    }
+    let (a, b) = (
+        cx.debug_bounds("cell/Scroll inertia").unwrap(),
+        cx.debug_bounds("cell/Scroll factor").unwrap(),
+    );
+    assert_eq!(a.top(), b.top(), "side by side");
 }
