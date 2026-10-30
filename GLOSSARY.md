@@ -121,6 +121,14 @@ _Avoid_: list item, settings row, row (for this), cell
 Equal columns that a page's content is set in, row after row, with as many columns as the page has room for; a child can take a row of its own across every column.
 _Avoid_: table (for this), layout, masonry, columns (for the whole)
 
+**Stack**:
+Elements set one under the next with the same gap between them; the only vertical group of elements in an application or a component. A page's column is a Stack of the page's width, centred, with the page's padding.
+_Avoid_: v_flex, column, content column, vertical box
+
+**Row**:
+Elements set side by side, centred across, with the same gap between them: a Stack's horizontal counterpart.
+_Avoid_: h_flex, horizontal stack, hstack, line
+
 **Item group**:
 Items under a title and a description, with a line between one item and the next.
 _Avoid_: section, list (for this), fieldset, card
