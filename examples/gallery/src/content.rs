@@ -46,6 +46,8 @@ pub struct Content {
     pub items: [(&'static str, &'static str, &'static str); 3],
     /// The group the items are in: its title and description.
     pub item_group: (&'static str, &'static str),
+    /// An empty state: its title, its description and its action's label.
+    pub empty: (&'static str, &'static str, &'static str),
     /// A group in a box that lists two things: its title, its description, and each thing's name
     /// and what it says of it.
     pub outline_group: (
@@ -193,6 +195,11 @@ impl Content {
             item_group: (
                 "Pointer",
                 "Sensitivity and acceleration for the mouse and trackpad.",
+            ),
+            empty: (
+                "No matching processes",
+                "Nothing matches that search. Clear it to see every process again.",
+                "Clear search",
             ),
             outline_group: (
                 "Paired devices",
@@ -388,6 +395,11 @@ impl Content {
                     ),
                     ("x", ""),
                 ],
+            ),
+            empty: (
+                "Keine passenden Prozesse, Dienste, Ports oder Fenster in dieser Ansicht 🔥",
+                "Nichts passt zu dieser Suche. Diese Beschreibung ist absichtlich so lang, dass sie auch auf einer breiten Seite mehrmals umbricht, statt quer über die ganze Breite zu laufen.",
+                "Suche und alle Filter zurücksetzen",
             ),
             item_group: (
                 "Zeigegeräte, Berührungsflächen und alles, was den Mauszeiger bewegt 🔥",

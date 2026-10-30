@@ -281,7 +281,7 @@ impl Page {
                 id: "feedback",
                 title: "Feedback",
                 category: Category::Feedback,
-                description: "Badges, status indicators, alerts, progress, spinners, skeletons and separators.",
+                description: "Badges, status indicators, alerts, progress, spinners, skeletons, empty states and separators.",
                 components: &[
                     "Badge",
                     "StatusIndicator",
@@ -289,6 +289,7 @@ impl Page {
                     "Progress",
                     "Spinner",
                     "Skeleton",
+                    "Empty",
                     "Separator",
                 ],
                 keywords: &[
@@ -299,6 +300,10 @@ impl Page {
                     "spinner",
                     "loading",
                     "skeleton",
+                    "empty",
+                    "empty state",
+                    "no results",
+                    "nothing here",
                     "separator",
                     "tone",
                     "danger",
@@ -312,7 +317,7 @@ impl Page {
                     "status_dot.success",
                     "progress.accent",
                 ],
-                accessibility: "Status never rests on colour alone: each tone carries a mark (i, ✓, !, ×) and a word. Progress reports its value; a spinner stands still when motion is reduced.",
+                accessibility: "Status never rests on colour alone: each tone carries a mark (i, ✓, !, ×) and a word. Progress reports its value; a spinner stands still when motion is reduced. An empty state reports a status named by its title, with its description; Tab reaches its actions.",
             },
             Page::Overlays => &Meta {
                 id: "overlays",

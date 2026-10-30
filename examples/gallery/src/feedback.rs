@@ -53,7 +53,7 @@ impl Render for FeedbackPage {
 }
 
 /// The components the diagnostics panel offers.
-const COMPONENTS: [&str; 8] = [
+const COMPONENTS: [&str; 9] = [
     "badge",
     "status dot",
     "alert",
@@ -62,6 +62,7 @@ const COMPONENTS: [&str; 8] = [
     "skeleton",
     "separator",
     "status",
+    "empty",
 ];
 
 /// The six Roles, named for a badge's label.
@@ -95,6 +96,8 @@ pub fn section(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>
         .child(spinners(g, c, cx))
         .child(group("Skeletons"))
         .child(skeletons(g, cx))
+        .child(group("Empty states"))
+        .child(empties(c))
         .child(group("Separators"))
         .child(separators())
         .child(group("Diagnostics"))
@@ -407,6 +410,26 @@ fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Div {
         .child(Skeleton::line())
         .child(caption(
             "Exactly the size of what it stands for, so nothing moves when it arrives; a control's stand-in is a control's height and three times as wide, where the control will be. It stands still.",
+        ))
+}
+
+fn empties(c: &Content) -> Div {
+    let (title, says, action) = c.empty;
+    v_flex()
+        .gap(Space::Md)
+        .child(
+            Empty::new(title)
+                .icon(Icon::Search)
+                .description(says)
+                .action(Button::new("empty-clear").label(action).variant(ButtonVariant::Outline)),
+        )
+        .child(
+            Empty::new("Waiting for the first sample")
+                .icon(Icon::Info)
+                .description("The list fills in once the daemon has read it."),
+        )
+        .child(caption(
+            "What a list shows with nothing in it: an icon that says what kind of nothing, a title, why, and a way out, centred, its words held to about thirty ems. It reports a status, so it is said when a list empties.",
         ))
 }
 

@@ -227,6 +227,13 @@ pub static SAMPLES: &[Sample] = &[
             })
             .into_any_element()
     }),
+    sample("Empty", 20, |n| {
+        Empty::new(format!("No matching processes {n}"))
+            .icon(Icon::Search)
+            .description("Nothing matches that search.")
+            .action(Button::new(("empty-clear", n)).label("Clear search"))
+            .into_any_element()
+    }),
     sample("FormField", 20, |n| {
         FormField::new(("form-field", n), "Email")
             .help("We never share it")

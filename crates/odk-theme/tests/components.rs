@@ -1874,6 +1874,41 @@ fn an_item_group_is_titled_as_a_heading_and_described_as_secondary_text() {
     }
 }
 
+/// An empty state is shadcn/ui's: a level 3 title over small secondary text, its icon in the
+/// primary text colour on a square of the skeleton's tint, 40 across with a 24 icon, padded by
+/// 24, its words held to about 30 ems.
+#[test]
+fn an_empty_state_has_shadcns_anatomy() {
+    for name in ["tokyo-night", "catppuccin-latte", "vantablack"] {
+        let c = tokens(name);
+        let e = c.empty();
+        let (heading, text) = (c.heading(3), c.text(true));
+        assert_eq!(
+            (e.title, e.title_role),
+            (heading.colour, heading.role),
+            "{name}"
+        );
+        assert_eq!(
+            (e.description, e.description_role),
+            (text.colour, TypeRole::Small),
+            "{name}"
+        );
+        assert_eq!(e.media, c.skeleton().fill, "{name}");
+        assert_eq!(e.icon, c.text(false).colour, "{name}");
+        assert_eq!(
+            (e.media_size, e.icon_size, e.padding),
+            (40.0, 24.0, 24.0),
+            "{name}"
+        );
+        assert_eq!(
+            (e.gap, e.media_gap, e.actions_gap),
+            (8.0, 16.0, 24.0),
+            "{name}"
+        );
+        assert_eq!(e.measure, 390.0, "{name}: 30 ems of 13 px body text");
+    }
+}
+
 // A data table (ADR 0070).
 
 #[test]

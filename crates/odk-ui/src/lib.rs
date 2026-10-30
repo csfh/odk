@@ -17,6 +17,7 @@ mod dialog;
 #[cfg(test)]
 mod drawn;
 mod editor;
+mod empty;
 mod files;
 mod focus;
 mod form_field;
@@ -86,6 +87,7 @@ pub use decoration::{
     Applied, Autosize, Clamp, EndEllipsis, FixedWidth, FlowKind, MiddleEllipsis, SizeMode, Wrap,
 };
 pub use dialog::Dialog;
+pub use empty::Empty;
 pub use files::{FileChooser, FileChooserError, StartFolder};
 pub use focus::{FocusNext, FocusPrevious, focused_component};
 pub use form_field::{FieldControl, Fielded, FormField, form};
@@ -151,7 +153,7 @@ pub mod prelude {
     pub use crate::{
         Alert, Autosize, Badge, BadgeAppearance, Breadcrumb, Button, ButtonVariant, Chart,
         ChartHeight, ChartPath, Checkbox, Chord, Clamp, Column, Command, CommandItem,
-        ContentColumn, ContextMenu, DataTable, Density, Dialog, DropdownMenu, Emphasis,
+        ContentColumn, ContextMenu, DataTable, Density, Dialog, DropdownMenu, Emphasis, Empty,
         EndEllipsis, FileChooser, FixedWidth, FormField, Glyph, Grid, Heading, HoverCard, Icon,
         Image, ImageFit, Ink, Input, InputGroup, Item, ItemGroup, ItemGroupVariant, Kbd, Menu,
         MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
