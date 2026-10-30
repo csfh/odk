@@ -22,6 +22,10 @@ const FIELD_GAP: f32 = 6.0;
 const SIDEBAR_WIDTH: f32 = 220.0;
 /// The widest a page's column of content grows at scale 1; a wider window centres it.
 const CONTENT_WIDTH: f32 = 1000.0;
+/// The widest a page's column grows at scale 1 while it holds a grid's columns side by side.
+const WIDE_CONTENT_WIDTH: f32 = 1400.0;
+/// The narrowest a grid's column is at scale 1, so two of them and the gap fit only a wide page.
+const GRID_COLUMN_WIDTH: f32 = 520.0;
 /// The least radius that reads as a corner at scale 1 (ADR 0042).
 const RADIUS_SUBTLE: f32 = 2.0;
 const BORDER_WIDTH: f32 = 1.0;
@@ -138,6 +142,8 @@ impl FoundationTokens {
                 sidebar_width: text.px(SIDEBAR_WIDTH),
                 sidebar_padding: spacing.s2,
                 content_width: text.px(CONTENT_WIDTH),
+                wide_content_width: text.px(WIDE_CONTENT_WIDTH),
+                grid_column_width: text.px(GRID_COLUMN_WIDTH),
             },
             spacing,
             typography: TypographyTokens {
@@ -283,6 +289,12 @@ pub struct LayoutTokens {
     pub sidebar_padding: f32,
     /// The widest a page's column grows (`content_column`).
     pub content_width: f32,
+    /// The widest a page's column grows while it holds a grid's columns side by side
+    /// (`content_column_for_grid`).
+    pub wide_content_width: f32,
+    /// The narrowest a grid's column is: a page's grid has as many columns as fit at this width
+    /// with the section gap between them (`content_column_for_grid`).
+    pub grid_column_width: f32,
 }
 
 /// How tightly controls are packed. It changes their size and padding, never a colour.
@@ -710,6 +722,8 @@ mod tests {
         assert_eq!(big.layout.field_gap, 9.0);
         assert_eq!(big.layout.sidebar_width, 330.0);
         assert_eq!(big.layout.content_width, 1500.0);
+        assert_eq!(big.layout.wide_content_width, 2100.0);
+        assert_eq!(big.layout.grid_column_width, 780.0);
 
         // None of how it is drawn.
         assert_eq!(big.geometry, plain.geometry);
@@ -859,6 +873,8 @@ mod tests {
         assert_eq!(l.sidebar_width, 220.0);
         assert_eq!(l.sidebar_padding, 8.0);
         assert_eq!(l.content_width, 1000.0);
+        assert_eq!(l.wide_content_width, 1400.0);
+        assert_eq!(l.grid_column_width, 520.0);
     }
 
     #[test]

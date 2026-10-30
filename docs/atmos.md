@@ -14,6 +14,7 @@ Not normative. Atmos (`../atmos`) is moving its QML window to ODK page by page, 
 | The avatar and the wallpaper preview | `Image::avatar(id, name).source(bytes)` and `Image::new(id, name).fit(ImageFit::Contain).source(bytes)`, from bytes, never a path | ADR 0072 |
 | Record a shortcut (Keybindings) | `Button::new(id).listening(on).on_chord(\|chord, _, _\| …)`: the next key press and the modifiers held, as a `Chord`; Escape cancels | ADR 0076 |
 | A settings row whose control the page picks as it runs (`pages/row.rs`) | `Item::new(label).description(..).child(Text::new(path).mono().muted()).action(control).action(star)`, or `.footer(control)` for a control that takes the row's width | `docs/spec/odk-ui-components.md`, `Item` |
+| A page's groups two side by side on a wide window, as `PrefsPage.qml` puts them, a chart's group across both | `let column = content_column_for_grid("page", 2, groups, window, cx)`, then `Grid::new(column.columns()).children(groups).wide(chart)` in it: 520 px columns, and the column grows from 1000 to 1400 px only while two fit | `docs/spec/odk-ui-components.md`, `Grid` |
 
 Three things to know when using them:
 
