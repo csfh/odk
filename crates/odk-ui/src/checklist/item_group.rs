@@ -5,7 +5,7 @@
 
 use gpui::{Bounds, ParentElement, Pixels, Styled, TestAppContext, VisualTestContext, px};
 use odk_a11y::{Describe, Role};
-use odk_theme::component::ItemGroupStyle;
+use odk_theme::component::{ItemGroupStyle, ItemGroupVariant};
 
 use super::open;
 use crate::{Item, ItemGroup, Select, Switch, v_flex};
@@ -54,7 +54,7 @@ fn reads_as_a_heading_and_secondary_text(cx: &mut TestAppContext) {
     let _cx = open(cx, |_, _| v_flex().w(px(WIDTH)).child(touchpad(2)));
     let c = crate::components();
     let s = crate::drawn::last::<ItemGroupStyle>("odk-item-group/Touchpad");
-    assert_eq!(s, c.item_group());
+    assert_eq!(s, c.item_group(ItemGroupVariant::Default));
     let (heading, text) = (c.heading(2), c.text(true));
     assert_eq!((s.title, s.title_role), (heading.colour, heading.role));
     assert_eq!(
@@ -95,7 +95,9 @@ fn a_line_divides_one_item_from_the_next_and_only_there(cx: &mut TestAppContext)
     let description = bounds(cx, "odk-item-group/Touchpad/description");
     assert_eq!(
         f32::from(items[0].top() - description.bottom()),
-        crate::components().item_group().gap,
+        crate::components()
+            .item_group(ItemGroupVariant::Default)
+            .gap,
         "the first item follows the description by the gap, with no line"
     );
 }
@@ -165,4 +167,37 @@ fn a_wrapped_description_stays_above_its_items_on_a_scrolling_page(cx: &mut Test
         f32::from(words.size.height) < 100.0,
         "it wraps across the column, not a word a line: {words:?}"
     );
+}
+
+/// Items 1, 2 and 34: an outline group draws its edge, corners and padding from its component
+/// tokens, and its title, description and items sit inside the edge, inset by it and the padding
+/// on every side, a line between two items as wide as what is inside.
+#[gpui::test]
+fn an_outline_group_holds_its_title_and_items_inside_its_edge(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        v_flex()
+            .w(px(WIDTH))
+            .child(touchpad(2).variant(ItemGroupVariant::Outline))
+    });
+    let c = crate::components();
+    let s = crate::drawn::last::<ItemGroupStyle>("odk-item-group/Touchpad");
+    assert_eq!(s, c.item_group(ItemGroupVariant::Outline));
+    assert!(s.border.is_some() && s.padding > 0.0);
+    let inset = px(s.border_width + s.padding);
+    let group = bounds(cx, "odk-item-group/Touchpad");
+    let (title, last) = (
+        bounds(cx, "odk-item-group/Touchpad/title"),
+        bounds(cx, "odk-item/Tap to click"),
+    );
+    assert_eq!(title.left() - group.left(), inset, "left");
+    assert_eq!(title.top() - group.top(), inset, "top");
+    assert_eq!(group.right() - last.right(), inset, "right");
+    assert_eq!(group.bottom() - last.bottom(), inset, "bottom");
+    assert_eq!(
+        bounds(cx, "odk-item/Natural scroll/title").left(),
+        title.left(),
+        "the items' text lines up with the title"
+    );
+    let line = bounds(cx, "odk-item-group/Touchpad/separator-1");
+    assert_eq!(line.size.width, group.size.width - inset * 2.0);
 }

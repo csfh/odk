@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use odk_theme::component::{
-    self, ButtonAppearance, ButtonLayout, ButtonVariant, Check, ComponentTokens, Measure, NavLook,
-    Shape, States, status_mark,
+    self, ButtonAppearance, ButtonLayout, ButtonVariant, Check, ComponentTokens, ItemGroupStyle,
+    ItemGroupVariant, Measure, NavLook, Shape, States, status_mark,
 };
 use odk_theme::foundation::{CornerRadius, Density, FoundationConfig, FoundationTokens, TypeRole};
 use odk_theme::semantic::{
@@ -1832,7 +1832,23 @@ fn an_item_group_is_titled_as_a_heading_and_described_as_secondary_text() {
     for name in ["tokyo-night", "catppuccin-latte", "vantablack"] {
         let c = tokens(name);
         let (heading, text) = (c.heading(2), c.text(true));
-        let group = c.item_group();
+        let group = c.item_group(ItemGroupVariant::Default);
+        assert_eq!(group.border, None, "{name}: a plain group has no edge");
+        assert_eq!(group.padding, 0.0, "{name}");
+        assert_eq!(
+            c.item_group(ItemGroupVariant::Outline),
+            ItemGroupStyle {
+                border: Some(c.semantic().border.default),
+                padding: 16.0,
+                ..group
+            },
+            "{name}: an outline group is a plain one in a card's edge, padded by s4"
+        );
+        assert_eq!(
+            group.radius,
+            c.foundation().geometry.radius.default,
+            "{name}"
+        );
         assert_eq!(
             (group.title, group.title_role),
             (heading.colour, heading.role),

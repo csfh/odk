@@ -46,6 +46,13 @@ pub struct Content {
     pub items: [(&'static str, &'static str, &'static str); 3],
     /// The group the items are in: its title and description.
     pub item_group: (&'static str, &'static str),
+    /// A group in a box that lists two things: its title, its description, and each thing's name
+    /// and what it says of it.
+    pub outline_group: (
+        &'static str,
+        &'static str,
+        [(&'static str, &'static str); 2],
+    ),
     pub alignment: [&'static str; 4],
     pub tabs: &'static [&'static str],
     /// Three periods for a segmented control: day, week and month.
@@ -186,6 +193,14 @@ impl Content {
             item_group: (
                 "Pointer",
                 "Sensitivity and acceleration for the mouse and trackpad.",
+            ),
+            outline_group: (
+                "Paired devices",
+                "Devices this computer has connected to before.",
+                [
+                    ("WH-1000XM5", "Headphones. Connected."),
+                    ("MX Master 3S", "Mouse. Last seen yesterday."),
+                ],
             ),
             alignment: ["Left", "Center", "Right", "Justify"],
             tabs: &["General", "Display", "Advanced", "About"],
@@ -363,6 +378,17 @@ impl Content {
                 ),
                 ("L", "x", ""),
             ],
+            outline_group: (
+                "Gekoppelte Geräte, Kopfhörer, Mäuse, Tastaturen und Controller 🎧",
+                "Geräte, mit denen dieser Rechner schon verbunden war. Auch diese Beschreibung bricht in einer schmalen Spalte mehrmals um.",
+                [
+                    (
+                        "ワイヤレスノイズキャンセリングヘッドホン",
+                        "ヘッドホン。接続済み。",
+                    ),
+                    ("x", ""),
+                ],
+            ),
             item_group: (
                 "Zeigegeräte, Berührungsflächen und alles, was den Mauszeiger bewegt 🔥",
                 "Empfindlichkeit und Beschleunigung. Diese Beschreibung ist absichtlich so lang, dass sie in einer schmalen Spalte mehrmals umbricht, bevor das erste Element beginnt.",
