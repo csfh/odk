@@ -1,9 +1,11 @@
 //! A grid of equal columns, and the page column that decides how many there are
 //! (`docs/spec/odk-ui-components.md`, the layout helpers).
 
+use std::collections::HashMap;
+
 use gpui::{
-    AnyElement, App, Div, ElementId, Entity, IntoElement, ParentElement, Styled, Window, canvas,
-    div, px,
+    AnyElement, AnyWindowHandle, App, Div, ElementId, Global, IntoElement, ParentElement, Styled,
+    Window, WindowId, canvas, div, px,
 };
 
 use crate::layout::v_flex;
@@ -78,7 +80,8 @@ impl IntoElement for Grid {
 /// `content_column` until two of the grid's columns fit, and then grows to the foundation's wide
 /// content width. `columns` is how many columns the grid gets.
 pub struct ContentColumn {
-    width: Entity<f32>,
+    key: (WindowId, ElementId),
+    window: AnyWindowHandle,
     max_columns: u16,
     cells: usize,
     columns: u16,
@@ -93,7 +96,9 @@ pub struct ContentColumn {
 ///
 /// The column measures the room its parent gives it, and the count follows one frame behind:
 /// the window is asked to draw again only when the count changes (ADR 0058). The width is kept
-/// under `id`, so a page that keeps the id as it changes what it shows keeps the count too.
+/// under `id`, which is unique in the window, for as long as the application runs, so a page
+/// that keeps the id as it changes what it shows, or that is shown again after another, is laid
+/// out at its count at once.
 pub fn content_column_for_grid(
     id: impl Into<ElementId>,
     max_columns: u16,
@@ -101,14 +106,29 @@ pub fn content_column_for_grid(
     window: &mut Window,
     cx: &mut App,
 ) -> ContentColumn {
-    let width = window.use_keyed_state(id, cx, |_, _| 0.0_f32);
-    let room = *width.read(cx) - 2.0 * foundation().layout.panel_padding;
+    let handle = window.window_handle();
+    let key = (handle.window_id(), id.into());
+    let room = Measured::of(&key, cx).unwrap_or(0.0) - 2.0 * foundation().layout.panel_padding;
     ContentColumn {
         columns: grid_columns(room, max_columns, cells),
-        width,
+        key,
+        window: handle,
         max_columns,
         cells,
         children: Vec::new(),
+    }
+}
+
+/// The width each page column measured last, by window and id. It outlives the column, which is
+/// not drawn while its page is not shown.
+#[derive(Default)]
+struct Measured(HashMap<(WindowId, ElementId), f32>);
+
+impl Global for Measured {}
+
+impl Measured {
+    fn of(key: &(WindowId, ElementId), cx: &App) -> Option<f32> {
+        cx.try_global::<Self>().and_then(|m| m.0.get(key)).copied()
     }
 }
 
@@ -136,18 +156,27 @@ impl IntoElement for ContentColumn {
         } else {
             layout.content_width
         };
-        let (width, max_columns, cells, used) =
-            (self.width, self.max_columns, self.cells, self.columns);
+        let (key, handle, max_columns, cells, used) = (
+            self.key,
+            self.window,
+            self.max_columns,
+            self.cells,
+            self.columns,
+        );
         // The probe fills the box that is not yet narrowed to the content width, so it measures
         // the room the parent gives, whatever the count it decides.
         let probe = canvas(
             move |bounds, _, cx| {
                 let measured = f32::from(bounds.size.width);
-                width.update(cx, |kept, _| *kept = measured);
+                if Measured::of(&key, cx) != Some(measured) {
+                    cx.default_global::<Measured>().0.insert(key, measured);
+                }
                 if grid_columns(measured - 2.0 * pad, max_columns, cells) != used {
-                    // A view notified while the window draws is only marked, and no frame
-                    // follows until something else asks for one; after the frame it is drawn.
-                    cx.defer(move |cx| width.update(cx, |_, cx| cx.notify()));
+                    // Asked while the window draws, a refresh is dropped; after the frame it is
+                    // drawn.
+                    cx.defer(move |cx| {
+                        let _ = handle.update(cx, |_, window, _| window.refresh());
+                    });
                 }
             },
             |_, _, _, _| {},

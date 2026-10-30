@@ -389,6 +389,36 @@ fn the_column_draws_again_only_when_the_count_changes(cx: &mut TestAppContext) {
     );
 }
 
+/// A page shown again after another keeps the count it had, in its first frame, though its
+/// column was not drawn in between: no frame of one column, then two.
+#[gpui::test]
+fn a_page_shown_again_keeps_its_count(cx: &mut TestAppContext) {
+    use gpui::IntoElement;
+    let (frames, shown) = (Rc::new(Cell::new(0_u32)), Rc::new(Cell::new(true)));
+    let page = grid_page(2, 0);
+    let (counted, showing) = (frames.clone(), shown.clone());
+    let cx = open(cx, move |window, cx| {
+        counted.set(counted.get() + 1);
+        if showing.get() {
+            page(window, cx).into_any_element()
+        } else {
+            div().into_any_element()
+        }
+    });
+    resize(cx, 1600.0, 700.0);
+    shown.set(false);
+    crate::test_support::redraw(cx);
+    shown.set(true);
+    let before = frames.get();
+    crate::test_support::redraw(cx);
+    assert_eq!(frames.get() - before, 1, "one frame, at the count it had");
+    let (a, b) = (
+        cx.debug_bounds("cell-0").unwrap(),
+        cx.debug_bounds("cell-1").unwrap(),
+    );
+    assert_eq!(a.top(), b.top(), "two columns: {a:?} beside {b:?}");
+}
+
 /// The #75 case on a page of columns: an item whose description wraps is its column's width and
 /// keeps its words inside it.
 #[gpui::test]
