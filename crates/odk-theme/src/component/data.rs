@@ -337,6 +337,17 @@ impl ComponentTokens {
     }
 }
 
+/// How a group of items is set off from the page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ItemGroupVariant {
+    /// On the surface it is on, with no edge.
+    #[default]
+    Default,
+    /// Inside a box with a border and no fill, its title and items in it, as shadcn/ui's outline
+    /// item and card: for a group that lists things, such as devices or accounts.
+    Outline,
+}
+
 /// A group of items: its title, its description and its items, with a separator between one
 /// item and the next.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -349,23 +360,37 @@ pub struct ItemGroupStyle {
     pub description_role: TypeRole,
     /// Between its title, its description and its first item: `s1`.
     pub gap: f32,
+    /// Its edge, as a card's: `border.default` for `Outline`, none for `Default`.
+    pub border: Option<Color>,
+    pub border_width: f32,
+    /// Its corners: the foundation's default radius.
+    pub radius: f32,
+    /// Inside its edge on every side: `s4` for `Outline`, nothing for `Default`.
+    pub padding: f32,
 }
 
 impl ComponentTokens {
-    /// A group of items. It has no density: its items pad themselves by theirs.
-    pub fn item_group(&self) -> ItemGroupStyle {
+    /// A group of items at `variant`. It has no density: its items pad themselves by theirs.
+    pub fn item_group(&self, variant: ItemGroupVariant) -> ItemGroupStyle {
         let (title, description) = (self.heading(2), self.text(true));
+        let f = &self.foundation;
+        let outline = variant == ItemGroupVariant::Outline;
         ItemGroupStyle {
             title: title.colour,
             title_role: title.role,
             description: description.colour,
             description_role: description.role,
-            gap: self.foundation.spacing.s1,
+            gap: f.spacing.s1,
+            border: outline.then(|| self.colour(C::Border(B::Default))),
+            border_width: f.geometry.border_width,
+            radius: f.geometry.radius.default,
+            padding: if outline { f.spacing.s4 } else { 0.0 },
         }
     }
 }
 
-/// A group of items has no box: as high as its content, square, its title a level 2 heading.
+/// A group of items is as high as its content, its title a level 2 heading. An outline one has
+/// the default radius; a plain one has no box, so no corner.
 fn item_group_summary(f: &FoundationTokens, _: Density) -> Summary {
     Summary {
         height: None,
@@ -373,6 +398,15 @@ fn item_group_summary(f: &FoundationTokens, _: Density) -> Summary {
             radius: f.geometry.radius.none,
         },
         type_role: Some(super::feedback::heading_role(2)),
+    }
+}
+
+fn item_group_outline_summary(f: &FoundationTokens, d: Density) -> Summary {
+    Summary {
+        shape: Shape::Rect {
+            radius: f.geometry.radius.default,
+        },
+        ..item_group_summary(f, d)
     }
 }
 
@@ -523,5 +557,12 @@ pub(super) fn catalogue(out: &mut Vec<Entry>) {
         "description",
         &[Measure::Text],
         TreatmentRef::new(C::None, C::Text(T::Secondary), C::None),
+    );
+    // Its edge is decoration, as a card's is, held to no contrast.
+    Template::new("item group", "outline", item_group_outline_summary).entry(
+        out,
+        "edge",
+        &[],
+        TreatmentRef::new(C::None, C::None, C::Border(B::Default)),
     );
 }

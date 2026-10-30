@@ -526,11 +526,21 @@ const ITEMS_WIDTH: f32 = 640.0;
 /// when the control needs the room, divided by separators.
 fn items(c: &Content) -> Div {
     let [scroll, accel, speed] = c.items;
+    let (listed, about, [first, second]) = c.outline_group;
+    let device =
+        |(name, says): (&'static str, &'static str), id: &'static str, label: &'static str| {
+            let item = Item::new(name).action(Button::new(id).label(label));
+            if says.is_empty() {
+                item
+            } else {
+                item.description(says)
+            }
+        };
     let line = |text: &'static str| (!text.is_empty()).then(|| Text::new(text).mono().muted());
     v_flex()
         .gap(Space::Sm)
         .child(caption(
-            "A group of items: a title and a description, then its items with a line between one and the next. An item is a title, a description and lines under them, actions at the end and a footer across. Padded above and below by the density and not at the sides, so its text lines up with the heading over it. Not a tab stop: Tab reaches its actions.",
+            "A group of items: a title and a description, then its items with a line between one and the next; an outline group draws all of it in a box, for a group that lists things. An item is a title, a description and lines under them, actions at the end and a footer across. Padded above and below by the density and not at the sides, so its text lines up with the heading over it. Not a tab stop: Tab reaches its actions.",
         ))
         .child(
             v_flex().w_full().max_w(px(ITEMS_WIDTH)).child(
@@ -581,6 +591,15 @@ fn items(c: &Content) -> Div {
                         Item::new("Keyboard layout")
                             .action(Badge::new("Unknown").tone(Tone::Warning).marked()),
                     ),
+            ),
+        )
+        .child(
+            v_flex().w_full().max_w(px(ITEMS_WIDTH)).child(
+                ItemGroup::new(listed)
+                    .description(about)
+                    .variant(ItemGroupVariant::Outline)
+                    .child(device(first, "data-device-disconnect", "Disconnect"))
+                    .child(device(second, "data-device-connect", "Connect")),
             ),
         )
 }

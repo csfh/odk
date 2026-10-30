@@ -5,6 +5,7 @@ use gpui::{
     Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
+use odk_theme::component::ItemGroupVariant;
 
 use crate::components;
 use crate::layout::{StyledExt, v_flex};
@@ -24,14 +25,16 @@ use crate::theme::colour;
 ///
 /// Its title reads as a level 2 heading and its description as secondary body text. A line
 /// divides one item from the next, never the first from the description or the last from what
-/// follows the group. It has no box and no padding, so its text lines up with the items' text and
-/// with the heading over it, and it takes no focus and no keys. It reports a group named by its
-/// title, with its description.
+/// follows the group. By default it has no box and no padding, so its text lines up with the
+/// items' text and with the heading over it; `ItemGroupVariant::Outline` puts its title, its
+/// description and its items inside a border with no fill, as a shadcn/ui card. It takes no focus
+/// and no keys. It reports a group named by its title, with its description.
 #[derive(IntoElement)]
 pub struct ItemGroup {
     title: SharedString,
     description: Option<SharedString>,
     items: Vec<AnyElement>,
+    variant: ItemGroupVariant,
 }
 
 impl ItemGroup {
@@ -40,7 +43,15 @@ impl ItemGroup {
             title: title.into(),
             description: None,
             items: Vec::new(),
+            variant: ItemGroupVariant::Default,
         }
+    }
+
+    /// How it is set off from the page: `Outline` draws it in a box, for a group that lists
+    /// things, such as devices or accounts.
+    pub fn variant(mut self, variant: ItemGroupVariant) -> Self {
+        self.variant = variant;
+        self
     }
 
     /// Secondary text under the title that says what the group is for.
@@ -67,7 +78,7 @@ impl Describe for ItemGroup {
 
 impl RenderOnce for ItemGroup {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
-        let s = components().item_group();
+        let s = components().item_group(self.variant);
         #[cfg(test)]
         crate::drawn::record(&format!("odk-item-group/{}", self.title), s);
         let name = self.title.clone();
@@ -80,6 +91,7 @@ impl RenderOnce for ItemGroup {
             })
             .w_full()
             .gap(px(s.gap))
+            .p(px(s.padding))
             .child(
                 div()
                     .debug_selector({
@@ -117,6 +129,13 @@ impl RenderOnce for ItemGroup {
             }
             items = items.child(item);
         }
-        group.child(items)
+        let group = group.child(items);
+        match s.border {
+            Some(edge) => group
+                .border(px(s.border_width))
+                .border_color(colour(edge))
+                .rounded(px(s.radius)),
+            None => group,
+        }
     }
 }

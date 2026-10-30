@@ -109,7 +109,7 @@ pub use odk_a11y::{Accessible, Describe, Role};
 /// What a `Button` takes from the design language of ADR 0040: its variant, the emphasis that
 /// overrides the variant's, and a density of its own; and what a `Badge` takes, any Role at any
 /// Emphasis (the Role is `odk::theme::semantic::Role`, since `Role` here is accessibility's).
-pub use odk_theme::component::{BadgeAppearance, ButtonVariant};
+pub use odk_theme::component::{BadgeAppearance, ButtonVariant, ItemGroupVariant};
 pub use odk_theme::foundation::Density;
 pub use odk_theme::semantic::Emphasis;
 pub use password_input::PasswordInput;
@@ -153,13 +153,13 @@ pub mod prelude {
         ChartHeight, ChartPath, Checkbox, Chord, Clamp, Column, Command, CommandItem,
         ContentColumn, ContextMenu, DataTable, Density, Dialog, DropdownMenu, Emphasis,
         EndEllipsis, FileChooser, FixedWidth, FormField, Glyph, Grid, Heading, HoverCard, Icon,
-        Image, ImageFit, Ink, Input, InputGroup, Item, ItemGroup, Kbd, Menu, MenuItem,
-        MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress, RadioGroup,
-        Resizable, ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side, Size,
-        Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status, StatusIndicator,
-        StrokeWidth, StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline, Textarea, Toast,
-        ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column, content_column_for_grid,
-        form, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end,
-        truncate_lines, v_flex,
+        Image, ImageFit, Ink, Input, InputGroup, Item, ItemGroup, ItemGroupVariant, Kbd, Menu,
+        MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
+        RadioGroup, Resizable, ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side,
+        Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
+        StatusIndicator, StrokeWidth, StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline,
+        Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column,
+        content_column_for_grid, form, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame,
+        toast, truncate_end, truncate_lines, v_flex,
     };
 }
