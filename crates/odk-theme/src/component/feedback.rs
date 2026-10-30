@@ -122,6 +122,41 @@ pub struct SkeletonStyle {
 /// will replace it is not known until what it shows is read, so this is ODK's own.
 pub const CONTROL_SKELETON_HEIGHTS: f32 = 3.0;
 
+/// An empty state: an icon in a muted square, a title, a description and its actions, centred,
+/// as shadcn/ui's `Empty`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EmptyStyle {
+    /// Its title, as a level 3 heading draws it.
+    pub title: Color,
+    pub title_role: TypeRole,
+    /// Its description, in small secondary text.
+    pub description: Color,
+    pub description_role: TypeRole,
+    /// The square its icon sits in: the neutral muted tint a skeleton has.
+    pub media: Color,
+    /// Its icon: the primary text colour, held to `ui_contrast` on the square.
+    pub icon: Color,
+    /// The square's side: `s6` and `s2` either side of the icon, 40 at the default text size.
+    pub media_size: f32,
+    /// The icon's side: `s6`.
+    pub icon_size: f32,
+    /// The square's corners: the default radius.
+    pub radius: f32,
+    /// Around it on every side: `s6`.
+    pub padding: f32,
+    /// Between its title and its description, and between one action and the next: `s2`.
+    pub gap: f32,
+    /// Below the square, and above the actions: `s4` and `s6`.
+    pub media_gap: f32,
+    pub actions_gap: f32,
+    /// The widest its words grow: [`EMPTY_MEASURE_EMS`] of body text.
+    pub measure: f32,
+}
+
+/// How many ems of body text an empty state's words grow to before they wrap: about shadcn/ui's
+/// `max-w-sm`, so a centred description stays a short paragraph on a wide page. ODK's own.
+pub const EMPTY_MEASURE_EMS: f32 = 30.0;
+
 /// The colour and mark of a status shown inline.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StatusStyle {
@@ -261,6 +296,29 @@ impl ComponentTokens {
             value: self.colour(value),
             type_role: TypeRole::Small,
             gap: f.layout.field_gap,
+        }
+    }
+
+    /// An empty state. It has no density: it is not a control.
+    pub fn empty(&self) -> EmptyStyle {
+        let f = &self.foundation;
+        let (title, description) = (self.heading(3), self.text(true));
+        let s = &f.spacing;
+        EmptyStyle {
+            title: title.colour,
+            title_role: title.role,
+            description: description.colour,
+            description_role: TypeRole::Small,
+            media: self.colour(SKELETON),
+            icon: self.colour(C::Text(T::Primary)),
+            media_size: s.s6 + 2.0 * s.s2,
+            icon_size: s.s6,
+            radius: f.geometry.radius.default,
+            padding: s.s6,
+            gap: s.s2,
+            media_gap: s.s4,
+            actions_gap: s.s6,
+            measure: (EMPTY_MEASURE_EMS * f.typography.style(TypeRole::Body).size).round(),
         }
     }
 
@@ -589,6 +647,40 @@ pub(crate) fn catalogue(out: &mut Vec<Entry>) {
         "default",
         &[],
         TreatmentRef::new(SKELETON, C::None, C::None),
+    );
+    let empty = Template::new("empty", "", |f, _| Summary {
+        height: None,
+        shape: Shape::Rect {
+            radius: f.geometry.radius.none,
+        },
+        type_role: Some(heading_role(3)),
+    });
+    empty.entry(
+        out,
+        "title",
+        &[Text],
+        TreatmentRef::new(C::None, C::Text(T::Primary), C::None),
+    );
+    empty.entry(
+        out,
+        "description",
+        &[Text],
+        TreatmentRef::new(C::None, C::Text(T::Secondary), C::None),
+    );
+    // The icon on its square says what kind of nothing this is: a mark, at `ui_contrast`.
+    Template::new("empty", "media", |f, _| Summary {
+        height: Some(f.spacing.s6 + 2.0 * f.spacing.s2),
+        shape: Shape::Rect {
+            radius: f.geometry.radius.default,
+        },
+        type_role: None,
+    })
+    .fixed_size()
+    .entry(
+        out,
+        "icon",
+        &[Measure::Mark],
+        TreatmentRef::new(SKELETON, C::Text(T::Primary), C::None),
     );
     Template::new("spinner", "standalone", |f, d| Summary {
         height: Some(f.controls.for_density(d).icon_size),

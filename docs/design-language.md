@@ -57,7 +57,7 @@ Specified in `docs/spec/odk-source-palette.md` and `docs/spec/odk-semantic-token
 | Actions | `Button` (eight `ButtonVariant`s, any role at any emphasis, icon-only, loading), link as `ButtonVariant::Link` |
 | Forms | `Input`, `SearchInput`, `PasswordInput`, `NumberInput`, `Textarea`, `InputGroup`, `Select`, `Command` (a palette: a field over a filtered list), `Checkbox`, `RadioGroup`, `Switch`, `FormField` |
 | Navigation | `Tabs`, `ToggleGroup` (segmented control), `NavList`, `Breadcrumb` |
-| Feedback | `Badge`, `StatusIndicator`, `Alert`, `Progress`, `Spinner`, `Skeleton`, `Separator`, `Text`, `Heading`, `Kbd` |
+| Feedback | `Badge`, `StatusIndicator`, `Alert`, `Progress`, `Spinner`, `Skeleton`, `Empty` (what a list shows with nothing in it), `Separator`, `Text`, `Heading`, `Kbd` |
 | Overlays | `DropdownMenu`, `ContextMenu`, `Popover`, `Tooltip`, `HoverCard`, `Dialog`, `Sheet`, `Toast` |
 | Data | `Item` (a row of content, its actions at its end), `ItemGroup` (titled items with a line between two), `DataTable`, `Chart`, `Image`, `Resizable` |
 

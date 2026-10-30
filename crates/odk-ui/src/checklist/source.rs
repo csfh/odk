@@ -19,6 +19,7 @@ pub(super) const COMPONENTS: &[(&str, &str, bool)] = &[
     ("DataTable", "data_table.rs", true),
     ("ContextMenu", "menu.rs", true),
     ("Dialog", "dialog.rs", true),
+    ("Empty", "empty.rs", false),
     ("DropdownMenu", "menu.rs", true),
     ("FormField", "form_field.rs", false),
     ("Heading", "text.rs", false),
@@ -66,6 +67,7 @@ const ON_COMPONENT_TOKENS: &[&str] = &[
     "command.rs",
     "data_table.rs",
     "dialog.rs",
+    "empty.rs",
     "form_field.rs",
     "hover_card.rs",
     "image.rs",
@@ -735,6 +737,7 @@ fn every_component_is_in_the_prelude() {
             .column(Column::new("n", "N", |n: &u32| n.to_string().into()).sort_by(|n: &u32| *n))
             .default_sort("n", SortDirection::Descending),
         Dialog::new("dl", "Rename file"),
+        Empty::new("No matching processes"),
         DropdownMenu::new("e", "l"),
         FormField::new("ff", "Name").child(Input::new("ffi", "Name")),
         Heading::new("h"),

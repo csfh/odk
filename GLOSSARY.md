@@ -129,6 +129,10 @@ _Avoid_: section, list (for this), fieldset, card
 A button drawn inside a Field, lower than it, that acts on the Field's value: clearing it, showing a password, stepping a number.
 _Avoid_: adornment, addon (for a button), inline button
 
+**Empty state**:
+What a list or a page shows when there is nothing in it: what kind of nothing, why, and a way out.
+_Avoid_: placeholder, blank slate, zero state, no-data view
+
 **Status mark**:
 The character that says which status a notice is in, `i`, `✓`, `!` or `×` for info, success, warning and danger, so the status never rests on its colour.
 _Avoid_: status icon, tone icon
