@@ -27,8 +27,9 @@ use crate::editor::Editor;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, focus_ring, pointer_states};
-use crate::layout::{StyledExt, h_flex, truncate_end, truncate_lines, v_flex};
+use crate::layout::{StyledExt, truncate_end, truncate_lines};
 use crate::number::Rules;
+use crate::stack::{Row, Stack};
 use crate::text_layout::{Shown, TextLayout};
 use crate::theme::{colour, mono};
 use crate::{Button, Icon, Kbd, Spinner, components};
@@ -1406,11 +1407,10 @@ pub(crate) fn field_mark(glyph: impl Into<Glyph>, size: f32, ink: Color) -> Div 
 /// colours under the pointer, and its focus ring while focused. `end_inset` is set when the
 /// box ends with a button, which sits the thumb gap from the border rather than the padding.
 /// Call it after everything else that sets `el`'s text style.
-pub(crate) fn field_box(
-    el: Stateful<Div>,
-    s: &FieldStyle,
-    end_inset: Option<f32>,
-) -> Stateful<Div> {
+pub(crate) fn field_box<E>(el: Stateful<E>, s: &FieldStyle, end_inset: Option<f32>) -> Stateful<E>
+where
+    E: gpui::Element + Styled + InteractiveElement + ParentElement,
+{
     let g = s.geometry;
     let mut el = el
         .relative()
@@ -1831,7 +1831,7 @@ impl RenderOnce for Input {
         }
         let form = c.form_field(States::NONE);
         let message = c.form_message(odk_theme::semantic::Role::Danger);
-        let mut row = h_flex()
+        let mut row = Row::new()
             .id(child_id(&self.id, "error"))
             .debug_selector(|| part_name(&self.id, "error"))
             .items_start()
@@ -1850,7 +1850,7 @@ impl RenderOnce for Input {
                 colour(message.colour),
             )));
         }
-        v_flex()
+        Stack::new()
             .w_full()
             .min_w_0()
             .gap(px(form.gap))

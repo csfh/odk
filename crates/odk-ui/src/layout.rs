@@ -11,6 +11,7 @@ use odk_theme::foundation::TypeRole;
 use odk_theme::semantic::Treatment;
 
 use crate::separator::Separator;
+use crate::stack::{Row, Stack};
 use crate::theme::{colour, family, foundation, theme_snapshot, weight};
 
 /// A step on the spacing ladder. The pixel size comes from the foundation's spacing
@@ -227,27 +228,17 @@ fn keep_middle(graphemes: &[&str], keep: usize) -> String {
 /// The top of a window's view: fills the window, paints the theme's base surface and sets the
 /// default text colour. Start every window's view with this. The window's toasts and overlay
 /// host come from the window itself ([`crate::open_window`]).
-pub fn root() -> Div {
+pub fn root() -> Stack {
     let s = theme_snapshot();
-    v_flex()
+    Stack::new()
         .size_full()
         .bg(colour(s.semantic.surface.canvas))
         .text_color(colour(s.semantic.text.primary))
 }
 
-/// A column of children.
-pub fn v_flex() -> Div {
-    div().flex().flex_col()
-}
-
-/// A row of children.
-pub fn h_flex() -> Div {
-    div().flex().flex_row().items_center()
-}
-
 /// A region that takes the room its parent leaves and scrolls when its content is taller. It is
 /// a block, not a flex column: children of a flex column shrink to fit instead of scrolling, so
-/// put one `v_flex()` or `content_column()` inside it. The `id` is GPUI's key for the scroll
+/// put one `Stack` inside it. The `id` is GPUI's key for the scroll
 /// position, so it must be unique in the window. It is as wide as its parent: left to the width of
 /// its content, a field under a long paragraph came out as wide as its icon.
 pub fn scroll_y(id: impl Into<ElementId>) -> Stateful<Div> {
@@ -257,16 +248,14 @@ pub fn scroll_y(id: impl Into<ElementId>) -> Stateful<Div> {
 /// The frame of an application with a sidebar: the sidebar at the foundation's width, on the
 /// recessed surface with its content inset by the foundation's sidebar padding, a line, and the
 /// content taking the rest. It fills its parent, so put it where the page goes, inside [`root`].
-pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Div {
+pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Row {
     let layout = &foundation().layout;
     let surface = theme_snapshot().semantic.surface.recessed;
-    // A row, not `h_flex`: that centres its children, and these two stretch to the full height.
-    div()
-        .flex()
-        .flex_row()
+    // A stretching Row: a plain one centres its children, and these two stretch to the full height.
+    Row::stretch()
         .size_full()
         .child(
-            v_flex()
+            Stack::new()
                 .debug_selector(|| "sidebar-frame".into())
                 .w(px(layout.sidebar_width))
                 .flex_none()
@@ -281,7 +270,7 @@ pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Di
             // flexing: a scroll region under a flex item measured its children at the width of
             // their content, and a field under a long paragraph came out as wide as its icon.
             div().flex_1().min_w_0().h_full().relative().child(
-                v_flex()
+                Stack::new()
                     .absolute()
                     .top_0()
                     .bottom_0()
@@ -290,18 +279,6 @@ pub fn sidebar_frame(sidebar: impl IntoElement, content: impl IntoElement) -> Di
                     .child(content),
             ),
         )
-}
-
-/// A page's column of content: as wide as its parent up to the foundation's content width,
-/// centred when the parent is wider, with the panel padding and the gap between sections.
-pub fn content_column() -> Div {
-    let layout = &foundation().layout;
-    v_flex()
-        .w_full()
-        .max_w(px(layout.content_width))
-        .mx_auto()
-        .p(px(layout.panel_padding))
-        .gap(px(layout.section_gap))
 }
 
 #[cfg(test)]

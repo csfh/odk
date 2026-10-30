@@ -33,8 +33,9 @@ use crate::Icon;
 use crate::decoration::{Applied, OverlayDecoration, SizeMode};
 use crate::focus::focus_handle;
 use crate::icon;
-use crate::layout::{StyledExt, h_flex, inside_window, v_flex};
+use crate::layout::{StyledExt, inside_window};
 use crate::overlay::{Layer, Presence, Transition};
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{Badge, Button, Size, Tone, components};
 
@@ -278,7 +279,7 @@ impl Entry {
 }
 
 #[derive(Default)]
-struct Stack {
+struct ToastStack {
     entries: Vec<Entry>,
     paused: bool,
     /// Whether the pointer is over the stack, and whether focus is in it.
@@ -289,7 +290,7 @@ struct Stack {
 }
 
 struct Toasts {
-    windows: HashMap<WindowId, Stack>,
+    windows: HashMap<WindowId, ToastStack>,
     limit: usize,
 }
 
@@ -316,7 +317,7 @@ fn forget_closed_windows(cx: &mut App) {
     crate::overlay::forget_closed_windows(&open, cx);
 }
 
-impl Stack {
+impl ToastStack {
     /// Advances the clocks to `now`: starts the toasts that have come on screen, closes
     /// the expired ones, drops the ones whose exit has run. Returns the next deadline.
     fn tick(
@@ -544,7 +545,7 @@ impl RenderOnce for ToastHost {
                 SizeMode::Autosize => TOAST_WIDTH * scale,
             })
             .fold(0.0_f32, f32::max);
-        let mut column = v_flex()
+        let mut column = Stack::new()
             .id("odk-toasts")
             .debug_selector(|| "odk-toasts".into())
             .track_focus(&focus)
@@ -587,7 +588,7 @@ impl RenderOnce for ToastHost {
             };
             // `min_w_0` lets the text be narrower than its longest word, so long words and
             // URLs wrap inside the box and the trailing buttons keep their place.
-            let mut title_row = h_flex().gap(px(f.spacing.s2)).child(
+            let mut title_row = Row::new().gap(px(f.spacing.s2)).child(
                 div()
                     .flex_1()
                     .min_w_0()
@@ -598,7 +599,7 @@ impl RenderOnce for ToastHost {
             if count > 1 {
                 title_row = title_row.child(Badge::new(count.to_string()));
             }
-            let mut text = v_flex()
+            let mut text = Stack::new()
                 .flex_1()
                 .min_w_0()
                 .gap(px(f.spacing.s1))
@@ -624,7 +625,7 @@ impl RenderOnce for ToastHost {
                     })
             }));
             let key_dismiss = dismiss;
-            let card = h_flex()
+            let card = Row::new()
                 .debug_selector(|| format!("odk-toast/card-{toast_id_n}"))
                 .items_start()
                 .gap(px(g.gap + f.spacing.s1))
@@ -729,8 +730,8 @@ pub(crate) fn entries(cx: &mut gpui::VisualTestContext) -> usize {
 mod tests {
     use super::*;
 
-    fn stack(n: usize) -> Stack {
-        let mut s = Stack::default();
+    fn stack(n: usize) -> ToastStack {
+        let mut s = ToastStack::default();
         for id in 0..n as u64 {
             s.entries.push(Entry {
                 toast: Toast::new("t").with_id(ToastId(id)),

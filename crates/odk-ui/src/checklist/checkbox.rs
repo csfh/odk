@@ -5,7 +5,7 @@ use gpui::{Modifiers, ParentElement, Styled, TestAppContext, VisualTestContext, 
 use odk_a11y::{Describe, Role};
 
 use super::{open, press, redraw};
-use crate::{Button, Checkbox, Icon, v_flex};
+use crate::{Button, Checkbox, Icon, Stack};
 
 type Seen = Rc<RefCell<Vec<bool>>>;
 
@@ -64,7 +64,7 @@ fn a_disabled_checkbox_is_skipped_and_ignores_clicks(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(
                 Checkbox::new("c", "Wrap lines")
                     .disabled(true)
@@ -106,7 +106,7 @@ fn controlled_and_uncontrolled(cx: &mut TestAppContext) {
     let seen = Seen::default();
     let s = seen.clone();
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Checkbox::new("held", "Held")
                     .checked(false)
@@ -138,7 +138,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
     let off = Rc::new(Cell::new(false));
     let o = off.clone();
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(Checkbox::new("c", "Wrap lines").disabled(o.get()))
             .child(Button::new("after").label("After"))
     });
@@ -163,7 +163,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_long_label_wraps_beside_the_box(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(200.0)).child(Checkbox::new(
+        Stack::new().w(px(200.0)).child(Checkbox::new(
             "c",
             "Automatischer Zeilenumbruch am Fensterrand, auch in eingebetteten Ansichten",
         ))
@@ -216,7 +216,7 @@ fn a_click_on_the_label_focuses_the_box(cx: &mut TestAppContext) {
 fn each_density_has_its_square_and_a_wrong_box_its_edge(cx: &mut TestAppContext) {
     use odk_theme::foundation::Density;
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .children(Density::ALL.map(|d| Checkbox::new(d.name(), "Wrap").density(d)))
             .child(Checkbox::new("bad", "Agree").invalid(true))
             .child(Checkbox::new("off", "Managed").checked(true).disabled(true))
@@ -254,7 +254,7 @@ fn each_density_has_its_square_and_a_wrong_box_its_edge(cx: &mut TestAppContext)
 #[gpui::test]
 fn the_marks_are_icons_in_the_boxs_foreground(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Checkbox::new("on", "Wrap").checked(true))
             .child(Checkbox::new("mixed", "All").indeterminate(true))
     });

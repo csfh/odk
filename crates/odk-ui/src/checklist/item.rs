@@ -11,7 +11,7 @@ use odk_theme::component::ItemStyle;
 use odk_theme::foundation::Density;
 
 use super::{open, redraw};
-use crate::{Button, Item, Select, Switch, Text, h_flex, v_flex};
+use crate::{Button, Item, Row, Select, Stack, Switch, Text};
 
 /// The width the items are drawn in.
 const WIDTH: f32 = 400.0;
@@ -41,7 +41,7 @@ fn reports_a_group_named_by_its_title_with_its_description() {
 #[gpui::test]
 fn reads_as_a_form_field_and_pads_by_its_density(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(WIDTH))
             .child(Item::new("Applied").description("The application's density."))
             .child(
@@ -84,17 +84,17 @@ fn the_words_wrap_and_an_action_is_never_squeezed(cx: &mut TestAppContext) {
     let long = "A description long enough to wrap several times in a narrow column, and then \
                 some more, so that it would push anything beside it if it could.";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(WIDTH))
             .child(
-                h_flex().child(
+                Row::new().child(
                     gpui::div()
                         .debug_selector(|| "alone".into())
                         .child(Text::new(LABEL).single_line()),
                 ),
             )
             .child(
-                v_flex().w(px(240.0)).child(
+                Stack::new().w(px(240.0)).child(
                     Item::new("Narrow")
                         .description(long)
                         .action(Text::new(LABEL).single_line()),
@@ -129,7 +129,7 @@ fn the_words_wrap_and_an_action_is_never_squeezed(cx: &mut TestAppContext) {
 #[gpui::test]
 fn actions_end_the_item_in_order_and_lines_follow_the_description(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(WIDTH)).child(
+        Stack::new().w(px(WIDTH)).child(
             Item::new("Ordered")
                 .description("Two actions.")
                 .child(Text::new("~/.config/hypr/input.lua").mono().muted())
@@ -156,7 +156,7 @@ fn actions_end_the_item_in_order_and_lines_follow_the_description(cx: &mut TestA
 #[gpui::test]
 fn a_footer_spans_the_item_under_its_words(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(WIDTH)).child(
+        Stack::new().w(px(WIDTH)).child(
             Item::new("Footed")
                 .action(Button::new("star").label("Star"))
                 .footer(Button::new("wide").label("Wide").full_width()),
@@ -181,7 +181,7 @@ fn a_footer_spans_the_item_under_its_words(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_control_that_fills_its_parent_leaves_the_words_their_room(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(WIDTH)).child(
+        Stack::new().w(px(WIDTH)).child(
             Item::new("Chosen")
                 .description("Adaptive speeds up as you move.")
                 .action(Select::new("accel", "Acceleration").item("default", "Default")),
@@ -203,9 +203,9 @@ fn a_wrapped_description_stays_inside_its_item_on_a_scrolling_page(cx: &mut Test
     let long = "How a high-resolution or free-spin mouse wheel is turned into scroll events. \
                 Smooth keeps the fine motion. Stepped turns it into clicks.";
     let cx = open(cx, move |_, _| {
-        v_flex().w(px(900.0)).h(px(700.0)).child(
+        Stack::new().w(px(900.0)).h(px(700.0)).child(
             crate::scroll_y("page").child(
-                crate::content_column().child(
+                crate::Stack::page().child(
                     Item::new("Scroll inertia")
                         .description(long)
                         .child(Text::new("~/.config/hypr/input.lua").mono().muted())

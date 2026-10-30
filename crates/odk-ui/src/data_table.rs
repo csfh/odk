@@ -19,8 +19,9 @@ use crate::decoration::{self, ClipFit};
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::icon;
 use crate::interaction::{Pointer, RingTarget, pointer_states};
-use crate::layout::{StyledExt, bounds_probe, h_flex, text_width, truncate_end, v_flex};
+use crate::layout::{StyledExt, bounds_probe, text_width, truncate_end};
 use crate::menu::Menu;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{Button, ButtonVariant, ContextMenu, Skeleton, components};
 
@@ -637,7 +638,7 @@ impl<R: 'static> RenderOnce for DataTable<R> {
             })
         };
         let header_ring = RingTarget::default();
-        let mut header = h_flex()
+        let mut header = Row::new()
             .id(child_id(&self.id, "header"))
             .debug_selector(|| part_name(&self.id, "header"))
             .relative()
@@ -671,7 +672,7 @@ impl<R: 'static> RenderOnce for DataTable<R> {
             header_focused |= focused;
             let hs = c.table_header(place.is_some(), States::NONE.focused(focused));
             let mark = sorted_by.filter(|(at, _)| *at == i).map(|(_, d)| d.mark());
-            let mut label = h_flex()
+            let mut label = Row::new()
                 .min_w_0()
                 .gap(px(g.gap))
                 .child(truncate_end(div().min_w_0()).child(column.header.clone()))
@@ -773,7 +774,7 @@ impl<R: 'static> RenderOnce for DataTable<R> {
                             let key = keys[place].clone();
                             let is_selected = selected.as_ref() == Some(&key);
                             let rs = c.table_row(States::NONE.selected(is_selected));
-                            let mut el = h_flex()
+                            let mut el = Row::new()
                                 .id(child_id(&id, format!("row-{key}")))
                                 .debug_selector(|| part_name(&id, &format!("row-{place}")))
                                 .relative()
@@ -894,7 +895,7 @@ impl<R: 'static> RenderOnce for DataTable<R> {
             .saturating_sub(1)
             .max(1);
         let probe_state = state.clone();
-        let mut body = v_flex()
+        let mut body = Stack::new()
             .id(child_id(&self.id, "body"))
             .debug_selector(|| part_name(&self.id, "rows"))
             .relative()
@@ -978,7 +979,7 @@ impl<R: 'static> RenderOnce for DataTable<R> {
             None => body.into_any_element(),
         };
 
-        v_flex()
+        Stack::new()
             .id(self.id.clone())
             .debug_selector(|| part_name(&self.id, "table"))
             .size_full()

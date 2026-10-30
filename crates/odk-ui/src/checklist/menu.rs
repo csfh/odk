@@ -6,7 +6,7 @@ use odk_a11y::Role;
 
 use super::{Count, open, press, reduce_motion};
 use crate::overlay::probe;
-use crate::{Button, ContextMenu, DropdownMenu, Menu, MenuItem, Text, h_flex};
+use crate::{Button, ContextMenu, DropdownMenu, Menu, MenuItem, Row, Stack, Text};
 
 type Picks = Rc<RefCell<Vec<&'static str>>>;
 
@@ -78,7 +78,7 @@ fn tab_closes_the_menu(cx: &mut TestAppContext) {
     let (p, a) = (picks.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        h_flex()
+        Row::new()
             .child(DropdownMenu::new("file", "File").menu(menu(&p)))
             .child(
                 Button::new("after")
@@ -143,7 +143,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
     let picks = Picks::default();
     let p = picks.clone();
     let cx = open(cx, move |_, _| {
-        h_flex()
+        Row::new()
             .child(DropdownMenu::new("file", "File").menu(menu(&p)))
             .child(Button::new("after").label("After"))
     });
@@ -182,7 +182,7 @@ fn a_context_menu_opens_right_below_its_trigger(cx: &mut TestAppContext) {
     let picks = Picks::default();
     let p = picks.clone();
     let cx = open(cx, move |_, _| {
-        crate::v_flex()
+        crate::Stack::new()
             .child(Text::new("Above"))
             .child(ContextMenu::new("ctx", "Row actions", Text::new("Row")).menu(menu(&p)))
     });
@@ -321,7 +321,7 @@ fn the_click_that_dismisses_a_menu_presses_nothing_under_it(cx: &mut TestAppCont
     let o = other.clone();
     let cx = open(cx, move |_, _| {
         let o = o.clone();
-        h_flex()
+        Row::new()
             .child(DropdownMenu::new("dd", "File").menu(menu(&p)))
             .child(
                 Button::new("other")
@@ -350,7 +350,7 @@ fn a_right_click_away_from_a_context_menu_closes_it(cx: &mut TestAppContext) {
     let picks = Picks::default();
     let p = picks.clone();
     let cx = open(cx, move |_, _| {
-        h_flex().child(
+        Row::new().child(
             ContextMenu::new("ctx", "Row actions", Text::new("Right click me")).menu(menu(&p)),
         )
     });
@@ -462,10 +462,8 @@ fn a_dropdown_flips_above_its_trigger_when_there_is_no_room_below(cx: &mut TestA
     let picks = Picks::default();
     let p = picks.clone();
     let cx = open(cx, move |_, _| {
-        gpui::div()
+        Stack::new()
             .size_full()
-            .flex()
-            .flex_col()
             .justify_end()
             .child(DropdownMenu::new("dd", "File").menu(menu(&p)))
     });

@@ -3,7 +3,6 @@
 //! snapshot, which holds the resolver's output; nothing is derived here, so what a swatch shows
 //! is what a component draws.
 
-use odk::gpui::Div;
 use odk::prelude::*;
 use odk::theme::Color;
 use odk::theme::semantic::{
@@ -112,7 +111,7 @@ impl Render for ColorsPage {
         let palette = &theme.palette;
         let semantic = &theme.semantic;
 
-        let mut source = v_flex().gap(Space::Md);
+        let mut source = Stack::new().gap(Space::Md);
         source = source.child(Text::new(format!(
             "{} · {} colours defined by the theme, {} optional ones left out. A swatch here is the theme's own colour, as written in `colors.toml`.",
             theme
@@ -123,7 +122,7 @@ impl Render for ColorsPage {
             palette.missing().count()
         )).muted());
         for (title, keys) in GROUPS {
-            let mut rows = v_flex().gap(Space::Xs);
+            let mut rows = Stack::new().gap(Space::Xs);
             for key in keys {
                 rows = rows.child(match palette.get(*key) {
                     Some(c) => colour_kv(
@@ -141,7 +140,7 @@ impl Render for ColorsPage {
             source = source.child(group(title)).child(rows);
         }
 
-        let mut surfaces = v_flex().gap(Space::Xs);
+        let mut surfaces = Stack::new().gap(Space::Xs);
         for token in SURFACES {
             surfaces = surfaces.child(colour_kv(
                 format!("surface.{}", token.name()),
@@ -164,7 +163,7 @@ impl Render for ColorsPage {
             ));
         }
 
-        let mut roles = v_flex().gap(Space::Md);
+        let mut roles = Stack::new().gap(Space::Md);
         roles = roles.child(
             Text::new(
                 "Each role at each emphasis, in its default state: the sample is the treatment's background and foreground over the canvas, with the border it is drawn with. Contrast is the foreground against the background as drawn over the canvas: text needs 4.5:1.",
@@ -172,7 +171,7 @@ impl Render for ColorsPage {
             .muted(),
         );
         for role in Role::ALL {
-            let mut block = v_flex().gap(Space::Xs).child(group(match role {
+            let mut block = Stack::new().gap(Space::Xs).child(group(match role {
                 Role::Accent => "Accent",
                 Role::Neutral => "Neutral",
                 Role::Danger => "Danger",
@@ -193,7 +192,7 @@ impl Render for ColorsPage {
 
         page(
             Page::Colors,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(section("Source palette"))
                 .child(source)
@@ -233,12 +232,12 @@ pub fn treatment_data(semantic: &SemanticColours, role: Role, emphasis: Emphasis
 }
 
 /// One line: a role at an emphasis, its sample, its three colours and its contrast.
-fn treatment_row(role: Role, emphasis: Emphasis) -> Div {
+fn treatment_row(role: Role, emphasis: Emphasis) -> Row {
     let theme = odk::ui::theme_snapshot();
     let row = treatment_data(&theme.semantic, role, emphasis);
     let (ratio, passes) = (row.ratio, row.passes());
     let name = format!("roles.{role}.{}", emphasis.name());
-    h_flex()
+    Row::new()
         .flex_wrap()
         .gap(Space::Md)
         .child(

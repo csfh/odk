@@ -8,7 +8,7 @@ use gpui::{
     Window, WindowId, canvas, div, px,
 };
 
-use crate::layout::v_flex;
+use crate::stack::Stack;
 use crate::theme::foundation;
 
 /// How many columns of the foundation's grid column width fit in `width` with the section gap
@@ -77,7 +77,7 @@ impl IntoElement for Grid {
 }
 
 /// A page's column of content that holds a `Grid`, which `content_column_for_grid` makes. It is
-/// `content_column` until two of the grid's columns fit, and then grows to the foundation's wide
+/// `Stack::page()` until two of the grid's columns fit, and then grows to the foundation's wide
 /// content width. `columns` is how many columns the grid gets.
 pub struct ContentColumn {
     key: (WindowId, ElementId),
@@ -146,9 +146,9 @@ impl ParentElement for ContentColumn {
 }
 
 impl IntoElement for ContentColumn {
-    type Element = Div;
+    type Element = Stack;
 
-    fn into_element(self) -> Div {
+    fn into_element(self) -> Stack {
         let layout = &foundation().layout;
         let (pad, wide) = (layout.panel_padding, layout.wide_content_width);
         let cap = if self.columns > 1 {
@@ -186,13 +186,13 @@ impl IntoElement for ContentColumn {
         .left(px(0.0))
         .right(px(0.0))
         .bottom(px(0.0));
-        v_flex()
+        Stack::new()
             .w_full()
             .max_w(px(wide))
             .mx_auto()
             .child(probe)
             .child(
-                v_flex()
+                Stack::new()
                     .w_full()
                     .max_w(px(cap))
                     .mx_auto()

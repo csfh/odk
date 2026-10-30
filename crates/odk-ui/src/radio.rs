@@ -15,7 +15,7 @@ use odk_theme::foundation::{Density, TypeRole};
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::interaction::{Pointer, focus_ring, pointer_states};
-use crate::layout::{h_flex, v_flex};
+use crate::stack::flow;
 use crate::theme::colour;
 use crate::toggle::{Action, Label, labelled};
 
@@ -243,7 +243,7 @@ impl RenderOnce for RadioGroup {
 
         let (keys, key_enabled, key_choose) = (handles.clone(), enabled.clone(), choose.clone());
         let mut group = if self.horizontal {
-            h_flex()
+            flow(true)
                 .items_start()
                 .flex_wrap()
                 .gap(px(c.foundation().layout.form_gap))
@@ -253,7 +253,7 @@ impl RenderOnce for RadioGroup {
             let line = c.foundation().typography.style(TypeRole::Body).line_height;
             let gap = c.radio(density, States::NONE).geometry.gap;
             let apart = gap.max(c.foundation().geometry.target_min - line).max(0.0);
-            v_flex().gap(px(apart))
+            flow(false).gap(px(apart))
         }
         .id(self.id.clone())
         .debug_selector(|| part_name(&self.id, "group"))

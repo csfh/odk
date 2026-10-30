@@ -12,7 +12,8 @@ An application and every component set elements in a column with `v_flex()`, in 
 - **Each is a newtype over `Div`** that implements GPUI's `Styled`, `InteractiveElement`, `ParentElement` and `Element` by delegation, the way GPUI's own `Stateful<E>` wraps an element. Every method the `Div` had still works on it (`.child`, `.gap(Space)`, `.w(px)`, `.debug_selector`, `.on_key_down`, `.when`), and `.id()` gives a `Stateful<Stack>` that an overlay accepts. Moving 369 `v_flex()` and 105 `h_flex()` sites is a rename.
 - **`Stack::page()`** is what `content_column()` was: the foundation's content width as the most it takes, centred, with the panel padding and the section gap. `Row::stretch()` is a Row that does not centre across, for the frame of an application with a sidebar.
 - **`ContentColumn` and `content_column_for_grid`**, the page column that counts a Grid's columns, keep their names and behaviour and are built on `Stack::page()`.
-- **A group whose direction is chosen while drawing** (a resizable group, a placement that is beside or below) uses one crate-private function in `stack.rs`, so the choice is not two types.
+- **A group chosen while drawing** (a resizable group, a placement that is beside or below its anchor, a context menu's wrapper that is a column when it fills its parent and a plain block when it does not) uses one crate-private function in `stack.rs`, `flow(horizontal)`, which sets a direction and nothing else, so the choice is not two types.
+- **Return types change with it.** `root()` and `form()` return `Stack`, `sidebar_frame()` returns `Row`, and `ContentColumn`'s `IntoElement::Element` is `Stack`; a function that returned one of them as a `Div` returns that type. A `Stateful<Div>` that an overlay's `modal` or `docked` took is a `Stateful<Stack>`.
 - **What is not a group:** `scroll_y()` is a scrolling block; a bare `.flex()` that centres one element inside a component's own drawing (an icon in its slot) is not a group and stays; `oma-consent` does not use ODK. The checklist (item 43) scans `odk-ui` for `v_flex(`, `h_flex(`, `.flex_col()` and `.flex_row()` outside `stack.rs`, and for nothing else.
 
 ## Considered options
@@ -23,6 +24,6 @@ An application and every component set elements in a column with `v_flex()`, in 
 
 ## Consequences
 
-- Atmos (`frontend/`, which depends on this tree by path) uses `v_flex` (87 sites), `content_column` (6) and `h_flex` and does not build until it moves to `Stack::new()`, `Stack::page()` and `Row::new()`. `docs/migration.md` has the mapping.
+- Atmos (`frontend/`, which depends on this tree by path) uses `v_flex` (86 calls), `h_flex` (76) and `content_column` (6) and does not build until it moves to `Stack::new()`, `Stack::page()` and `Row::new()`. `docs/migration.md` has the mapping.
 - A method that is inherent on `Div` and not on a GPUI trait is not on `Stack` or `Row` until it is forwarded.
 - ADR 0058 is not changed: the width and wrapping rules apply to a Stack as they did to a `Div`.

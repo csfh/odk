@@ -8,7 +8,7 @@ use odk_a11y::{Describe, Role};
 use super::{open, redraw};
 use crate::image::DECODED;
 use crate::samples::PIXEL;
-use crate::{Image, drawn, v_flex};
+use crate::{Image, Stack, drawn};
 
 fn state(id: &str) -> &'static str {
     drawn::last(id)
@@ -19,19 +19,19 @@ fn state(id: &str) -> &'static str {
 #[gpui::test]
 fn waiting_broken_and_shown(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
-                v_flex()
+                Stack::new()
                     .size(px(40.0))
                     .child(Image::new("waiting", "Your avatar")),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .size(px(40.0))
                     .child(Image::new("broken", "Your avatar").source(b"not an image".to_vec())),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .size(px(40.0))
                     .child(Image::new("shown", "A pixel").source(PIXEL.to_vec())),
             )
@@ -69,7 +69,7 @@ fn the_same_bytes_are_decoded_once(cx: &mut TestAppContext) {
     let b = bytes.clone();
     DECODED.with(|n| n.set(0));
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .size(px(40.0))
             .child(Image::new("i", "A pixel").source(b.borrow().clone()))
     });

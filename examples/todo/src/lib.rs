@@ -412,7 +412,7 @@ impl Render for Todo {
             .map(|item| {
                 let (id, done, text) = (item.id, item.done, item.text.clone());
                 let toggle = this.clone();
-                h_flex()
+                Row::new()
                     .gap(Space::Sm)
                     .child(
                         div().flex_1().min_w_0().child(
@@ -443,7 +443,7 @@ impl Render for Todo {
                     .description(notice)
             }))
             .child(
-                h_flex()
+                Row::new()
                     .gap(Space::Sm)
                     .child(
                         div().flex_1().child(
@@ -480,7 +480,7 @@ impl Render for Todo {
             )
             .child(Separator::horizontal())
             .child(
-                v_flex()
+                Stack::new()
                     .id("items")
                     .flex_1()
                     .min_h_0()
@@ -491,7 +491,7 @@ impl Render for Todo {
             )
             .child(Separator::horizontal())
             .child(
-                h_flex()
+                Row::new()
                     .justify_between()
                     .child(Badge::new(format!("{} done", self.list.finished())))
                     .child(

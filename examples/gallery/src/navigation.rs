@@ -3,7 +3,7 @@
 //! component tokens. Everything here is a real control in the active Omarchy theme; Tab to see
 //! its ring, and hover and press it with the pointer.
 
-use odk::gpui::{Div, px};
+use odk::gpui::px;
 use odk::prelude::*;
 
 use crate::buttons::{caption, heights, row};
@@ -56,10 +56,10 @@ fn group(title: &'static str) -> impl IntoElement {
 }
 
 /// The section.
-pub fn section(g: &mut NavigationPage, c: &Content, cx: &mut Context<NavigationPage>) -> Div {
+pub fn section(g: &mut NavigationPage, c: &Content, cx: &mut Context<NavigationPage>) -> Stack {
     // Uncontrolled controls keep their own state, so the Content switch gives them new ids.
     let k = usize::from(g.worst_case);
-    v_flex()
+    Stack::new()
         .flex_shrink_0()
         .gap(Space::Lg)
         .child(caption(
@@ -93,7 +93,7 @@ pub fn section(g: &mut NavigationPage, c: &Content, cx: &mut Context<NavigationP
         ))
 }
 
-fn tabs(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<NavigationPage>) -> Div {
+fn tabs(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<NavigationPage>) -> Stack {
     let mut text = Tabs::new(("tabs", k), "Settings sections");
     for (n, label) in c.tabs.iter().enumerate() {
         let body = format!("The {label} section.");
@@ -123,7 +123,7 @@ fn tabs(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<Navigati
             this.mail_tab = value.clone();
             cx.notify();
         }));
-    v_flex()
+    Stack::new()
         .gap(Space::Lg)
         .child(caption(
             "Automatic: the arrows select as they move. The third tab is disabled.",
@@ -140,10 +140,10 @@ fn segments(
     c: &Content,
     k: usize,
     cx: &mut Context<NavigationPage>,
-) -> Div {
+) -> Stack {
     let [day, week, month] = c.periods;
     let [left, center, right, justify] = c.alignment;
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .child(
             row()
@@ -217,10 +217,10 @@ fn segments(
         ))
 }
 
-fn sidebar(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<NavigationPage>) -> Div {
+fn sidebar(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<NavigationPage>) -> Row {
     let ([workspace, account], [general, members, billing, profile, notifications]) = c.nav;
     let current = g.nav_page.clone();
-    h_flex()
+    Row::new()
         .items_start()
         .gap(Space::Lg)
         .child(
@@ -253,7 +253,7 @@ fn sidebar(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<Navig
         )
         .child(Separator::vertical())
         .child(
-            v_flex()
+            Stack::new()
                 .gap(Space::Sm)
                 .min_w_0()
                 .child(Heading::new(format!("Page: {current}")).level(3))
@@ -263,7 +263,7 @@ fn sidebar(g: &mut NavigationPage, c: &Content, k: usize, cx: &mut Context<Navig
         )
 }
 
-fn breadcrumbs(c: &Content) -> Div {
+fn breadcrumbs(c: &Content) -> Stack {
     let mut short_path = Breadcrumb::new("short");
     for (n, label) in c.short_path.iter().enumerate() {
         short_path = if n + 1 == c.short_path.len() {
@@ -280,7 +280,7 @@ fn breadcrumbs(c: &Content) -> Div {
             long_path.item(*label, |_, _| {})
         };
     }
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(short_path)
         .child(long_path.separator(Icon::ArrowRight))
@@ -289,7 +289,7 @@ fn breadcrumbs(c: &Content) -> Div {
         ))
 }
 
-fn density_row(n: usize, d: Density, c: &Content) -> Div {
+fn density_row(n: usize, d: Density, c: &Content) -> Row {
     let [day, week, month] = c.periods;
     row()
         .items_center()

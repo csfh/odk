@@ -7,7 +7,7 @@ use super::stability::{Step, assert_still};
 use super::{open, press, redraw};
 use crate::input::{layout_of, probe};
 use crate::text_layout::MASK;
-use crate::{Button, PasswordInput, v_flex};
+use crate::{Button, PasswordInput, Stack};
 
 /// What the field draws: its text as laid out.
 fn drawn_text(cx: &mut VisualTestContext) -> String {
@@ -96,7 +96,7 @@ fn the_show_button_works_from_the_keyboard(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_disabled_field_disables_its_button(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 PasswordInput::new("p", "Password")
                     .default_value("abc")
@@ -114,7 +114,7 @@ fn a_disabled_field_disables_its_button(cx: &mut TestAppContext) {
 #[gpui::test]
 fn nothing_moves_when_it_is_shown(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(260.0))
             .child(PasswordInput::new("p", "Password").default_value("correct horse"))
             .child(Button::new("after").label("After"))

@@ -640,6 +640,43 @@ fn time_comes_from_gpui() {
     }
 }
 
+/// What gives an element a direction outside `Stack` and `Row`: the helpers that were
+/// (`v_flex`, `h_flex`) and GPUI's own direction methods.
+fn names_a_direction(line: &str) -> Option<&'static str> {
+    ["v_flex(", "h_flex(", ".flex_col()", ".flex_row()"]
+        .into_iter()
+        .find(|pattern| line.contains(pattern))
+}
+
+/// Item 43: a vertical or horizontal group is a `Stack` or a `Row` (ADR 0088), so no source file
+/// but `stack.rs` gives an element a direction. A bare `.flex()` that centres one element in a
+/// component's own drawing is not a group and is not looked for.
+#[test]
+fn groups_are_stacks_and_rows() {
+    assert_eq!(names_a_direction("    v_flex()"), Some("v_flex("));
+    assert_eq!(
+        names_a_direction("div().flex().flex_col()"),
+        Some(".flex_col()")
+    );
+    assert_eq!(names_a_direction("group.flex_row()"), Some(".flex_row()"));
+    assert_eq!(names_a_direction("let h_flex = 1;"), None);
+    assert_eq!(names_a_direction("div().flex().items_center()"), None);
+    for (file, text) in sources() {
+        if file == "stack.rs" {
+            continue;
+        }
+        for (n, line) in code_lines(&text) {
+            if let Some(found) = names_a_direction(line) {
+                panic!(
+                    "{file}:{n}: `{found}` makes a group that is not a Stack or a Row; use \
+                     Stack::new() or Row::new(), or flow() when the direction is chosen while \
+                     drawing: {line}"
+                );
+            }
+        }
+    }
+}
+
 /// Item 15: nothing reports an empty name, except a separator, which has none by nature.
 #[test]
 fn no_empty_names() {

@@ -11,7 +11,8 @@ use odk_theme::semantic::Emphasis;
 
 use crate::focus::{child_id, part_name};
 use crate::icon;
-use crate::layout::{StyledExt, h_flex, v_flex};
+use crate::layout::StyledExt;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{Button, Icon, Size, Tone, components};
 
@@ -124,7 +125,7 @@ impl RenderOnce for Alert {
 
         // `min_w_0` lets the text be narrower than its longest word, so long words and
         // URLs wrap inside the box and the trailing buttons keep their place.
-        let mut text = v_flex()
+        let mut text = Stack::new()
             .debug_selector(|| part_name(&self.id, "text"))
             .flex_1()
             .min_w_0()
@@ -139,7 +140,7 @@ impl RenderOnce for Alert {
             );
         }
         let icon = px(g.icon_size);
-        let mut alert = h_flex()
+        let mut alert = Row::new()
             .debug_selector(|| part_name(&self.id, "alert"))
             .items_start()
             .gap(px(g.gap))

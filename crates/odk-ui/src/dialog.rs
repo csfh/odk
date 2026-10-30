@@ -10,8 +10,9 @@ use odk_theme::foundation::MotionDuration;
 
 use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, part_name};
-use crate::layout::{StyledExt, h_flex, inside_window, v_flex};
+use crate::layout::{StyledExt, inside_window};
 use crate::overlay::{Action, Dismiss, Transition, layer_over, modal, modal_header};
+use crate::stack::{Row, Stack};
 use crate::{Text, components};
 
 type Build = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement + 'static>;
@@ -208,7 +209,7 @@ impl RenderOnce for Dialog {
         let viewport = window.viewport_size();
         let margin = px(f.spacing.s4);
         let (pad_x, pad_y) = (px(g.padding_x), px(g.padding_y));
-        let panel = v_flex()
+        let panel = Stack::new()
             .id(child_id(&self.id, "panel"))
             .debug_selector(|| part_name(&self.id, "panel"))
             .relative()
@@ -228,7 +229,7 @@ impl RenderOnce for Dialog {
             // A slight rise as it fades in.
             .top(px((1.0 - amount) * f.spacing.s2))
             .child(
-                v_flex()
+                Stack::new()
                     .gap(px(f.spacing.s2))
                     .px(pad_x)
                     .pt(pad_y)
@@ -254,7 +255,7 @@ impl RenderOnce for Dialog {
                 .px(pad_x),
             )
             .child(
-                h_flex()
+                Row::new()
                     .debug_selector(|| part_name(&self.id, "footer"))
                     .flex_wrap()
                     .justify_end()

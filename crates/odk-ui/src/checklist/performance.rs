@@ -11,9 +11,9 @@ use gpui::{ParentElement, TestAppContext, VisualTestContext};
 
 use super::source::COMPONENTS;
 use super::{Count, open, redraw};
+use crate::Stack;
 use crate::interaction::take_frame_requests;
 use crate::samples::{SAMPLES, Sample};
-use crate::v_flex;
 
 /// Item 36: every component has a sample for the benchmarks to draw, and nothing else does.
 #[test]
@@ -46,7 +46,7 @@ fn idle_redraws(cx: &mut TestAppContext, samples: &'static [Sample], span: Durat
     let c = count.clone();
     let cx = open(cx, move |_, _| {
         c.bump();
-        v_flex().children(
+        Stack::new().children(
             samples
                 .iter()
                 .flat_map(|s| (0..s.instances).map(|n| (s.build)(n))),
@@ -74,7 +74,7 @@ fn idle_redraws(cx: &mut TestAppContext, samples: &'static [Sample], span: Durat
 /// Drawing is when a component asks, and so drawing is what is counted.
 fn frames_asked_for_when_idle(cx: &mut TestAppContext, samples: &'static [Sample]) -> usize {
     let cx = open(cx, move |_, _| {
-        v_flex().children(
+        Stack::new().children(
             samples
                 .iter()
                 .flat_map(|s| (0..s.instances).map(|n| (s.build)(n))),
@@ -175,7 +175,7 @@ const TOGETHER: u32 = 3;
 /// `samples`. The least is what load on the machine cannot make better than it is.
 fn least_draw(cx: &mut TestAppContext, samples: Vec<(Sample, usize)>) -> Duration {
     let cx = open(cx, move |_, _| {
-        v_flex().children(
+        Stack::new().children(
             samples
                 .iter()
                 .flat_map(|(s, count)| (0..*count).map(|n| (s.build)(n)))

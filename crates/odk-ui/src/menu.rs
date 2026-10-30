@@ -18,6 +18,7 @@ use crate::layout::bounds_probe;
 use crate::link::link;
 use crate::menu_list::{Fit, Surface, surface};
 pub use crate::menu_list::{Menu, MenuItem};
+use crate::stack::flow;
 use crate::{Button, components};
 
 type Action = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
@@ -167,7 +168,7 @@ impl RenderOnce for ContextMenu {
         let (mouse_state, key_state) = (state.clone(), state);
         let anchor = self.anchor.clone();
         let wrapper = if self.fill {
-            div().flex().flex_col().flex_1().size_full().min_h_0()
+            flow(false).flex_1().size_full().min_h_0()
         } else {
             div()
         };

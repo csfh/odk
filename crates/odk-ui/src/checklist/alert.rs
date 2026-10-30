@@ -5,7 +5,7 @@ use odk_theme::component::AlertStyle;
 use odk_theme::semantic::{Emphasis, Role as Intent};
 
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw};
-use crate::{Alert, Button, Size, Tone, v_flex};
+use crate::{Alert, Button, Size, Stack, Tone};
 
 /// Items 8, 10: the dismiss button and the action are reachable with Tab and pressed with
 /// Enter.
@@ -57,7 +57,7 @@ fn every_tone_has_its_own_mark() {
 #[gpui::test]
 fn the_mark_is_the_tones_icon(cx: &mut TestAppContext) {
     open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Alert::new("i", "Backup scheduled"))
             .child(Alert::new("d", "Failed").variant(Tone::Danger))
     });
@@ -77,7 +77,7 @@ fn the_mark_is_the_tones_icon(cx: &mut TestAppContext) {
 #[gpui::test]
 fn renders_odd_text(cx: &mut TestAppContext) {
     open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Alert::new("a", ""))
             .child(Alert::new("b", "x".repeat(500)).description("y ".repeat(500)))
             .child(Alert::new("c", "ディスクの空き容量が少なくなっています").description("مرحبا"))
@@ -91,7 +91,7 @@ const TONES: [Tone; 4] = [Tone::Info, Tone::Success, Tone::Warning, Tone::Danger
 #[gpui::test]
 fn every_tone_draws_its_tokens(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().children(TONES.into_iter().flat_map(|tone| {
+        Stack::new().children(TONES.into_iter().flat_map(|tone| {
             [None, Some(Emphasis::Solid), Some(Emphasis::Subtle)].map(move |e| {
                 let id = gpui::SharedString::from(format!("{tone:?}-{e:?}"));
                 let alert = Alert::new(id, "Disk almost full").variant(tone);
@@ -135,7 +135,7 @@ fn every_tone_draws_its_tokens(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_compact_alert_and_its_buttons_line_up(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Alert::new("a", "Saved")
                     .compact(true)

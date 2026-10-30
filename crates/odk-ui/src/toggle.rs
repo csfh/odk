@@ -14,7 +14,8 @@ use odk_theme::foundation::TypeRole;
 use crate::Icon;
 use crate::focus::{child_id, move_focus, part_name};
 use crate::icon;
-use crate::layout::{StyledExt, h_flex};
+use crate::layout::StyledExt;
+use crate::stack::Row;
 use crate::theme::colour;
 
 pub(crate) type ChangeHandler = Rc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
@@ -89,7 +90,7 @@ pub(crate) fn labelled(
         .min_w_0()
         .text_color(colour(look.colour))
         .child(label);
-    let mut row = h_flex()
+    let mut row = Row::new()
         .id(child_id(id, "row"))
         .debug_selector(|| part_name(id, "row"))
         .items_start()

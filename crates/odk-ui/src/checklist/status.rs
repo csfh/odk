@@ -4,7 +4,7 @@ use odk_theme::component::{Shape, StatusDotStyle};
 use odk_theme::semantic::Role as Intent;
 
 use super::{FIXTURES, open, publish_fixture, redraw};
-use crate::{Status, StatusIndicator, v_flex};
+use crate::{Stack, Status, StatusIndicator};
 
 const ALL: [(Status, &str); 6] = [
     (Status::Active, "Online"),
@@ -30,7 +30,7 @@ fn reports_its_label() {
 #[gpui::test]
 fn every_status_draws_its_dot_and_label(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().children(ALL.map(|(status, label)| StatusIndicator::new(status, label)))
+        Stack::new().children(ALL.map(|(status, label)| StatusIndicator::new(status, label)))
     });
     for (theme, colors) in FIXTURES {
         publish_fixture(colors);

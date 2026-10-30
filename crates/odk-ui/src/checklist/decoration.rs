@@ -10,7 +10,7 @@ use super::{open, press, redraw};
 use crate::input::drawn::ellipsis;
 use crate::{
     Autosize, Breadcrumb, Button, Command, CommandItem, Dialog, DropdownMenu, EndEllipsis,
-    FixedWidth, Input, MenuItem, Select, Status, StatusIndicator, Text, ToggleGroup, Wrap, v_flex,
+    FixedWidth, Input, MenuItem, Select, Stack, Status, StatusIndicator, Text, ToggleGroup, Wrap,
 };
 
 /// A label long enough to ellipsize in a narrow menu, crumb, status or segment.
@@ -42,7 +42,7 @@ fn hover(cx: &mut gpui::VisualTestContext, part: &'static str) {
 #[gpui::test]
 fn a_truncated_button_explains_itself_on_hover_and_focus(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(80.0)).child(
+        Stack::new().w(px(80.0)).child(
             Button::new("b")
                 .label("Synchronisierung ausstehend")
                 .full_width(),
@@ -75,7 +75,7 @@ fn a_truncated_button_explains_itself_on_hover_and_focus(cx: &mut TestAppContext
 #[gpui::test]
 fn an_untruncated_button_has_no_tooltip(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(400.0))
             .child(Button::new("b").label("Save").full_width())
     });
@@ -98,7 +98,7 @@ fn an_untruncated_button_has_no_tooltip(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_unfocused_input_ends_in_an_ellipsis(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(80.0))
             .child(Input::new("n", "Name").value("Pneumonoultramicroscopicsilicovolcanoconiosis"))
     });
@@ -142,7 +142,7 @@ fn a_menu_grows_to_its_longest_label_until_the_window(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_select_list_grows_to_its_longest_option(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(120.0)).child(
+        Stack::new().w(px(120.0)).child(
             Select::new("sl", "Fruit")
                 .item("a", "Apple")
                 .item("b", "Pneumonoultramicroscopicsilicovolcanoconiosis"),
@@ -225,7 +225,7 @@ fn a_dialog_title_stops_at_three_lines_and_autosize_scales(cx: &mut TestAppConte
 /// helper against a measured width on the test platform's font.
 #[gpui::test]
 fn middle_ellipsis_uses_the_measured_width(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex());
+    let cx = open(cx, |_, _| Stack::new());
     let text = "https://wiki.omarchy.org/troubleshooting/backups/failed";
     let short = cx.update(|window, _| {
         let size = px(13.0);
@@ -244,7 +244,7 @@ fn middle_ellipsis_uses_the_measured_width(cx: &mut TestAppContext) {
 fn end_ellipsis_keeps_text_on_one_line(cx: &mut TestAppContext) {
     let words = "Synchronisierung ausstehend für alle Fenster";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(80.0))
             .child(Text::new(words).decorate(EndEllipsis))
     });
@@ -367,7 +367,7 @@ fn a_truncated_command_row_explains_itself_on_highlight_and_hover(cx: &mut TestA
     let flag = open_flag.clone();
     let cx = open(cx, move |_, _| {
         let (flag, to_open) = (flag.clone(), flag.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("open")
                     .label("Commands")
@@ -408,7 +408,7 @@ fn an_untruncated_command_row_has_no_tooltip(cx: &mut TestAppContext) {
     let flag = open_flag.clone();
     let cx = open(cx, move |_, _| {
         let (flag, to_open) = (flag.clone(), flag.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("open")
                     .label("Commands")
@@ -462,7 +462,7 @@ fn escape_still_closes_a_palette_whose_row_shows_a_tooltip(cx: &mut TestAppConte
 #[gpui::test]
 fn a_truncated_breadcrumb_link_explains_itself_on_focus(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(240.0)).child(
+        Stack::new().w(px(240.0)).child(
             Breadcrumb::new("b")
                 .item("Go", |_, _| {})
                 .item(LONG, |_, _| {})
@@ -483,7 +483,7 @@ fn a_truncated_breadcrumb_link_explains_itself_on_focus(cx: &mut TestAppContext)
 #[gpui::test]
 fn a_truncated_breadcrumb_link_explains_itself_on_hover(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(240.0)).child(
+        Stack::new().w(px(240.0)).child(
             Breadcrumb::new("b")
                 .item("Go", |_, _| {})
                 .item(LONG, |_, _| {})
@@ -503,7 +503,7 @@ fn a_truncated_current_page_is_hover_only(cx: &mut TestAppContext) {
     let seen = clicks.clone();
     let cx = open(cx, move |_, _| {
         let seen = seen.clone();
-        v_flex()
+        Stack::new()
             .w(px(200.0))
             .child(Breadcrumb::new("b").item("Go", |_, _| {}).current(LONG))
             .child(
@@ -525,7 +525,7 @@ fn a_truncated_current_page_is_hover_only(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_untruncated_breadcrumb_has_no_tooltip(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(600.0))
             .child(Breadcrumb::new("b").item("Home", |_, _| {}).current("Page"))
     });
@@ -546,7 +546,7 @@ fn a_truncated_status_explains_itself_on_hover_only(cx: &mut TestAppContext) {
     let seen = clicks.clone();
     let cx = open(cx, move |_, _| {
         let seen = seen.clone();
-        v_flex()
+        Stack::new()
             .w(px(80.0))
             .child(StatusIndicator::new(Status::Active, LONG))
             .child(
@@ -576,7 +576,7 @@ fn a_truncated_status_explains_itself_on_hover_only(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_untruncated_status_has_no_tooltip(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(400.0))
             .child(StatusIndicator::new(Status::Active, "Online"))
     });
@@ -589,7 +589,7 @@ fn an_untruncated_status_has_no_tooltip(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_truncated_segment_explains_itself_on_hover_and_focus(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(180.0)).child(
+        Stack::new().w(px(180.0)).child(
             ToggleGroup::new("seg", "View")
                 .item("a", LONG)
                 .item("b", LONG),
@@ -614,7 +614,7 @@ fn escape_dismisses_a_segment_tooltip_and_the_segment_stays(cx: &mut TestAppCont
     let seen = clicks.clone();
     let cx = open(cx, move |_, _| {
         let seen = seen.clone();
-        v_flex()
+        Stack::new()
             .w(px(120.0))
             .child(
                 ToggleGroup::new("seg", "View")
@@ -650,7 +650,7 @@ fn escape_dismisses_a_segment_tooltip_and_the_segment_stays(cx: &mut TestAppCont
 #[gpui::test]
 fn an_untruncated_segment_has_no_tooltip(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(400.0)).child(
+        Stack::new().w(px(400.0)).child(
             ToggleGroup::new("seg", "View")
                 .item("a", "Left")
                 .item("b", "Right"),

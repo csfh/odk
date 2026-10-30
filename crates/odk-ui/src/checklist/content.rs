@@ -6,8 +6,8 @@ use gpui::{Bounds, ParentElement, Pixels, Styled, TestAppContext, VisualTestCont
 
 use super::{open, press, redraw, reduce_motion};
 use crate::{
-    Alert, Button, Dialog, DropdownMenu, HoverCard, MenuItem, Select, Sheet, Size, Text, Toast,
-    Tone, toast, v_flex,
+    Alert, Button, Dialog, DropdownMenu, HoverCard, MenuItem, Select, Sheet, Size, Stack, Text,
+    Toast, Tone, toast,
 };
 
 const URL: &str =
@@ -36,7 +36,7 @@ fn shrink_window(cx: &mut VisualTestContext, width: f32) -> Bounds<Pixels> {
 #[gpui::test]
 fn an_alert_wraps_a_long_url_and_keeps_its_action(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().child(
+        Stack::new().child(
             gpui::div().w(px(300.0)).child(
                 Alert::new("a", "Datensicherungsüberprüfungsprotokoll wurde erstellt")
                     .variant(Tone::Warning)
@@ -158,7 +158,7 @@ fn a_menu_is_never_wider_than_the_window(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_select_is_never_wider_than_the_window(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().child(
+        Stack::new().child(
             Select::new("sl", "Datei")
                 .default_value("long")
                 .item(
@@ -235,8 +235,8 @@ fn a_button_keeps_its_label_in_a_narrow_row(cx: &mut TestAppContext) {
     let width = Rc::new(Cell::new(2000.0));
     let w = width.clone();
     let cx = open(cx, move |_, _| {
-        v_flex().child(
-            crate::h_flex()
+        Stack::new().child(
+            crate::Row::new()
                 .w(px(w.get()))
                 .child(Button::new("a").label("Änderungen speichern und fortfahren"))
                 .child(Button::new("b").label("Auf Werkseinstellungen zurücksetzen")),
@@ -258,7 +258,7 @@ fn a_button_keeps_its_label_in_a_narrow_row(cx: &mut TestAppContext) {
 fn a_nav_list_truncates_long_rows_and_keeps_counters(cx: &mut TestAppContext) {
     use crate::NavList;
     let cx = open(cx, |_, _| {
-        v_flex().child(
+        Stack::new().child(
             gpui::div().w(px(160.0)).child(
                 NavList::new("n", "Einstellungen")
                     .group("Arbeitsbereich und gemeinsame Einstellungen")
@@ -295,7 +295,7 @@ fn empty_and_single_navigation_works(cx: &mut TestAppContext) {
     let (a, o) = (after.clone(), opened.clone());
     let cx = open(cx, move |_, _| {
         let (a, o) = (a.clone(), o.clone());
-        v_flex()
+        Stack::new()
             .child(NavList::new("empty", "Nothing"))
             .child(Tabs::new("no-tabs", "Nothing"))
             .child(ToggleGroup::new("no-options", "Nothing"))
@@ -322,7 +322,7 @@ fn empty_and_single_navigation_works(cx: &mut TestAppContext) {
 fn a_progress_bar_keeps_its_value_in_a_narrow_column(cx: &mut TestAppContext) {
     use crate::Progress;
     let cx = open(cx, |_, _| {
-        v_flex().child(
+        Stack::new().child(
             gpui::div().w(px(160.0)).child(
                 Progress::new("p", URL)
                     .value(3.0)
@@ -345,7 +345,7 @@ fn a_progress_bar_keeps_its_value_in_a_narrow_column(cx: &mut TestAppContext) {
 fn a_status_indicator_truncates_a_long_label(cx: &mut TestAppContext) {
     use crate::{Status, StatusIndicator};
     let cx = open(cx, |_, _| {
-        v_flex().child(gpui::div().w(px(140.0)).child(StatusIndicator::new(
+        Stack::new().child(gpui::div().w(px(140.0)).child(StatusIndicator::new(
             Status::Warning,
             "Eingeschränkt verfügbar wegen Wartungsarbeiten 🔥",
         )))

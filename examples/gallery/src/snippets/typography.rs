@@ -3,7 +3,7 @@ use odk::prelude::*;
 use odk::theme::foundation::TypeRole;
 
 fn text() -> impl IntoElement {
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(Heading::new("Settings").level(1))
         .child(Text::new("Applies to every window."))

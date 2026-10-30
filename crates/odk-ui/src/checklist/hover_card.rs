@@ -2,7 +2,7 @@ use gpui::{ParentElement, TestAppContext};
 use odk_a11y::{Describe, Role};
 
 use super::{Count, open, press, redraw, reduce_motion};
-use crate::{Button, HoverCard, Text, v_flex};
+use crate::{Button, HoverCard, Stack, Text};
 
 /// Items 8, 10, 13: focusing the trigger opens the card at once, Escape closes it, and the
 /// card does not take focus: the next Tab goes past it.
@@ -12,7 +12,7 @@ fn opens_on_focus_and_closes_on_escape(cx: &mut TestAppContext) {
     let (b, a) = (built.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let (b, a) = (b.clone(), a.clone());
-        v_flex()
+        Stack::new()
             .child(
                 HoverCard::new("h", "Details", Text::new("@omarchy")).content(move |_, _| {
                     b.bump();
@@ -59,7 +59,7 @@ fn is_named_by_its_constructor() {
 fn the_card_sits_right_below_its_trigger(cx: &mut TestAppContext) {
     use gpui::px;
     let cx = open(cx, move |_, _| {
-        v_flex().child(
+        Stack::new().child(
             HoverCard::new("h", "About Omarchy", Text::new("@omarchy"))
                 .content(|_, _| Text::new("An Arch and Hyprland setup.")),
         )

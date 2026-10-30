@@ -287,7 +287,7 @@ pub struct LayoutTokens {
     pub sidebar_width: f32,
     /// How far a sidebar's content is inset from its edges (`sidebar_frame`).
     pub sidebar_padding: f32,
-    /// The widest a page's column grows (`content_column`).
+    /// The widest a page's column grows (`Stack::page`).
     pub content_width: f32,
     /// The widest a page's column grows while it holds a grid's columns side by side
     /// (`content_column_for_grid`).

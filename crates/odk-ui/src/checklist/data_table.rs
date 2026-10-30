@@ -11,7 +11,7 @@ use odk_a11y::{Describe, Role};
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw, reduce_motion};
 use crate::drawn;
 use crate::overlay::probe;
-use crate::{Button, Column, DataTable, MenuItem, SortDirection, v_flex};
+use crate::{Button, Column, DataTable, MenuItem, SortDirection, Stack};
 
 /// A process: its id, name and CPU use.
 #[derive(Clone)]
@@ -67,10 +67,10 @@ impl Table {
             let (selected, activated, sorted) =
                 (selected.clone(), activated.clone(), sorted.clone());
             let (pressed, after) = (pressed.clone(), after.clone());
-            v_flex()
+            Stack::new()
                 .size_full()
                 .child(
-                    v_flex().h(px(200.0)).w_full().child(
+                    Stack::new().h(px(200.0)).w_full().child(
                         DataTable::new("t", "Processes", rows.borrow().clone())
                             .row_key(|p: &Proc| p.0.to_string().into())
                             .column(
@@ -307,7 +307,7 @@ fn worst_case_text_stays_in_its_cell(cx: &mut TestAppContext) {
     let t = Table::new(vec![Proc(1, long, 99.9), Proc(2, "x", 0.0)]);
     let build = t.build(false);
     let cx = open(cx, move |_, _| {
-        v_flex().w(px(320.0)).h(px(240.0)).child(build())
+        Stack::new().w(px(320.0)).h(px(240.0)).child(build())
     });
     let table = cx.debug_bounds("t/table").unwrap();
     for part in ["t/head-0", "t/head-1", "t/head-2", "t/row-0", "t/row-1"] {

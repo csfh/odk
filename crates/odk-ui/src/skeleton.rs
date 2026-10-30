@@ -9,7 +9,7 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::SkeletonStyle;
 
 use crate::components;
-use crate::layout::v_flex;
+use crate::stack::Stack;
 use crate::theme::colour;
 
 /// How much of its column the last line of a text skeleton takes, so the block reads as a
@@ -125,16 +125,17 @@ impl RenderOnce for Skeleton {
         #[cfg(test)]
         crate::drawn::record("odk-skeleton", s);
         match self.shape {
-            Shape::Text(lines) => v_flex()
+            Shape::Text(lines) => Stack::new()
                 .debug_selector(|| "odk-skeleton".into())
                 .w_full()
                 .flex_shrink_0()
                 .children((0..lines).map(|n| {
                     let last = lines > 1 && n + 1 == lines;
                     line(&s, n, relative(if last { LAST_LINE } else { 1.0 }))
-                })),
-            Shape::Block { width, height } => block(&s, width, height),
-            Shape::Control => block(&s, s.control_width, s.control_height),
+                }))
+                .into_any_element(),
+            Shape::Block { width, height } => block(&s, width, height).into_any_element(),
+            Shape::Control => block(&s, s.control_width, s.control_height).into_any_element(),
         }
     }
 }

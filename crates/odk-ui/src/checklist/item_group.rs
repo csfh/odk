@@ -8,7 +8,7 @@ use odk_a11y::{Describe, Role};
 use odk_theme::component::{ItemGroupStyle, ItemGroupVariant};
 
 use super::open;
-use crate::{Item, ItemGroup, Select, Switch, v_flex};
+use crate::{Item, ItemGroup, Select, Stack, Switch};
 
 /// The width the groups are drawn in.
 const WIDTH: f32 = 400.0;
@@ -51,7 +51,7 @@ fn reports_a_group_named_by_its_title_with_its_description() {
 /// body text, from its component tokens.
 #[gpui::test]
 fn reads_as_a_heading_and_secondary_text(cx: &mut TestAppContext) {
-    let _cx = open(cx, |_, _| v_flex().w(px(WIDTH)).child(touchpad(2)));
+    let _cx = open(cx, |_, _| Stack::new().w(px(WIDTH)).child(touchpad(2)));
     let c = crate::components();
     let s = crate::drawn::last::<ItemGroupStyle>("odk-item-group/Touchpad");
     assert_eq!(s, c.item_group(ItemGroupVariant::Default));
@@ -67,7 +67,7 @@ fn reads_as_a_heading_and_secondary_text(cx: &mut TestAppContext) {
 /// item or after the last.
 #[gpui::test]
 fn a_line_divides_one_item_from_the_next_and_only_there(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().w(px(WIDTH)).child(touchpad(3)));
+    let cx = open(cx, |_, _| Stack::new().w(px(WIDTH)).child(touchpad(3)));
     let group = bounds(cx, "odk-item-group/Touchpad");
     let items = ["Natural scroll", "Tap to click", "Ignore while typing"]
         .map(|t| bounds(cx, &format!("odk-item/{t}")));
@@ -106,7 +106,7 @@ fn a_line_divides_one_item_from_the_next_and_only_there(cx: &mut TestAppContext)
 #[gpui::test]
 fn one_item_has_no_line_and_none_is_its_words(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(WIDTH))
             .child(touchpad(1))
             .child(ItemGroup::new("Empty").description("Nothing in it yet."))
@@ -126,7 +126,7 @@ fn one_item_has_no_line_and_none_is_its_words(cx: &mut TestAppContext) {
 /// its own.
 #[gpui::test]
 fn its_words_line_up_with_its_items(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().w(px(WIDTH)).child(touchpad(2)));
+    let cx = open(cx, |_, _| Stack::new().w(px(WIDTH)).child(touchpad(2)));
     let x = bounds(cx, "odk-item-group/Touchpad").left();
     for part in [
         "odk-item-group/Touchpad/title",
@@ -145,9 +145,9 @@ fn a_wrapped_description_stays_above_its_items_on_a_scrolling_page(cx: &mut Test
     let long = "Sensitivity and acceleration for the mouse and trackpad. These write a managed \
                 block in ~/.config/hypr/input.lua, beside the lines Atmos leaves alone.";
     let cx = open(cx, move |_, _| {
-        v_flex().w(px(500.0)).h(px(700.0)).child(
+        Stack::new().w(px(500.0)).h(px(700.0)).child(
             crate::scroll_y("page").child(
-                crate::content_column().child(
+                crate::Stack::page().child(
                     ItemGroup::new("Pointer").description(long).child(
                         Item::new("Acceleration")
                             .action(Select::new("accel", "Acceleration").item("1", "Default")),
@@ -175,7 +175,7 @@ fn a_wrapped_description_stays_above_its_items_on_a_scrolling_page(cx: &mut Test
 #[gpui::test]
 fn an_outline_group_holds_its_title_and_items_inside_its_edge(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(WIDTH))
             .child(touchpad(2).variant(ItemGroupVariant::Outline))
     });

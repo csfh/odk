@@ -2,14 +2,14 @@
 //! footer), both group variants, each density, and long words beside wide actions in a narrow
 //! width. Run it in watch mode with `tools/story item_group`.
 
-use odk::gpui::{Div, px};
+use odk::gpui::px;
 use odk::prelude::*;
 
 struct ItemGroupStory;
 
 /// A titled group of children, with a line saying what it shows.
-fn section(title: &'static str, note: &'static str, body: impl IntoElement) -> Div {
-    v_flex()
+fn section(title: &'static str, note: &'static str, body: impl IntoElement) -> Stack {
+    Stack::new()
         .gap(Space::Sm)
         .child(Heading::new(title).level(3))
         .child(Text::new(note).muted())
@@ -65,7 +65,7 @@ fn settings(variant: ItemGroupVariant, key: &'static str) -> ItemGroup {
 
 impl Render for ItemGroupStory {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let densities = v_flex()
+        let densities = Stack::new()
             .gap(Space::Lg)
             .children(Density::ALL.iter().enumerate().map(|(n, &d)| {
                 ItemGroup::new(format!("{} density", d.name()))
@@ -104,7 +104,7 @@ impl Render for ItemGroupStory {
                 ),
         );
 
-        let edges = v_flex()
+        let edges = Stack::new()
             .gap(Space::Lg)
             .child(
                 ItemGroup::new("One item")
@@ -120,7 +120,7 @@ impl Render for ItemGroupStory {
 
         root().child(
             scroll_y("item-group-story").child(
-                content_column()
+                Stack::page()
                     .child(Heading::new("ItemGroup").level(1))
                     .child(section(
                         "Default",

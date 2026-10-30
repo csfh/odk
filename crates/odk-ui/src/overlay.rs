@@ -11,14 +11,14 @@ use std::time::{Duration, Instant};
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AnyElement, App, Bounds, Div, Element, ElementId, FocusHandle, Global, GlobalElementId,
+    AnyElement, App, Bounds, Element, ElementId, FocusHandle, Global, GlobalElementId,
     InspectorElementId, InteractiveElement, IntoElement, KeyDownEvent, LayoutId, MouseButton,
     ParentElement, Pixels, Point, Position, SharedString, Stateful, Style, Styled, Window,
     WindowId, anchored, deferred, div, point, px,
 };
 
 use crate::focus::{FocusNext, FocusPrevious, child_id, focus_handle, move_focus, part_name};
-use crate::layout::h_flex;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{Button, Heading, Icon, Size, components};
 use odk_theme::component::ButtonVariant;
@@ -657,7 +657,7 @@ pub(crate) fn modal_header(
     closable: bool,
     close: Action,
     flow: crate::decoration::FlowKind,
-) -> Div {
+) -> Row {
     let c = components();
     let gap = c.foundation().spacing.s3;
     let heading = match flow {
@@ -672,7 +672,7 @@ pub(crate) fn modal_header(
             Heading::new(title).level(2).decorate(crate::Clamp(n))
         }
     };
-    h_flex()
+    Row::new()
         .items_start()
         .gap(px(gap))
         .child(
@@ -699,7 +699,7 @@ pub(crate) fn modal(
     amount: f32,
     dismiss: &Dismiss,
     content: &FocusHandle,
-    panel: Stateful<Div>,
+    panel: Stateful<Stack>,
     window: &Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -762,7 +762,7 @@ pub(crate) fn docked(
     id: &ElementId,
     dismiss: &Dismiss,
     content: &FocusHandle,
-    panel: Stateful<Div>,
+    panel: Stateful<Stack>,
     window: &Window,
     cx: &mut App,
 ) -> AnyElement {

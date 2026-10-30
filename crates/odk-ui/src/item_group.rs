@@ -8,8 +8,9 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::ItemGroupVariant;
 
 use crate::components;
-use crate::layout::{StyledExt, v_flex};
+use crate::layout::StyledExt;
 use crate::separator::Separator;
+use crate::stack::Stack;
 use crate::theme::colour;
 
 /// A titled group of `Item`s, as shadcn/ui's `ItemGroup` with an `ItemSeparator` between one item
@@ -84,7 +85,7 @@ impl RenderOnce for ItemGroup {
         let name = self.title.clone();
         let part = move |p: &str| format!("odk-item-group/{name}/{p}");
 
-        let mut group = v_flex()
+        let mut group = Stack::new()
             .debug_selector({
                 let title = self.title.clone();
                 move || format!("odk-item-group/{title}")
@@ -115,7 +116,7 @@ impl RenderOnce for ItemGroup {
             );
         }
         // The items sit flush, each padded by its own density, with a line between two.
-        let mut items = v_flex().w_full();
+        let mut items = Stack::new().w_full();
         for (i, item) in self.items.into_iter().enumerate() {
             if i > 0 {
                 items = items.child(

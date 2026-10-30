@@ -344,7 +344,7 @@ impl Gallery {
         let user_reduces = self.motion_forced_by_user();
         let reduced = odk::ui::foundation().motion.reduced;
         let motion = if user_reduces {
-            h_flex()
+            Row::new()
                 .gap(Space::Md)
                 .child(Text::new("Motion").muted())
                 .child(Text::new("Reduced by the system"))
@@ -363,7 +363,7 @@ impl Gallery {
         };
         let worst = self.settings.read(cx).worst_case;
         let page = self.page.meta();
-        h_flex()
+        Row::new()
             .flex_shrink_0()
             .flex_wrap()
             .gap(Space::Md)
@@ -373,7 +373,7 @@ impl Gallery {
             .border_b_1()
             .border_color(present::edge())
             .child(
-                h_flex()
+                Row::new()
                     .gap(Space::Sm)
                     .child(Text::new("ODK").muted())
                     .child(Text::new("/").muted())
@@ -382,7 +382,7 @@ impl Gallery {
                     .child(Heading::new(page.title).level(3)),
             )
             .child(
-                h_flex()
+                Row::new()
                     .gap(Space::Md)
                     .when(labels, |row| row.child(Text::new("Theme").muted()))
                     .child(div().w(px(THEME_SELECT_WIDTH)).child(select))
@@ -491,7 +491,7 @@ impl Gallery {
             .into_any_element()
         };
 
-        v_flex()
+        Stack::new()
             .flex_shrink_0()
             .w(px(width))
             .h_full()
@@ -538,7 +538,7 @@ impl Gallery {
             ),
             None => format!("Theme: {} (following the system)", themes::system_name(cx)),
         };
-        h_flex()
+        Row::new()
             .flex_shrink_0()
             .flex_wrap()
             .gap(Space::Xl)
@@ -601,9 +601,7 @@ impl Render for Gallery {
         root()
             .child(self.toolbar(narrow, cx))
             .child(
-                div()
-                    .flex()
-                    .flex_row()
+                Row::stretch()
                     .flex_1()
                     .min_h_0()
                     .child(self.sidebar(narrow, cx))

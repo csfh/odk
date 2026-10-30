@@ -25,7 +25,7 @@ impl Render for TypographyPage {
         let theme = odk::ui::theme_snapshot();
         let t = &f.typography;
 
-        let mut roles = v_flex().gap(Space::Lg);
+        let mut roles = Stack::new().gap(Space::Lg);
         for role in TypeRole::ALL {
             let s = t.style(role);
             let family = match (s.family, t.family(s.family)) {
@@ -34,7 +34,7 @@ impl Render for TypographyPage {
                 (FontFamily::Mono, None) => "Omarchy's monospace font".to_owned(),
             };
             roles = roles.child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Xs)
                     .child(Text::new("The quick brown fox jumps over the lazy dog").role(role))
                     .child(
@@ -51,7 +51,7 @@ impl Render for TypographyPage {
             );
         }
 
-        let mut surfaces = v_flex().gap(Space::Sm);
+        let mut surfaces = Stack::new().gap(Space::Sm);
         for (name, fill, ink) in [
             (
                 "surface.canvas",
@@ -86,7 +86,7 @@ impl Render for TypographyPage {
 
         page(
             Page::Typography,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(section("Roles"))
                 .child(Text::new(format!(
@@ -98,7 +98,7 @@ impl Render for TypographyPage {
                 .child(surfaces)
                 .child(section("Long text, wrapping and truncation"))
                 .child(
-                    v_flex()
+                    Stack::new()
                         .gap(Space::Md)
                         .child(group("Wraps at its container"))
                         .child(div().max_w(px(360.0)).child(Text::new("Long lines wrap at the width they are given and keep the role's line height, so a paragraph in a narrow panel is as legible as one in a wide window. Nothing here is clipped.")))

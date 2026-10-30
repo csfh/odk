@@ -29,12 +29,11 @@ use crate::focus::{
 use crate::icon::{self, Glyph};
 use crate::input::field_mark;
 use crate::interaction::{Pointer, pointer_states};
-use crate::layout::{
-    StyledExt, h_flex, inside_window, middle_ellipsis, tail, text_width, truncate_end, v_flex,
-};
+use crate::layout::{StyledExt, inside_window, middle_ellipsis, tail, text_width, truncate_end};
 use crate::overlay::{Layer, Transition, dismiss_catcher, during_overlay, layer_over, lift};
 use crate::placement::{Align, Placement, place};
 use crate::select::{Typed, find, typed_char};
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{Icon, components};
 
@@ -391,7 +390,7 @@ pub(crate) fn surface(
         SizeMode::Fixed(w) => px(w).min(cap),
         SizeMode::Autosize => content.max(min_width).min(cap),
     };
-    let mut list = v_flex()
+    let mut list = Stack::new()
         .debug_selector(|| part_name(id, "menu"))
         .id(child_id(id, "menu"))
         .track_focus(&frame.content)
@@ -526,7 +525,7 @@ pub(crate) fn surface(
         } else {
             (Some(check), None)
         };
-        let mut row = h_flex()
+        let mut row = Row::new()
             .group(format!("row-{i}"))
             .id(child_id(id, format!("row-{i}")))
             .debug_selector(|| part_name(id, &format!("row-{i}")))

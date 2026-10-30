@@ -10,7 +10,7 @@ use std::f32::consts::TAU;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use odk::gpui::{Div, px};
+use odk::gpui::px;
 use odk::prelude::*;
 
 use crate::buttons::caption;
@@ -139,8 +139,8 @@ fn group(title: &'static str) -> impl IntoElement {
 }
 
 /// The section.
-pub fn section(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
-    v_flex()
+pub fn section(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Stack {
+    Stack::new()
         .flex_shrink_0()
         .gap(Space::Lg)
         .child(group("Resizable"))
@@ -157,18 +157,18 @@ pub fn section(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div
 
 /// A panel's content: a title over a paragraph, which wraps and is cut at the panel's edge.
 fn panel_text(title: &'static str, body: &'static str) -> impl IntoElement {
-    v_flex()
+    Stack::new()
         .p(Space::Md)
         .gap(Space::Sm)
         .child(Text::new(title).single_line())
         .child(Text::new(body).muted())
 }
 
-fn framed(group: impl IntoElement) -> Div {
-    v_flex().h(px(GROUP_HEIGHT)).w_full().child(group)
+fn framed(group: impl IntoElement) -> Stack {
+    Stack::new().h(px(GROUP_HEIGHT)).w_full().child(group)
 }
 
-fn resizable(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
+fn resizable(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Stack {
     let [list, detail, log] = c.panels;
     let reported = match &g.layout {
         Some(sizes) => sizes
@@ -178,7 +178,7 @@ fn resizable(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
             .join(" · "),
         None => "nothing yet".into(),
     };
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(caption(
             "A row of three panels. Drag a handle, or Tab to it and use Left, Right, Home and End; the list keeps between 20% and 60%, the detail at least 30%.",
@@ -233,7 +233,7 @@ fn resizable(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
         ))
 }
 
-fn table(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
+fn table(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Stack {
     let rows = if g.empty { Vec::new() } else { processes(c) };
     let selected = g
         .selected
@@ -248,13 +248,13 @@ fn table(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
         });
     };
     let (end, menu_say, activate) = (say.clone(), say.clone(), say);
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(caption(
             "Two hundred processes, of which only those in view are drawn. Tab to the headers and press Enter to sort, then Tab to the rows: Up, Down, Home, End, Page Up and Page Down select, Enter activates, the Menu key or Shift+F10 opens the row's menu. A right-click selects a row and opens its menu; End takes the pointer only, and is in the menu too.",
         ))
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Md)
                 .child(
                     Switch::new("data-empty", "No rows")
@@ -284,7 +284,7 @@ fn table(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
                 ),
         )
         .child(
-            v_flex().h(px(TABLE_HEIGHT)).w_full().child(
+            Stack::new().h(px(TABLE_HEIGHT)).w_full().child(
                 DataTable::new("data-table", "Processes", rows)
                     .row_key(|p: &Process| p.pid.to_string().into())
                     .indent(|p: &Process| p.depth)
@@ -348,11 +348,11 @@ fn table(g: &mut DataPage, c: &Content, cx: &mut Context<DataPage>) -> Div {
         .child(caption(format!("Selected: {selected}. Last: {said}.")))
 }
 
-fn chart_box(chart: Chart) -> Div {
-    v_flex().h(px(CHART_HEIGHT)).w_full().child(chart)
+fn chart_box(chart: Chart) -> Stack {
+    Stack::new().h(px(CHART_HEIGHT)).w_full().child(chart)
 }
 
-fn charts(g: &mut DataPage, cx: &mut Context<DataPage>) -> Div {
+fn charts(g: &mut DataPage, cx: &mut Context<DataPage>) -> Stack {
     let (from, to) = (g.from.clone(), g.to.clone());
     let lines = Chart::new("data-lines", "Three series over the last samples")
         .description("CPU, memory and network, between 0 and 100%")
@@ -491,7 +491,7 @@ fn charts(g: &mut DataPage, cx: &mut Context<DataPage>) -> Div {
     let pressed = g
         .pressed
         .map_or("nowhere yet".into(), |(x, y)| format!("at {x:.0}, {y:.0}"));
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(caption(
             "ODK draws no chart kinds: each is drawn on a canvas in named inks (series, tints, a heat ramp, text, grid, axis), so every colour follows the theme. Next sample moves the series over the foundation's normal.",
@@ -508,10 +508,10 @@ fn charts(g: &mut DataPage, cx: &mut Context<DataPage>) -> Div {
         )
         .child(chart_box(lines))
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Md)
-                .child(v_flex().flex_1().child(chart_box(heat)))
-                .child(v_flex().flex_1().child(chart_box(donut))),
+                .child(Stack::new().flex_1().child(chart_box(heat)))
+                .child(Stack::new().flex_1().child(chart_box(donut))),
         )
         .child(caption(format!(
             "Drag, Shift and the wheel, or the arrow keys pan; the wheel or + and - zoom; Enter presses the middle. Pressed {pressed}."
@@ -524,7 +524,7 @@ const ITEMS_WIDTH: f32 = 640.0;
 
 /// Items as a settings page draws its rows: each with what it controls at its end, or across it
 /// when the control needs the room, divided by separators.
-fn items(c: &Content) -> Div {
+fn items(c: &Content) -> Stack {
     let [scroll, accel, speed] = c.items;
     let (listed, about, [first, second]) = c.outline_group;
     let device =
@@ -537,13 +537,13 @@ fn items(c: &Content) -> Div {
             }
         };
     let line = |text: &'static str| (!text.is_empty()).then(|| Text::new(text).mono().muted());
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(caption(
             "A group of items: a title and a description, then its items with a line between one and the next; an outline group draws all of it in a box, for a group that lists things. An item is a title, a description and lines under them, actions at the end and a footer across. Padded above and below by the density and not at the sides, so its text lines up with the heading over it. Not a tab stop: Tab reaches its actions.",
         ))
         .child(
-            v_flex().w_full().max_w(px(ITEMS_WIDTH)).child(
+            Stack::new().w_full().max_w(px(ITEMS_WIDTH)).child(
                 ItemGroup::new(c.item_group.0)
                     .description(c.item_group.1)
                     .child(
@@ -594,7 +594,7 @@ fn items(c: &Content) -> Div {
             ),
         )
         .child(
-            v_flex().w_full().max_w(px(ITEMS_WIDTH)).child(
+            Stack::new().w_full().max_w(px(ITEMS_WIDTH)).child(
                 ItemGroup::new(listed)
                     .description(about)
                     .variant(ItemGroupVariant::Outline)
@@ -611,20 +611,20 @@ const PORTRAIT: &[u8] = include_bytes!("../assets/portrait.png");
 /// How large each image's box is here.
 const PREVIEW: (f32, f32) = (240.0, 135.0);
 
-fn images(g: &DataPage) -> Div {
+fn images(g: &DataPage) -> Stack {
     let preview = |name: &'static str, image: Image| {
-        v_flex()
+        Stack::new()
             .gap(Space::Xs)
-            .child(v_flex().w(px(PREVIEW.0)).h(px(PREVIEW.1)).child(image))
+            .child(Stack::new().w(px(PREVIEW.0)).h(px(PREVIEW.1)).child(image))
             .child(caption(name))
     };
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(caption(
             "Drawn from bytes the application holds, never from a path, so a sandboxed window shows what its daemon read. An avatar is a circle the foundation's s12 across.",
         ))
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Lg)
                 .items_start()
                 .child(Image::avatar("data-avatar", "Your avatar").source(g.portrait.clone()))

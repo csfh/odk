@@ -6,7 +6,7 @@ use odk_a11y::{Describe, Role};
 use odk_theme::component::{NavItemStyle, States};
 
 use super::{Count, open, press, redraw};
-use crate::{Button, Density, NavList, v_flex};
+use crate::{Button, Density, NavList, Stack};
 
 type Seen = Rc<RefCell<Vec<String>>>;
 
@@ -40,7 +40,7 @@ fn rows_open_from_the_keyboard(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex().child(settings(&s)).child(
+        Stack::new().child(settings(&s)).child(
             Button::new("after")
                 .label("After")
                 .on_click(move |_, _, _| a.bump()),
@@ -119,7 +119,7 @@ fn current_focused_and_disabled_are_drawn_apart(cx: &mut TestAppContext) {
 #[gpui::test]
 fn rows_follow_their_density(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().children(Density::ALL.map(|d| {
+        Stack::new().children(Density::ALL.map(|d| {
             NavList::new(gpui::SharedString::from(d.name()), "Settings")
                 .density(d)
                 .group("Workspace")
@@ -161,7 +161,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
             .counter("b", "4")
             .item("c", "Billing");
         let nav = if o.get() { nav.disable("c") } else { nav };
-        v_flex()
+        Stack::new()
             .child(nav)
             .child(Button::new("after").label("After"))
     });

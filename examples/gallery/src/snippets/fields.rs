@@ -7,7 +7,7 @@ struct Account {
 
 impl Render for Account {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        v_flex()
+        Stack::new()
             .gap(Space::Md)
             .child(
                 FormField::new("name-field", "Name")

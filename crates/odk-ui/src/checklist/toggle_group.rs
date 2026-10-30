@@ -7,7 +7,7 @@ use odk_a11y::{Describe, Role};
 use odk_theme::component::{SegmentStyle, States};
 
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw};
-use crate::{Button, Density, ToggleGroup, v_flex};
+use crate::{Button, Density, Stack, ToggleGroup};
 
 type Seen = Rc<RefCell<Vec<Vec<String>>>>;
 
@@ -28,7 +28,7 @@ fn single_choice_from_the_keyboard(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(
                 ToggleGroup::new("align", "Alignment")
                     .item("left", "Left")
@@ -138,7 +138,7 @@ fn a_disabled_group_is_skipped(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(
                 ToggleGroup::new("align", "Alignment")
                     .item("left", "Left")
@@ -182,7 +182,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
         } else {
             group
         };
-        v_flex()
+        Stack::new()
             .child(group)
             .child(Button::new("after").label("After"))
     });
@@ -219,7 +219,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
 #[gpui::test]
 fn the_group_hugs_its_options(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().child(
+        Stack::new().child(
             ToggleGroup::new("align", "Alignment")
                 .item("left", "Left")
                 .item("right", "Right"),
@@ -240,7 +240,7 @@ fn the_group_hugs_its_options(cx: &mut TestAppContext) {
 fn long_options_fit_a_narrow_column(cx: &mut TestAppContext) {
     use gpui::{Styled, px};
     let cx = open(cx, move |_, _| {
-        v_flex().w(px(180.0)).child(
+        Stack::new().w(px(180.0)).child(
             ToggleGroup::new("align", "Alignment")
                 .item("left", "Linksbündig")
                 .item("center", "Zentriert")
@@ -273,7 +273,7 @@ fn segment(part: &str) -> SegmentStyle {
 #[gpui::test]
 fn segments_follow_their_density(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().children(Density::ALL.map(|d| {
+        Stack::new().children(Density::ALL.map(|d| {
             ToggleGroup::new(gpui::SharedString::from(d.name()), "View")
                 .density(d)
                 .item("list", "List")

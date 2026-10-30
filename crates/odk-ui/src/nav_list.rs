@@ -15,7 +15,8 @@ use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
-use crate::layout::{StyledExt, tail, truncate_end, v_flex};
+use crate::layout::{StyledExt, tail, truncate_end};
+use crate::stack::Stack;
 use crate::theme::colour;
 
 type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
@@ -260,7 +261,7 @@ impl RenderOnce for NavList {
         let ring = RingTarget::default();
         let mut focus = None;
         let (keys, key_enabled) = (handles.clone(), enabled.clone());
-        let mut column = v_flex()
+        let mut column = Stack::new()
             .id(self.id.clone())
             .debug_selector(|| part_name(&self.id, "list"))
             .relative()

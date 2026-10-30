@@ -12,7 +12,7 @@ use gpui::{
     div, point, px,
 };
 
-use crate::layout::{h_flex, v_flex};
+use crate::stack::flow;
 
 /// The side of its anchor an overlay prefers. It goes to the opposite side when there is no room
 /// on this one, and when there is none there either it is shifted back inside the window.
@@ -123,7 +123,7 @@ impl Placed {
                 .h(self.spacer.height)
                 .flex_shrink_0()
         };
-        let mut line = if self.beside { h_flex() } else { v_flex() };
+        let mut line = flow(self.beside);
         // Items at the start, so a column narrower than the overlay beside it does not stretch.
         line = line.items_start();
         let line = if self.spacer_first {

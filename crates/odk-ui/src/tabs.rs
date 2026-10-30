@@ -16,7 +16,8 @@ use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, RingTarget, pointer_states, progress};
-use crate::layout::{StyledExt, h_flex, v_flex};
+use crate::layout::StyledExt;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 
 type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
@@ -269,7 +270,7 @@ impl RenderOnce for Tabs {
         }
         let (keys, key_values, key_select) = (handles.clone(), values.clone(), select.clone());
         let (key_enabled, key_scroll, manual) = (enabled.clone(), handle.clone(), self.manual);
-        let mut list = h_flex()
+        let mut list = Row::new()
             .debug_selector(|| part_name(&self.id, "list"))
             .id(child_id(&self.id, "list"))
             .overflow_x_scroll()
@@ -391,7 +392,7 @@ impl RenderOnce for Tabs {
         }
 
         let baseline = c.tab(NavLook::Text, density, States::NONE);
-        let mut strip = v_flex()
+        let mut strip = Stack::new()
             .debug_selector(|| part_name(&self.id, "strip"))
             .relative()
             // The baseline first, so the tabs and their indicators are drawn over it.
@@ -416,7 +417,7 @@ impl RenderOnce for Tabs {
             .id(child_id(&self.id, "panel"))
             .pt(px(f.spacing.s3))
             .children(content.map(|build| build(window, cx)));
-        v_flex().child(strip).child(panel)
+        Stack::new().child(strip).child(panel)
     }
 }
 

@@ -53,7 +53,7 @@ impl Render for MotionPage {
         let m = &f.motion;
         let user = odk::ui::theme_snapshot().reduced_motion;
 
-        let mut table = v_flex().gap(Space::Xs);
+        let mut table = Stack::new().gap(Space::Xs);
         for (name, duration) in DURATIONS {
             table = table.child(kv(
                 format!("motion.{name}"),
@@ -87,7 +87,7 @@ impl Render for MotionPage {
                 (t, y)
             })
             .collect::<Vec<_>>();
-        let mut plot = h_flex().items_end().gap(px(3.0)).h(px(72.0));
+        let mut plot = Row::new().items_end().gap(px(3.0)).h(px(72.0));
         let ink = odk::ui::theme_snapshot().semantic.text.secondary;
         for (_, y) in &curve {
             plot = plot.child(
@@ -133,10 +133,10 @@ impl Render for MotionPage {
         })
         .muted();
 
-        let demos = v_flex()
+        let demos = Stack::new()
             .gap(Space::Lg)
             .child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Sm)
                     .child(group("Switch: normal"))
                     .child(Switch::new("motion-switch", "Switch").checked(self.on).on_change(
@@ -147,7 +147,7 @@ impl Render for MotionPage {
                     )),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Sm)
                     .child(group("Tab indicator: normal"))
                     .child(
@@ -162,7 +162,7 @@ impl Render for MotionPage {
                     ),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Sm)
                     .child(group("Progress: the bar's own change"))
                     .child(
@@ -172,7 +172,7 @@ impl Render for MotionPage {
                     ),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Sm)
                     .child(group("Popover: enter, then exit"))
                     .child(Text::new("Press the button to open it, Escape to close it. A press outside closes it and goes no further, so Play and Reset do not touch it.").muted())
@@ -187,7 +187,7 @@ impl Render for MotionPage {
                     ),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Sm)
                     .child(group("Dialog: enter, then exit"))
                     .child(
@@ -216,7 +216,7 @@ impl Render for MotionPage {
 
         page(
             Page::Motion,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(section("Durations"))
                 .child(table)

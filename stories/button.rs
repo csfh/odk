@@ -1,7 +1,6 @@
 //! The Button story: one component in every variant, density, content layout, state and emphasis,
 //! for looking at while its code changes. Run it in watch mode with `tools/story button`.
 
-use odk::gpui::Div;
 use odk::prelude::*;
 
 struct ButtonStory {
@@ -9,16 +8,16 @@ struct ButtonStory {
 }
 
 /// A titled group of children, with a line saying what it shows.
-fn section(title: &'static str, note: &'static str, body: impl IntoElement) -> Div {
-    v_flex()
+fn section(title: &'static str, note: &'static str, body: impl IntoElement) -> Stack {
+    Stack::new()
         .gap(Space::Sm)
         .child(Heading::new(title).level(2))
         .child(Text::new(note).muted())
         .child(body)
 }
 
-fn row() -> Div {
-    h_flex().flex_wrap().gap(Space::Sm)
+fn row() -> Row {
+    Row::new().flex_wrap().gap(Space::Sm)
 }
 
 impl Render for ButtonStory {
@@ -30,7 +29,7 @@ impl Render for ButtonStory {
                 .map(|(n, v)| Button::new(("variant", n)).label(v.name()).variant(*v)),
         );
 
-        let densities = v_flex()
+        let densities = Stack::new()
             .gap(Space::Sm)
             .children(Density::ALL.iter().enumerate().map(|(n, &d)| {
                 row()
@@ -91,7 +90,7 @@ impl Render for ButtonStory {
                     })),
             );
 
-        let emphasis = v_flex().gap(Space::Sm).children(
+        let emphasis = Stack::new().gap(Space::Sm).children(
             [
                 ButtonVariant::Primary,
                 ButtonVariant::Destructive,
@@ -112,7 +111,7 @@ impl Render for ButtonStory {
 
         root().child(
             scroll_y("button-story").child(
-                content_column()
+                Stack::page()
                     .child(Heading::new("Button").level(1))
                     .child(section(
                         "Variants",

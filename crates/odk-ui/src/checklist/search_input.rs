@@ -9,7 +9,7 @@ use odk_a11y::{Describe, Role};
 use super::stability::{Step, assert_still};
 use super::{Count, open, press, redraw};
 use crate::input::probe;
-use crate::{Button, Dialog, SearchInput, v_flex};
+use crate::{Button, Dialog, SearchInput, Stack};
 
 fn text(cx: &mut VisualTestContext) -> String {
     probe(cx, "s").0
@@ -128,7 +128,7 @@ fn loading_shows_a_spinner_and_reports_busy(cx: &mut TestAppContext) {
 #[gpui::test]
 fn nothing_moves_when_it_is_used(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(260.0))
             .child(SearchInput::new("s", "Search").shortcut("Ctrl+K"))
             .child(Button::new("after").label("After"))

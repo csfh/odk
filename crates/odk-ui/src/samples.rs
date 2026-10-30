@@ -395,7 +395,7 @@ pub static SAMPLES: &[Sample] = &[
             Sheet::new(("sheet", n), "Filters")
                 .open(true)
                 .content(|_, _| {
-                    v_flex()
+                    Stack::new()
                         .gap(Space::Md)
                         .child(Text::new("Narrow the list."))
                         .child(Switch::new("sheet-switch", "Only unread"))

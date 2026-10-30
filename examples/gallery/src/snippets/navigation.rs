@@ -7,7 +7,7 @@ struct Settings {
 
 impl Render for Settings {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        h_flex()
+        Row::new()
             .gap(Space::Lg)
             .child(
                 NavList::new("pages", "Settings")

@@ -191,7 +191,7 @@ impl Render for DialogsPage {
 
         page(
             crate::Page::Dialogs,
-            v_flex()
+            Stack::new()
                 .flex_shrink_0()
                 .gap(Space::Lg)
                 .child(caption(
@@ -286,7 +286,7 @@ impl Render for DialogsPage {
                         .on_close(shut(&entity))
                         .content(move |_, _| {
                             let change = change.clone();
-                            let mut body = v_flex().gap(Space::Sm);
+                            let mut body = Stack::new().gap(Space::Sm);
                             if let Some(error) = error.clone() {
                                 body = body.child(
                                     Alert::new("form-error", "Check the name")
@@ -375,7 +375,7 @@ impl Render for DialogsPage {
                             })
                         })
                         .content(move |_, _| {
-                            v_flex()
+                            Stack::new()
                                 .gap(Space::Md)
                                 .child(Text::new(sheet_body))
                                 .child(Select::new("sheet-select", "Monitor").item("a", "DP-1").item("b", "HDMI-A-1").default_value("a"))

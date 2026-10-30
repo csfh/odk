@@ -11,7 +11,7 @@ use odk_theme::semantic;
 
 use super::{FIXTURES, open, press, publish_fixture, redraw, reduce_motion};
 use crate::interaction::take_frame_requests;
-use crate::{Button, Chart, ChartHeight, ChartPath, Ink, StrokeWidth, components, drawn, v_flex};
+use crate::{Button, Chart, ChartHeight, ChartPath, Ink, Stack, StrokeWidth, components, drawn};
 
 type Events = Rc<RefCell<Vec<String>>>;
 
@@ -26,9 +26,9 @@ fn chart(
     move || {
         let (press, pan, zoom) = (events.clone(), events.clone(), events.clone());
         let painted = painted.clone();
-        v_flex()
+        Stack::new()
             .child(
-                v_flex().w(px(200.0)).h(px(100.0)).child(
+                Stack::new().w(px(200.0)).h(px(100.0)).child(
                     Chart::new("c", "CPU")
                         .transition(generation.get())
                         .paint(move |scene, _| {
@@ -103,13 +103,13 @@ fn a_chart_out_of_view_asks_for_nothing(cx: &mut TestAppContext) {
     let generation = Rc::new(Cell::new(1));
     let g = generation.clone();
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(100.0))
             .h(px(10.0))
             .overflow_hidden()
             .child(gpui::div().h(px(50.0)).flex_shrink_0())
             .child(
-                v_flex()
+                Stack::new()
                     .h(px(40.0))
                     .w_full()
                     .flex_shrink_0()
@@ -146,7 +146,7 @@ fn a_height_is_the_charts_and_the_width_its_parents(cx: &mut TestAppContext) {
                     seen.borrow_mut().push((scene.width(), scene.height()));
                 })
         };
-        v_flex()
+        Stack::new()
             .w(px(300.0))
             .child(row(ChartHeight::Compact, seen.clone()))
             .child(row(ChartHeight::Regular, seen.clone()))

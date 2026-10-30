@@ -10,8 +10,8 @@ use super::dialog::dialog_around;
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw, reduce_motion};
 use crate::overlay::probe;
 use crate::{
-    Button, ContextMenu, Dialog, DropdownMenu, Input, MenuItem, Popover, Text, Toast, Tooltip,
-    h_flex, toast, v_flex,
+    Button, ContextMenu, Dialog, DropdownMenu, Input, MenuItem, Popover, Row, Stack, Text, Toast,
+    Tooltip, toast,
 };
 
 fn click(cx: &mut VisualTestContext, part: &'static str) {
@@ -25,7 +25,7 @@ fn click(cx: &mut VisualTestContext, part: &'static str) {
 #[gpui::test]
 fn a_tooltip_behind_a_modal_does_not_open(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Tooltip::new(
                 "tt",
                 "Save the file",
@@ -90,7 +90,7 @@ fn a_toast_is_above_a_modal_and_leaves_its_focus_alone(cx: &mut TestAppContext) 
 #[gpui::test]
 fn a_theme_change_keeps_open_overlays_and_focus_where_they_were(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        h_flex()
+        Row::new()
             .child(
                 Popover::new("pop", "Filter", Button::new("t").label("Filter"))
                     .default_open(true)
@@ -213,7 +213,7 @@ fn overlays_follow_the_text_size(cx: &mut TestAppContext) {
     for base in [9, 20] {
         let shell = format!("[font]\nbase-size = {base}\n");
         let cx = open(cx, |_, _| {
-            v_flex()
+            Stack::new()
                 .child(
                     Popover::new("pop", "Filter", Button::new("t").label("Filter"))
                         .default_open(true)

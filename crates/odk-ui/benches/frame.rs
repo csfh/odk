@@ -12,9 +12,9 @@
 //! milliseconds, which the combined benchmark and the gallery's (`examples/gallery/benches`) show.
 
 use gpui::{ParentElement, TestAppContext};
+use odk_ui::Stack;
 use odk_ui::samples::{SAMPLES, Sample};
 use odk_ui::test_support::{open, redraw};
-use odk_ui::v_flex;
 
 fn main() {
     divan::main();
@@ -31,7 +31,7 @@ fn component(bencher: divan::Bencher, sample: &Sample) {
     let sample = *sample;
     let mut app = TestAppContext::single();
     let cx = open(&mut app, move |_, _| {
-        v_flex().children((0..sample.instances).map(|n| (sample.build)(n)))
+        Stack::new().children((0..sample.instances).map(|n| (sample.build)(n)))
     });
     cx.update(|window, cx| {
         if let Some(setup) = sample.setup {
@@ -47,7 +47,7 @@ fn component(bencher: divan::Bencher, sample: &Sample) {
 fn everything(bencher: divan::Bencher) {
     let mut app = TestAppContext::single();
     let cx = open(&mut app, |_, _| {
-        v_flex().children(still().flat_map(|s| (0..s.instances).map(|n| (s.build)(n))))
+        Stack::new().children(still().flat_map(|s| (0..s.instances).map(|n| (s.build)(n))))
     });
     bencher.bench_local(|| redraw(cx));
 }
@@ -59,7 +59,7 @@ fn scaling<C: Kind>(bencher: divan::Bencher, n: usize) {
     let mut app = TestAppContext::single();
     let sample = *SAMPLES.iter().find(|s| s.name == C::NAME).unwrap();
     let cx = open(&mut app, move |_, _| {
-        v_flex().children((0..n).map(|i| (sample.build)(i)))
+        Stack::new().children((0..n).map(|i| (sample.build)(i)))
     });
     bencher.bench_local(|| redraw(cx));
 }
@@ -89,7 +89,7 @@ impl Kind for Text {
 fn typing(bencher: divan::Bencher) {
     let mut app = TestAppContext::single();
     let cx = open(&mut app, |_, _| {
-        v_flex().children(still().flat_map(|s| (0..s.instances).map(|n| (s.build)(n))))
+        Stack::new().children(still().flat_map(|s| (0..s.instances).map(|n| (s.build)(n))))
     });
     // Tab on past the buttons to the first field, which takes the keys.
     for _ in 0..70 {
@@ -106,7 +106,7 @@ fn typing(bencher: divan::Bencher) {
 fn tabbing(bencher: divan::Bencher) {
     let mut app = TestAppContext::single();
     let cx = open(&mut app, |_, _| {
-        v_flex().children(still().flat_map(|s| (0..s.instances).map(|n| (s.build)(n))))
+        Stack::new().children(still().flat_map(|s| (0..s.instances).map(|n| (s.build)(n))))
     });
     bencher.bench_local(|| {
         cx.simulate_keystrokes("tab");
