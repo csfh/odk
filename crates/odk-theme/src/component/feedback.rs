@@ -111,7 +111,16 @@ pub struct SkeletonStyle {
     pub line_height: f32,
     /// A line's bar: as high as the body text's letters, centred in its line.
     pub bar_height: f32,
+    /// A control's stand-in: as high as a control at the application's density.
+    pub control_height: f32,
+    /// A control's stand-in: [`CONTROL_SKELETON_HEIGHTS`] of its heights wide.
+    pub control_width: f32,
 }
+
+/// How many of its heights wide a control's skeleton is: about a short select or button, as
+/// shadcn/ui shapes a skeleton to the button it stands in for (`h-9 w-[100px]`). The control that
+/// will replace it is not known until what it shows is read, so this is ODK's own.
+pub const CONTROL_SKELETON_HEIGHTS: f32 = 3.0;
 
 /// The colour and mark of a status shown inline.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -258,11 +267,14 @@ impl ComponentTokens {
     pub fn skeleton(&self) -> SkeletonStyle {
         let f = &self.foundation;
         let body = f.typography.style(TypeRole::Body);
+        let control = f.controls.metrics().height;
         SkeletonStyle {
             fill: self.colour(SKELETON),
             radius: f.geometry.radius.default,
             line_height: body.line_height,
             bar_height: body.size,
+            control_height: control,
+            control_width: control * CONTROL_SKELETON_HEIGHTS,
         }
     }
 

@@ -16,6 +16,7 @@ Not normative. Atmos (`../atmos`) is moving its QML window to ODK page by page, 
 | A settings row whose control the page picks as it runs (`pages/row.rs`) | `Item::new(label).description(..).child(Text::new(path).mono().muted()).action(control).action(star)`, or `.footer(control)` for a control that takes the row's width | `docs/spec/odk-ui-components.md`, `Item` |
 | A settings group: its title, what it is for, and its rows with a line between two (`pages/row.rs`, `group`) | `ItemGroup::new(title).description(detail).children(rows)` | `docs/spec/odk-ui-components.md`, `ItemGroup` |
 | A group that lists things (users, paired devices, networks, the units on Hardware) set off in a box | `ItemGroup::new(title).variant(ItemGroupVariant::Outline)`: its title, description and items inside a border, as a shadcn/ui card | `docs/spec/odk-ui-components.md`, `ItemGroup` |
+| A row whose control waits for a key to be read (`pages/row.rs`, `reading`) | `Skeleton::control().label("Reading …")` as the item's action: a control's height and three times as wide | `docs/spec/odk-ui-components.md`, `Skeleton` |
 | A page's groups two side by side on a wide window, as `PrefsPage.qml` puts them, a chart's group across both | `let column = content_column_for_grid("page", 2, groups, window, cx)`, then `Grid::new(column.columns()).children(groups).wide(chart)` in it: 520 px columns, and the column grows from 1000 to 1400 px only while two fit | `docs/spec/odk-ui-components.md`, `Grid` |
 
 Three things to know when using them:

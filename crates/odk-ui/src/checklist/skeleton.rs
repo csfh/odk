@@ -1,7 +1,7 @@
 use gpui::{ParentElement, Styled, TestAppContext, px};
 use odk_a11y::{Describe, Role};
 use odk_theme::component::SkeletonStyle;
-use odk_theme::foundation::CornerRadius;
+use odk_theme::foundation::{CornerRadius, Density};
 
 use super::{FIXTURES, open, publish_fixture, redraw, reduce_motion};
 use crate::{Skeleton, v_flex};
@@ -38,6 +38,42 @@ fn a_block_is_the_size_it_is_given(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| v_flex().child(Skeleton::block(120.0, 80.0)));
     let b = cx.debug_bounds("odk-skeleton").unwrap();
     assert_eq!((b.size.width, b.size.height), (px(120.0), px(80.0)));
+}
+
+/// Items 2 and 37: a control's stand-in, where an item's action goes, is as high as a control at
+/// the application's density and three times as wide, though the action is given only the room
+/// it needs; a line there would have none.
+#[gpui::test]
+fn a_control_skeleton_keeps_a_controls_size_in_an_items_action(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        v_flex().w(px(500.0)).child(
+            crate::Item::new("Natural scroll")
+                .description("Content moves with your fingers.")
+                .action(Skeleton::control().label("Reading Natural scroll")),
+        )
+    });
+    for density in Density::ALL {
+        cx.update(|_, cx| crate::configure(cx, |c| c.density = density));
+        redraw(cx);
+        let height = crate::foundation().controls.for_density(density).height;
+        let b = cx.debug_bounds("odk-skeleton").unwrap();
+        assert_eq!(
+            (b.size.width, b.size.height),
+            (px(height * 3.0), px(height)),
+            "{density:?}"
+        );
+    }
+    cx.update(|_, cx| crate::configure(cx, |c| c.density = Density::Default));
+}
+
+/// Item 23: in a column narrower than it, a control's stand-in takes the column's width.
+#[gpui::test]
+fn a_control_skeleton_is_never_wider_than_its_column(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| v_flex().w(px(40.0)).child(Skeleton::control()));
+    assert_eq!(
+        cx.debug_bounds("odk-skeleton").unwrap().size.width,
+        px(40.0)
+    );
 }
 
 /// Items 1, 20, 34: its fill is the neutral muted tint in every fixture, grey in a monochrome

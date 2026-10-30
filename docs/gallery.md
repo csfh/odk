@@ -29,7 +29,7 @@ In a window narrower than `layout::NARROW_BELOW` the sidebar narrows and the too
 | Actions | Buttons (`buttons`) | Eight variants, three densities, content, states (a listening button that records a chord among them), emphasis, and the tokens of one button by state |
 | Forms | Text fields (`fields`), Selection (`selection`), Form (`form`) | Input, search, password, number, textarea, input group; select, command list, check box, radio group, switch; every state and a complete form |
 | Navigation | Navigation (`navigation`) | Tabs, segmented controls, navigation list, breadcrumbs |
-| Feedback | Feedback (`feedback`) | Badges, status indicators, alerts, progress, spinners, skeletons, separators |
+| Feedback | Feedback (`feedback`) | Badges, status indicators, alerts, progress, spinners, skeletons (a card, a row whose control is still being read, a line), separators |
 | Overlays | Overlays (`overlays`), Dialogs and sheets (`dialogs`) | Menus, tooltips, popovers, hover cards, command palette, kbd; dialogs, sheets, toasts |
 | Data | Data (`data`) | Resizable panels in a row and a column, and what a resize reports; a data table of two hundred processes that sorts, selects, activates and has a menu per row, with its empty and loading states; charts drawn on a canvas in named inks (series that move between samples, a heat grid, a donut, a view that pans and zooms); images from bytes (an avatar, cropped and whole, waiting and broken); items as a settings page draws its rows, in a group with a line between two, and a group in a box that lists two devices (a switch, a select and two buttons at the end, a number field across, a status badge) |
 | Foundation | Colors (`colors`) | The theme's source palette, and the semantic colours resolved from it |

@@ -389,9 +389,24 @@ fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Div {
                 }),
         )
         .child(card)
+        .child(
+            Item::new("Keyboard layout")
+                .description("Read from the compositor, so it waits for it.")
+                .action(if g.skeleton_loaded {
+                    Select::new("skeleton-layout", "Keyboard layout")
+                        .item("us", "English (US)")
+                        .item("dk", "Danish")
+                        .default_value("us")
+                        .into_any_element()
+                } else {
+                    Skeleton::control()
+                        .label("Reading the keyboard layout")
+                        .into_any_element()
+                }),
+        )
         .child(Skeleton::line())
         .child(caption(
-            "Exactly the size of what it stands for, so nothing moves when it arrives. It stands still.",
+            "Exactly the size of what it stands for, so nothing moves when it arrives; a control's stand-in is a control's height and three times as wide, where the control will be. It stands still.",
         ))
 }
 
