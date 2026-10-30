@@ -97,6 +97,10 @@ pub enum Error {
     Fetch(fetch::Failure),
     #[error("{app}'s signature expired at {}; it is not installed", .at.as_str())]
     Expired { app: Identifier, at: Timestamp },
+    #[error(
+        "{app}'s release key {key} was revoked by its publisher; it does not authorize an install or an upgrade"
+    )]
+    Revoked { app: Identifier, key: KeyId },
     #[error("{app}'s release key {key} expired at {}; it does not authorize an install", .at.as_str())]
     ReleaseKeyExpired {
         app: Identifier,
@@ -731,8 +735,9 @@ pub fn admit(
 /// Under a root already pinned, the key set is verified under the pin and never older than the
 /// last accepted for the root (section 3), and a file of the same app id must be newer than its
 /// mark (section 4): the same file again is a no-op. An upgrade asks only for permissions not
-/// allowed yet, and keeps the file it replaces as the previous one. A revoked release key is
-/// not checked: the revocation document has no schema yet (`docs/oma-trust-plan.md`,
+/// allowed yet, and keeps the file it replaces as the previous one. A release key its root
+/// revoked authorizes nothing new, whatever a later key set says, and an installed file signed
+/// by it still runs. The revocation document has no schema yet (`docs/oma-trust-plan.md`,
 /// question 2).
 pub fn install_file(
     layout: &Layout,
@@ -918,6 +923,13 @@ fn authorized_keys(
             key: release_key.key_id(),
         });
     };
+    // A revocation outlasts any key set that lists the key again (ADR 0060, section 3).
+    if grants::revoked(layout, root_id)?.contains(&release.id) {
+        return Err(Error::Revoked {
+            app: app.clone(),
+            key: release.id,
+        });
+    }
     if release.not_after.unix_seconds() < now {
         return Err(Error::ReleaseKeyExpired {
             app: app.clone(),
@@ -2980,6 +2992,16 @@ mod signed_tests {
         edit_manifest: impl FnOnce(String) -> String,
         edit_signed: impl FnOnce(&mut crate::trust::SignedManifest),
     ) -> PathBuf {
+        bundle_file_by(dir, &release_key(), edit_manifest, edit_signed)
+    }
+
+    /// [`bundle_file`], signed by `release`.
+    fn bundle_file_by(
+        dir: &TempDir,
+        release: &SigningKey,
+        edit_manifest: impl FnOnce(String) -> String,
+        edit_signed: impl FnOnce(&mut crate::trust::SignedManifest),
+    ) -> PathBuf {
         let text = edit_manifest(image_fixture::MANIFEST.to_owned());
         let tree =
             image_fixture::notes_with("manifest.toml", Some(image_fixture::file(text, 0o644)));
@@ -2987,7 +3009,7 @@ mod signed_tests {
         let mut manifest = sample();
         manifest.root_key_id = root(1).public_key().key_id();
         edit_signed(&mut manifest);
-        let bytes = crate::trust::stamp(&image[1024..], manifest, &release_key()).unwrap();
+        let bytes = crate::trust::stamp(&image[1024..], manifest, release).unwrap();
         let path = dir.path().join("Notes.oma");
         std::fs::write(&path, bytes).unwrap();
         path
@@ -3348,6 +3370,85 @@ mod signed_tests {
         ));
         assert_eq!(site.fetches.get(), 2);
         assert!(quiet.shown.borrow().is_empty());
+    }
+
+    /// ADR 0060, section 3: a revoked release key authorizes no new install or upgrade, an
+    /// installed file it signed stays installed, and the revocation is kept when a later key set
+    /// omits the key or lists it again. The revocation is taken as verified (question 2).
+    #[test]
+    fn a_revoked_release_key_authorizes_nothing_new_whatever_a_later_key_set_says() {
+        use crate::trust::revocation::Revocation;
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let root_id = root(1).public_key().key_id();
+        let revoked = release_key();
+        let other = SigningKey::from_seed(&[0x43; 32]).unwrap();
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let site = Site::serving(key_set_bytes(1, &revoked));
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let installed = std::fs::read(&target).unwrap();
+
+        grants::keep_revocation(
+            &layout,
+            &Revocation::verified(root_id, vec![revoked.public_key().key_id()]),
+        )
+        .unwrap();
+        let quiet = Dialog::answering(&[]);
+        let v8 = bundle_file(&dir, |t| t, |m| m.version = 8);
+        let e = install_with(&layout, &v8, false, soon(), &quiet, &site).unwrap_err();
+        assert!(matches!(e, Error::Revoked { .. }), "{e}");
+        assert_eq!(
+            std::fs::read(&target).unwrap(),
+            installed,
+            "v7 stays installed"
+        );
+        assert_eq!(
+            installed_file(&layout, &APP.parse().unwrap()).unwrap(),
+            Some(target.clone())
+        );
+
+        // A later set without the key authorizes the other one...
+        let without = {
+            let set = OmaKeys {
+                root_public_key: root(1).public_key(),
+                root_key_id: root_id,
+                version: 2,
+                keys: vec![ReleaseKey {
+                    id: other.public_key().key_id(),
+                    not_after: Timestamp::parse("2027-01-01T00:00:00Z").unwrap(),
+                    public_key: other.public_key(),
+                }],
+            };
+            let body = set.to_canonical().unwrap();
+            let signature = root(1).sign(Context::KEYS, &body).0.to_vec();
+            fetch::KeySet { body, signature }
+        };
+        let v9 = bundle_file_by(&dir, &other, |t| t, |m| m.version = 9);
+        install_with(&layout, &v9, false, soon(), &quiet, &Site::serving(without)).unwrap();
+        // ...and one that lists it again does not bring it back.
+        let again = Site::serving(key_set_version(1, &revoked, 3));
+        let v10 = bundle_file(&dir, |t| t, |m| m.version = 10);
+        let e = install_with(&layout, &v10, false, soon(), &quiet, &again).unwrap_err();
+        assert!(matches!(e, Error::Revoked { .. }), "{e}");
+        // Nor does `--register` apply it from ~/Applications.
+        std::fs::copy(&v10, layout.applications().join("Newer.oma")).unwrap();
+        let registered = register(&layout, soon(), &|p| again.fetch(p), &|_| Ok(()));
+        assert!(
+            registered
+                .iter()
+                .all(|r| !matches!(r, Registered::Applied(_))),
+            "{registered:?}"
+        );
+        assert_eq!(pair_of(&layout).unwrap().mark.unwrap().version, 9);
+        assert!(quiet.shown.borrow().is_empty());
+        assert_eq!(
+            grants::revoked(&layout, &root_id)
+                .unwrap()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            [revoked.public_key().key_id()]
+        );
     }
 
     #[test]

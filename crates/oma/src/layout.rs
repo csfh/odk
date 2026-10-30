@@ -134,6 +134,12 @@ impl Layout {
         self.state.join("grants")
     }
 
+    /// The release keys `root` has revoked, one key id a line, kept whatever a later key set says
+    /// (ADR 0060, section 3).
+    pub fn revoked_file(&self, root: &KeyId) -> PathBuf {
+        self.pairs_dir().join(root.to_string()).join("revoked")
+    }
+
     /// Where `--register` holds a valid file signed by a root that is not the pin (ADR 0060,
     /// section 7).
     pub fn held_file(&self, root: &KeyId, app: &Identifier) -> PathBuf {
