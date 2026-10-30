@@ -1065,6 +1065,17 @@ fn skeletons_spinners_and_separators() {
     let k = t.skeleton();
     assert_eq!(k.fill, s.roles.neutral.muted.default.background);
     assert_eq!((k.line_height, k.bar_height), (20.0, 13.0));
+    for d in Density::ALL {
+        let k = t
+            .with_foundation(Arc::new(foundation(|c| c.density = d)))
+            .skeleton();
+        let height = t.foundation().controls.for_density(d).height;
+        assert_eq!(
+            (k.control_height, k.control_width),
+            (height, height * 3.0),
+            "{d:?}: a control's stand-in is as high as a control and three times as wide"
+        );
+    }
     let spinner = t.spinner(Density::Compact);
     assert_eq!((spinner.size, spinner.turn.as_millis()), (14.0, 800));
     assert!(!spinner.still);

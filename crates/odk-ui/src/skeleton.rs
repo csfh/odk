@@ -23,6 +23,8 @@ enum Shape {
     Text(usize),
     /// A box of a given size, such as an image or an avatar.
     Block { width: f32, height: f32 },
+    /// A box where a control will be.
+    Control,
 }
 
 /// A placeholder in the shape of content that is still loading: lines of text, or a box, in the
@@ -47,6 +49,17 @@ impl Skeleton {
     pub fn text(lines: usize) -> Self {
         Self {
             shape: Shape::Text(lines.max(1)),
+            label: "Loading".into(),
+        }
+    }
+
+    /// In place of a control while what it shows is read: as high as a control at the
+    /// application's density and three times as wide, as shadcn/ui shapes a skeleton to the
+    /// button or field it stands in for. It keeps that width where it is given only the room it
+    /// needs, as an item's action is.
+    pub fn control() -> Self {
+        Self {
+            shape: Shape::Control,
             label: "Loading".into(),
         }
     }
@@ -94,6 +107,18 @@ fn line(s: &SkeletonStyle, n: usize, width: DefiniteLength) -> Div {
         )
 }
 
+/// A box `width` by `height`, never wider than its column.
+fn block(s: &SkeletonStyle, width: f32, height: f32) -> Div {
+    div()
+        .debug_selector(|| "odk-skeleton".into())
+        .flex_shrink_0()
+        .w(px(width))
+        .h(px(height))
+        .max_w_full()
+        .rounded(px(s.radius))
+        .bg(colour(s.fill))
+}
+
 impl RenderOnce for Skeleton {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let s = components().skeleton();
@@ -108,14 +133,8 @@ impl RenderOnce for Skeleton {
                     let last = lines > 1 && n + 1 == lines;
                     line(&s, n, relative(if last { LAST_LINE } else { 1.0 }))
                 })),
-            Shape::Block { width, height } => div()
-                .debug_selector(|| "odk-skeleton".into())
-                .flex_shrink_0()
-                .w(px(width))
-                .h(px(height))
-                .max_w_full()
-                .rounded(px(s.radius))
-                .bg(colour(s.fill)),
+            Shape::Block { width, height } => block(&s, width, height),
+            Shape::Control => block(&s, s.control_width, s.control_height),
         }
     }
 }
