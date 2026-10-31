@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "examples/hello", "examples/gallery", "examples/todo", "stories"]
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "stories"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -20,7 +20,7 @@ deps = { path = "crates/deps" }
 gpui = "=0.2.2"
 
 # GPUI, taffy and the text stack do all of a frame's layout and painting. Unoptimised they are an
-# order of magnitude slower, which made `cargo run -p gallery` unusable (docs/checks.md, "Frame cost").
+# order of magnitude slower, which made running a GPUI program unusable (docs/checks.md, "Frame cost").
 # Dependencies are compiled once and then cached, so only the first build pays for it; the
 # workspace's own crates stay at opt-level 1 for fast rebuilds and still-readable backtraces.
 [profile.dev]

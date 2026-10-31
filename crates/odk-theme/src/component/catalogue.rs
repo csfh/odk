@@ -272,7 +272,7 @@ impl ContrastResult {
 impl ComponentTokens {
     /// Every style of every component, with its sources, geometry at each density it has, and
     /// the contrast it reaches against `options`' minimums. Built on request, never while
-    /// drawing; for a tool such as the gallery.
+    /// drawing; for a tool that shows where a colour came from.
     pub fn diagnostics(&self, options: &ResolveOptions) -> Vec<StyleDiagnostic> {
         let mut rows = Vec::new();
         for entry in catalogue() {

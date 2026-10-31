@@ -1,11 +1,11 @@
-//! The gallery draws text through ODK components and decorations. A direct GPUI text call
+//! The stories draw text through ODK components and decorations. A direct GPUI text call
 //! (`text_role`, `text_ellipsis`, a font or a line height) would bypass the truncation rules
 //! of ADR 0058.
 
 use std::fs;
 use std::path::Path;
 
-/// Methods the gallery must not call. Field access such as `s.line_height` is not one of them.
+/// Methods a story must not call. Field access such as `s.line_height` is not one of them.
 const FORBIDDEN: &[&str] = &[
     ".text_ellipsis(",
     ".line_clamp(",
@@ -19,7 +19,7 @@ const FORBIDDEN: &[&str] = &[
 ];
 
 #[test]
-fn the_gallery_draws_text_through_odk() {
+fn the_stories_draw_text_through_odk() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut hits = Vec::new();
     walk(root, &mut hits);

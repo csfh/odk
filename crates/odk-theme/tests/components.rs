@@ -1281,7 +1281,7 @@ fn button_labels_read_in_every_variant_emphasis_and_state() {
 }
 
 /// Every button appearance can be found in the diagnostics under its name, with the colours a
-/// button of it draws, so a tool such as the gallery can show where each colour came from.
+/// button of it draws, so a tool can show where each colour came from.
 #[test]
 fn every_button_appearance_is_in_the_diagnostics_under_its_name() {
     let t = tokens("tokyo-night");

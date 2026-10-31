@@ -221,7 +221,7 @@ fn a_dialog_title_stops_at_three_lines_and_autosize_scales(cx: &mut TestAppConte
     );
 }
 
-/// Middle ellipsis keeps both ends. The gallery and the command row opt in; this checks the
+/// Middle ellipsis keeps both ends. The command row opts in; this checks the
 /// helper against a measured width on the test platform's font.
 #[gpui::test]
 fn middle_ellipsis_uses_the_measured_width(cx: &mut TestAppContext) {

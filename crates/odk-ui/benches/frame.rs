@@ -9,7 +9,7 @@
 //! `tools/idle-cpu` measures the real program.
 //!
 //! A frame has 16.7 ms at 60 Hz; the budget for a page, a window full of components, is a few
-//! milliseconds, which the combined benchmark and the gallery's (`examples/gallery/benches`) show.
+//! milliseconds, which the combined benchmark shows.
 
 use gpui::{ParentElement, TestAppContext};
 use odk_ui::Stack;

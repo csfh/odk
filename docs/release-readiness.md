@@ -2,6 +2,8 @@
 
 Where ODK stands for a first release, as of 2026-10-25. The Phase 12 audit was made on 2026-10-24 on the development machine (Arch Linux, Hyprland, GPUI 0.2.2, Rust 1.96). This revision checks that audit against the repository and against CI. A row that names a command from 2026-10-25 was counted again; the rest are the Phase 12 figures. Every claim below names how it was checked; a check that did not run says so. Not normative: the ADRs, specs and `docs/spec/component-checklist.md` are.
 
+**2026-10-31:** the example applications and the gallery were removed (`stories/` is the showcase now). Rows below that name the gallery, `examples/` or `tools/visual-scenarios`, and their counts and timings, record what was measured on their dates.
+
 **Verdict: conditionally ready for a first pre-1.0 release; not production-ready.** Nothing found is a blocker. One High item is open, and it is not ODK's to close (GPUI 0.2.2 has no accessibility tree). ADR 0046 is superseded by ADR 0048, and ADR 0047, ADR 0048 and ADR 0049 are accepted (0049 with `odk::db` behind the `db` feature, off by default). Hand checks and provisional values still wait on the user (below). By the criteria in this document, a High item open means "production-ready" cannot be said, so it is not said.
 
 ## Criteria and evidence

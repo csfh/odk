@@ -16,10 +16,17 @@ Every crate has the workspace's version (ADR 0064). The pre-releases `v0.1.0-rc.
 - `odk-theme` follows `odkd` (ADR 0062): `ThemeManager::current()` and `from_host` take the palette, the text size, the request for reduced motion and the font from it and read no file, `with_host` and `following_host` give a manager on a source the host's text size and motion, and `Host`, `HostState` and `socket_path` are the client. `ODKD_SOCKET=none` says there is no host. `with_users_files`, `with_user_shell`, `with_user_fonts`, `user_files`, `with_compositor` and `compositor` are removed, and an application no longer runs `fc-match`.
 - Text follows Omarchy's font and the user's text size, and reduced motion follows the compositor: Hyprland's `animations:enabled` set to false removes transitions and loops, live, in every application, a sandboxed one too (ADR 0043, ADR 0048, accepted; ADR 0046 is superseded). The user's own `[motion] reduced` key is ignored. When Hyprland gives no answer, motion is not reduced. `odkd`, a per-user daemon outside every sandbox, reads these and the theme's colours and tells every application over a socket systemd starts on demand (ADR 0062); `oma` binds its directory into a sandbox, and the copy of Omarchy's settings that ADR 0044 made, with `oma omarchy sync` and its units, is gone.
 - Components: `Button` (eight variants, any role at any emphasis, icon-only, loading), `Input`, `SearchInput`, `PasswordInput`, `NumberInput`, `Textarea`, `InputGroup`, `Select`, `Command`, `Checkbox`, `RadioGroup`, `Switch`, `FormField`, `Text`, `Heading`, `Tabs`, `ToggleGroup`, `Breadcrumb`, `NavList`, `Badge`, `StatusIndicator`, `Alert`, `Progress`, `Spinner`, `Skeleton`, `Separator`, `Kbd`, and the overlays `DropdownMenu`, `ContextMenu`, `Popover`, `Tooltip`, `HoverCard`, `Dialog`, `Sheet` and `Toast` (ADR 0045).
-- The gallery is a design-system explorer (`docs/gallery.md`).
+- The gallery is a design-system explorer (`docs/gallery.md`; removed on 2026-10-31).
 
 - `odk::db`: a SQLite handle for an application's own data, over `rusqlite` with a bundled SQLite, on a thread of its own so that the window never waits for a disk, with migrations (`PRAGMA user_version`; a newer database is refused), `execute`, `query`, `transaction` and the raw connection (ADR 0049, accepted, `docs/spec/odk-db.md`). It is behind the `db` feature of `odk`, off by default.
-- `examples/todo`, an example application with a list kept in that database, and its Bundle `Todo.oma`.
+- `examples/todo`, an example application with a list kept in that database, and its Bundle `Todo.oma` (removed on 2026-10-31).
+
+### Removed examples and gallery (2026-10-31)
+
+- `examples/hello`, `examples/gallery` and `examples/todo`, `docs/gallery.md`, `tools/visual-scenarios` and the prebuilt `Hello.oma/` and `Todo.oma/` at the repository root. `stories/` (one small application per component, run with `tools/story NAME`) is the showcase that remains.
+- `tools/idle-cpu` measures any program (`tools/idle-cpu [--max PERCENT] COMMAND...`); its `--all` gate, `--page` and the gallery default went with the gallery. `GALLERY_FRAME_BUDGET_MS` is no longer read.
+- Kept: the `db` and `test-support` features of `odk`, which applications use.
+- Every component needs a story of its own (checklist item 28, scanned in `checklist/source.rs`); the 40 components that have none are listed in Known gaps.
 
 ### Breaking changes (ADR 0047, accepted)
 
@@ -31,7 +38,7 @@ Removed: `odk::theme::Tokens` and the types under it, `ThemeSnapshot::tokens`, `
 - Fixed: `Toast::timeout(Duration::MAX)` panicked on the `Instant` addition and is now a toast that stays; `NumberInput` showed `NaN` or `inf` for such a value, ignored a NaN `min` or `max`, and turned 400 digits into `inf`; the resolver's one `expect` on a label is an error, not a panic; `Skeleton::block` takes no negative or non-finite size.
 - Added source checks to the component checklist: no palette, colour maths or snapshot read outside the theme layers in any `odk-ui` file (item 40), no timing or named corner size in a component (41), no process-wide theme state outside the store (42), and more colour forms in item 1.
 - Added a cross-theme matrix test (six themes, three densities, both radii, every button variant and state) and a timing printout for theme resolution.
-- Added `tools/visual-scenarios` and the gallery's `GALLERY_DENSITY`, `GALLERY_CORNERS` and `GALLERY_MOTION` for reproducible headless screenshots.
+- Added `tools/visual-scenarios` and the gallery's `GALLERY_DENSITY`, `GALLERY_CORNERS` and `GALLERY_MOTION` for reproducible headless screenshots (removed on 2026-10-31).
 - Documentation: `docs/design-language.md`, `docs/migration.md` (its code is compiled by `crates/odk/tests/migration.rs`), `docs/contributing-components.md`, `docs/release-readiness.md`; stale statements about the removed tokens and `Variant` corrected in the specs.
 
 ### OMA

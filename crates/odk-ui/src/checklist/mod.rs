@@ -135,23 +135,27 @@ pub(crate) fn publish_fixture(colors: &str) {
     ));
 }
 
-/// Asserts that the checklist's "Known gaps" table has a row for `component` failing `item`,
-/// so an exception made in a test is always written down in the spec.
-pub(crate) fn assert_known_gap(component: &str, item: u32) {
+/// Whether the checklist's "Known gaps" table has a row for `component` failing `item`.
+pub(crate) fn is_known_gap(component: &str, item: u32) -> bool {
     let spec = include_str!("../../../../docs/spec/component-checklist.md");
     let gaps = &spec[spec
         .find("## Known gaps")
         .expect("the checklist has a Known gaps table")..];
-    let found = gaps.lines().filter(|l| l.starts_with('|')).any(|row| {
+    gaps.lines().filter(|l| l.starts_with('|')).any(|row| {
         let cells: Vec<&str> = row.split('|').map(str::trim).collect();
         cells.len() > 2
             && (cells[1].contains(&format!("`{component}`")) || cells[1] == component)
             && cells[2]
                 .split(',')
                 .any(|n| n.trim().parse::<u32>() == Ok(item))
-    });
+    })
+}
+
+/// Asserts that the checklist's "Known gaps" table has a row for `component` failing `item`,
+/// so an exception made in a test is always written down in the spec.
+pub(crate) fn assert_known_gap(component: &str, item: u32) {
     assert!(
-        found,
+        is_known_gap(component, item),
         "{component} is excused from checklist item {item} but has no row for it in Known gaps"
     );
 }

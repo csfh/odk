@@ -25,7 +25,7 @@ A `Database` is a cloneable handle to one SQLite connection that lives on a thre
 
 ## How an application uses it
 
-Open once, before the window, and read what the first frame needs with `call_blocking`, as the theme is read. Keep what the view draws in memory. Send each change with `call` and do not wait for it; if it fails, the future says so, and the view shows a notice (`examples/todo` does this). A change that failed means the database may hold less than the view shows, so a later change that merely worked must not take the notice away: `examples/todo` sends the whole list in one transaction as its next change after a failure, and only that working clears the notice. A view that waited on the database would be slower than the disk and would make a test depend on a thread.
+Open once, before the window, and read what the first frame needs with `call_blocking`, as the theme is read. Keep what the view draws in memory. Send each change with `call` and do not wait for it; if it fails, the future says so, and the view shows a notice. A change that failed means the database may hold less than the view shows, so a later change that merely worked must not take the notice away: an application sends the whole list in one transaction as its next change after a failure (the Todo example, removed on 2026-10-31, did), and only that working clears the notice. A view that waited on the database would be slower than the disk and would make a test depend on a thread.
 
 ## What it does not do
 

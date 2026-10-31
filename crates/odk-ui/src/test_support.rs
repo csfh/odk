@@ -61,7 +61,7 @@ pub fn redraw(cx: &mut VisualTestContext) {
 }
 
 /// Opens a window whose view is the one `build` makes, as `open_window` does, and says which view
-/// it is, for a program's own view such as the gallery's.
+/// it is, for a program's own view.
 pub fn open_view<V: Render + 'static>(
     cx: &mut TestAppContext,
     build: impl FnOnce(&mut Window, &mut gpui::App) -> gpui::Entity<V>,
