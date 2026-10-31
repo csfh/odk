@@ -10,7 +10,8 @@ use odk_theme::semantic;
 
 use crate::components;
 use crate::decoration::{self, ClipFit};
-use crate::layout::{StyledExt, h_flex, truncate_end};
+use crate::layout::{StyledExt, truncate_end};
+use crate::stack::Row;
 use crate::theme::colour;
 
 /// What a status indicator says about something: whether it is on, or how it went.
@@ -102,7 +103,7 @@ impl RenderOnce for StatusIndicator {
             false,
             div().child(self.label),
         );
-        let mut row = h_flex()
+        let mut row = Row::new()
             .debug_selector(|| "odk-status".into())
             .gap(px(s.gap))
             .min_w_0()

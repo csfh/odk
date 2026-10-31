@@ -14,7 +14,7 @@ use super::{Count, open, press, redraw, reduce_motion};
 use crate::command::{hear, probe};
 use crate::input::probe as field;
 use crate::overlay::probe as overlay;
-use crate::{Button, Command, CommandItem, Dialog, v_flex};
+use crate::{Button, Command, CommandItem, Dialog, Stack};
 
 type Picked = Rc<RefCell<Vec<String>>>;
 
@@ -51,7 +51,7 @@ fn palette_window(
         for item in items(&picked) {
             command = command.item(item);
         }
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("open")
                     .label("Commands")
@@ -390,7 +390,7 @@ fn a_palette_opened_in_a_dialog_works_there(cx: &mut TestAppContext) {
                     for item in items(&pk) {
                         command = command.item(item);
                     }
-                    v_flex()
+                    Stack::new()
                         .child(Button::new("open").label("Commands").on_click(
                             move |_, window, _| {
                                 p2.set(true);

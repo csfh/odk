@@ -2,7 +2,7 @@ use gpui::{ParentElement, TestAppContext};
 use odk_a11y::{Describe, Role};
 
 use super::{Count, open, press};
-use crate::{Breadcrumb, Button, v_flex};
+use crate::{Breadcrumb, Button, Stack};
 
 /// Items 8, 9, 10: each link is a tab stop pressed with Enter, and the current page is not
 /// a tab stop.
@@ -12,7 +12,7 @@ fn links_are_tab_stops_and_the_current_page_is_not(cx: &mut TestAppContext) {
     let (s, d, a) = (settings.clone(), display.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let (s, d, a) = (s.clone(), d.clone(), a.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Breadcrumb::new("b")
                     .item("Settings", move |_, _| s.bump())
@@ -36,7 +36,7 @@ fn the_last_item_is_never_a_tab_stop(cx: &mut TestAppContext) {
     let (l, a) = (last.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let (l, a) = (l.clone(), a.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Breadcrumb::new("b")
                     .item("Settings", |_, _| {})
@@ -130,7 +130,7 @@ fn a_long_path_fits_its_width(cx: &mut TestAppContext) {
     let width = Rc::new(Cell::new(4000.0));
     let w = width.clone();
     let cx = open(cx, move |_, _| {
-        v_flex().child(
+        Stack::new().child(
             gpui::div().w(px(w.get())).child(
                 Breadcrumb::new("b")
                     .item("A very long first step of the path", |_, _| {})
@@ -186,7 +186,7 @@ fn a_long_path_fits_its_width(cx: &mut TestAppContext) {
 fn no_state_moves_anything(cx: &mut TestAppContext) {
     use super::stability::{Step, assert_still};
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Breadcrumb::new("b")
                     .item("Settings", |_, _| {})
@@ -218,7 +218,7 @@ fn a_squeezed_column_does_not_collapse_it(cx: &mut TestAppContext) {
     let squeezed = Rc::new(Cell::new(false));
     let s = squeezed.clone();
     let cx = open(cx, move |_, _| {
-        let column = v_flex()
+        let column = Stack::new()
             .child(Breadcrumb::new("b").item("Home", |_, _| {}).current("Page"))
             .child(gpui::div().h(px(4000.0)));
         if s.get() { column.h(px(100.0)) } else { column }
@@ -272,7 +272,7 @@ fn every_part_sits_on_one_line(cx: &mut TestAppContext) {
 fn no_label_vanishes_in_a_narrow_space(cx: &mut TestAppContext) {
     use gpui::{Styled, px};
     let cx = open(cx, move |_, _| {
-        v_flex().child(
+        Stack::new().child(
             gpui::div().w(px(220.0)).child(
                 Breadcrumb::new("b")
                     .item("Home", |_, _| {})
@@ -364,7 +364,7 @@ fn links_draw_their_tokens_and_their_ring(cx: &mut TestAppContext) {
     use crate::interaction::painted;
     use odk_theme::component::{LinkStyle, States};
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Breadcrumb::new("b")
                     .item("Settings", |_, _| {})

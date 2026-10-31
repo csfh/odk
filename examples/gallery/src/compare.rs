@@ -231,7 +231,7 @@ impl Render for ComparePage {
             if let Some(l) = loaded {
                 select = select.value(l.name.clone());
             }
-            h_flex()
+            Row::new()
                 .gap(Space::Md)
                 .child(Text::new(label).muted())
                 .child(
@@ -247,7 +247,7 @@ impl Render for ComparePage {
             .child(picker(Side::A, "compare-a", "Theme A", &self.a.clone(), cx))
             .child(picker(Side::B, "compare-b", "Theme B", &self.b.clone(), cx));
 
-        let mut body = v_flex().gap(Space::Lg).child(pickers);
+        let mut body = Stack::new().gap(Space::Lg).child(pickers);
         if let Some(error) = &self.error {
             body = body.child(
                 Alert::new("compare-error", "A theme could not be loaded")
@@ -269,10 +269,10 @@ impl Render for ComparePage {
                 )))
                 .child(section("Component tokens, by theme"))
                 .child(Text::new("Every button variant at rest, from each theme's own component tokens. These are token samples, not buttons; the real ones are below.").muted());
-            let mut chips = v_flex().gap(Space::Sm);
+            let mut chips = Stack::new().gap(Space::Sm);
             for (label, l) in [("A", &a), ("B", &b)] {
                 chips = chips.child(
-                    h_flex()
+                    Row::new()
                         .flex_wrap()
                         .gap(Space::Sm)
                         .child(div().w(px(24.0)).child(Text::new(label).muted()))
@@ -280,7 +280,7 @@ impl Render for ComparePage {
                 );
             }
             body = body.child(chips).child(section("Tokens"));
-            let mut table = v_flex().gap(Space::Xs).child(
+            let mut table = Stack::new().gap(Space::Xs).child(
                 Checkbox::new("compare-only", "Show only differences")
                     .checked(self.differences_only)
                     .on_change(flag(cx, |this: &mut Self, on, cx| {
@@ -315,7 +315,7 @@ impl Render for ComparePage {
                 .filter(|r| r.group == self.group && (!self.differences_only || r.differs()))
             {
                 table = table.child(
-                    h_flex()
+                    Row::new()
                         .flex_wrap()
                         .gap(Space::Md)
                         .child(

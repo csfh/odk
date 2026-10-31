@@ -12,8 +12,8 @@ use odk_theme::{JND, ThemeManager, ThemeSource};
 use super::{FIXTURES, open, press, publish_fixture, redraw};
 use crate::input::{drawn, probe};
 use crate::{
-    Button, Checkbox, Input, InputGroup, NumberInput, PasswordInput, RadioGroup, SearchInput,
-    Select, Switch, Textarea, h_flex, v_flex,
+    Button, Checkbox, Input, InputGroup, NumberInput, PasswordInput, RadioGroup, Row, SearchInput,
+    Select, Stack, Switch, Textarea,
 };
 
 fn bounds(cx: &mut VisualTestContext, part: String) -> gpui::Bounds<gpui::Pixels> {
@@ -27,27 +27,27 @@ fn centre_y(b: gpui::Bounds<gpui::Pixels>) -> gpui::Pixels {
 }
 
 /// A row of every one-line control at density `d`, ids suffixed with the density's name.
-fn row(d: Density) -> gpui::Div {
+fn row(d: Density) -> Row {
     let n = d.name();
     let id = |what: &str| gpui::SharedString::from(format!("{what}-{n}"));
-    h_flex()
+    Row::new()
         .items_center()
         .gap(px(8.0))
         .child(Button::new(id("button")).label("Save").density(d))
         .child(
-            v_flex()
+            Stack::new()
                 .w(px(160.0))
                 .child(Input::new(id("input"), "Name").density(d)),
         )
         .child(
-            v_flex().w(px(160.0)).child(
+            Stack::new().w(px(160.0)).child(
                 Select::new(id("select"), "Fruit")
                     .item("a", "Apple")
                     .density(d),
             ),
         )
         .child(
-            v_flex().w(px(200.0)).child(
+            Stack::new().w(px(200.0)).child(
                 InputGroup::new(id("group"), "Site")
                     .prefix("https://")
                     .density(d)
@@ -55,21 +55,21 @@ fn row(d: Density) -> gpui::Div {
             ),
         )
         .child(
-            v_flex().w(px(180.0)).child(
+            Stack::new().w(px(180.0)).child(
                 SearchInput::new(id("search"), "Search")
                     .default_value("dock")
                     .density(d),
             ),
         )
         .child(
-            v_flex().w(px(180.0)).child(
+            Stack::new().w(px(180.0)).child(
                 PasswordInput::new(id("password"), "Password")
                     .default_value("x")
                     .density(d),
             ),
         )
         .child(
-            v_flex()
+            Stack::new()
                 .w(px(180.0))
                 .child(NumberInput::new(id("number"), "Quantity").density(d)),
         )
@@ -80,7 +80,7 @@ fn row(d: Density) -> gpui::Div {
 /// buttons inside fields lower than them and inside their box.
 #[gpui::test]
 fn every_control_shares_the_height_system(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().children(Density::ALL.map(row)));
+    let cx = open(cx, |_, _| Stack::new().children(Density::ALL.map(row)));
     for d in Density::ALL {
         let n = d.name();
         let height = px(d.metrics().height);
@@ -127,7 +127,7 @@ fn every_control_shares_the_height_system(cx: &mut TestAppContext) {
 #[gpui::test]
 fn corners_follow_the_application(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name"))
             .child(Textarea::new("t", "Notes"))
             .child(Select::new("s", "Fruit").item("a", "Apple"))
@@ -159,7 +159,7 @@ fn corners_follow_the_application(cx: &mut TestAppContext) {
 #[gpui::test]
 fn they_draw_their_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name"))
             .child(Input::new("bad", "Name").invalid(true))
             .child(Input::new("ro", "Name").read_only(true))
@@ -216,7 +216,7 @@ fn they_draw_their_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
 fn a_theme_change_keeps_values_focus_and_geometry(cx: &mut TestAppContext) {
     let [(_, dark), .., (_, light)] = FIXTURES;
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name"))
             .child(
                 Select::new("s", "Fruit")
@@ -293,7 +293,7 @@ fn a_theme_change_keeps_values_focus_and_geometry(cx: &mut TestAppContext) {
 fn density_corners_and_reduced_motion_keep_values_focus_and_choices(cx: &mut TestAppContext) {
     use crate::{NavList, Tabs, Text};
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name"))
             .child(
                 Select::new("s", "Fruit")
@@ -417,7 +417,7 @@ fn the_select_list_tells_selected_from_highlighted(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_textarea_grows_between_its_rows(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(240.0))
             .child(Textarea::new("t", "Notes").rows(2).max_rows(4))
             .child(Button::new("after").label("After"))
@@ -452,7 +452,7 @@ fn a_textarea_grows_between_its_rows(cx: &mut TestAppContext) {
 #[gpui::test]
 fn icons_and_pointer_states_of_a_field(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(240.0))
             .child(
                 Input::new("i", "Amount")
@@ -490,7 +490,7 @@ fn icons_and_pointer_states_of_a_field(cx: &mut TestAppContext) {
 #[gpui::test]
 fn targets_are_at_least_24_px(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 SearchInput::new("search", "Search")
                     .default_value("dock")

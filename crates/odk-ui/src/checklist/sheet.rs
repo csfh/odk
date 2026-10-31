@@ -5,7 +5,7 @@ use gpui::{ParentElement, Styled, TestAppContext};
 use odk_a11y::{Describe, Role};
 
 use super::{Count, open, press, redraw, reduce_motion};
-use crate::{Button, Sheet, Text, v_flex};
+use crate::{Button, Sheet, Stack, Text};
 
 /// Items 8, 10, 13: the sheet takes focus when it opens, Tab and Shift+Tab stay inside it,
 /// Escape asks to close it, and focus goes back to the button that opened it.
@@ -22,7 +22,7 @@ fn traps_tab_and_gives_focus_back(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
         let (o, i, x) = (o.clone(), i.clone(), x.clone());
         let (to_open, to_close) = (open_flag.clone(), open_flag.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("open")
                     .label("Open")
@@ -106,7 +106,7 @@ fn keeps_its_title_and_content_while_it_closes(cx: &mut TestAppContext) {
         } else {
             Sheet::new("s", "").open(false)
         };
-        v_flex().child(sheet)
+        Stack::new().child(sheet)
     });
     let motion = crate::foundation().motion.clone();
     let (enter, exit) = (motion.enter, motion.exit);
@@ -167,7 +167,7 @@ fn sheet_over_a_button(
 ) -> &mut gpui::VisualTestContext {
     let cx = open(cx, move |_, _| {
         let (behind, closed) = (behind.clone(), closed.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("behind")
                     .label("Behind")
@@ -247,7 +247,7 @@ fn the_body_scrolls_the_focused_control_into_view(cx: &mut gpui::TestAppContext)
     use gpui::{px, size};
     let cx = open(cx, |_, _| {
         Sheet::new("s", "Inspector").open(true).content(|_, _| {
-            let mut body = v_flex();
+            let mut body = Stack::new();
             for n in 0..40 {
                 body = body.child(Text::new(format!("Line {n}")));
             }

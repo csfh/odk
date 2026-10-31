@@ -17,7 +17,7 @@ use odk_a11y::{Describe, Role};
 use super::stability::{Step, assert_still};
 use super::{Count, open, press, redraw};
 use crate::input::{entity_of, point_of, probe};
-use crate::{Button, Dialog, Input, v_flex};
+use crate::{Button, Dialog, Input, Stack};
 
 type Seen = Rc<RefCell<Vec<String>>>;
 
@@ -88,7 +88,7 @@ fn tab_leaves_the_field_and_types_no_tab(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name").on_change(record(&s)))
             .child(
                 Button::new("after")
@@ -110,7 +110,7 @@ fn enter_submits_and_types_nothing(cx: &mut TestAppContext) {
     let (changes, submitted) = (Seen::default(), Seen::default());
     let (c, s) = (changes.clone(), submitted.clone());
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Input::new("i", "Name")
                     .default_value("x")
@@ -140,7 +140,7 @@ fn enter_submits_and_types_nothing(cx: &mut TestAppContext) {
 #[gpui::test]
 fn tab_selects_all_and_a_click_puts_the_caret(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name").default_value("hello world"))
             .child(Button::new("after").label("After"))
     });
@@ -332,7 +332,7 @@ fn a_double_click_selects_a_word_and_a_triple_click_all(cx: &mut TestAppContext)
 #[gpui::test]
 fn a_drag_selects_on_past_the_edges_of_the_field(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(300.0))
             .child(Input::new("i", "Name").default_value("hello world"))
     });
@@ -464,7 +464,7 @@ fn leaving_the_field_commits_a_composition(cx: &mut TestAppContext) {
     let seen = Seen::default();
     let s = seen.clone();
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name").on_change(record(&s)))
             .child(Button::new("after").label("After"))
     });
@@ -512,7 +512,7 @@ fn a_disabled_field_is_skipped_and_ignores_clicks(cx: &mut TestAppContext) {
     let a = after.clone();
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(Input::new("i", "Name").default_value("abc").disabled(true))
             .child(
                 Button::new("after")
@@ -551,7 +551,7 @@ fn it_describes_itself_as_a_text_input(_: &mut TestAppContext) {
 #[gpui::test]
 fn the_placeholder_shows_while_empty_and_never_leaves_the_box(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(160.0)).child(
+        Stack::new().w(px(160.0)).child(
             Input::new("i", "Name")
                 .placeholder("Anzeigename für externe Bildschirme und Projektoren"),
         )
@@ -570,7 +570,7 @@ fn long_text_scrolls_inside_a_box_that_stays_put(cx: &mut TestAppContext) {
     let long =
         "Pneumonoultramicroscopicsilicovolcanoconiosis 日本語のとても長い文章です 😀 ".repeat(3);
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(200.0))
             .child(Input::new("i", "Name").default_value(long.clone()))
     });
@@ -598,7 +598,7 @@ fn long_text_scrolls_inside_a_box_that_stays_put(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_field_without_focus_shows_the_start_of_its_text(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(120.0))
             .child(Input::new("i", "Name").default_value("a very long text that does not fit"))
             .child(Button::new("after").label("After"))
@@ -625,7 +625,7 @@ fn a_field_without_focus_shows_the_start_of_its_text(cx: &mut TestAppContext) {
 #[gpui::test]
 fn nothing_moves_when_it_is_used(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(160.0))
             .child(Input::new("i", "Name").placeholder("Name"))
             .child(Button::new("after").label("After"))

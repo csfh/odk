@@ -4,7 +4,7 @@ use odk_theme::component::SkeletonStyle;
 use odk_theme::foundation::{CornerRadius, Density};
 
 use super::{FIXTURES, open, publish_fixture, redraw, reduce_motion};
-use crate::{Skeleton, v_flex};
+use crate::{Skeleton, Stack};
 
 /// Items 14, 16: a skeleton is a busy Progress named for what is loading.
 #[test]
@@ -20,7 +20,9 @@ fn reports_what_is_loading() {
 /// text's letters, the last line shorter; a block is the size it is given.
 #[gpui::test]
 fn it_is_the_size_of_what_it_stands_for(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().w(px(300.0)).child(Skeleton::text(3)));
+    let cx = open(cx, |_, _| {
+        Stack::new().w(px(300.0)).child(Skeleton::text(3))
+    });
     let s = crate::drawn::last::<SkeletonStyle>("odk-skeleton");
     let all = cx.debug_bounds("odk-skeleton").unwrap();
     assert_eq!(all.size.height, px(3.0 * s.line_height));
@@ -35,7 +37,7 @@ fn it_is_the_size_of_what_it_stands_for(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn a_block_is_the_size_it_is_given(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().child(Skeleton::block(120.0, 80.0)));
+    let cx = open(cx, |_, _| Stack::new().child(Skeleton::block(120.0, 80.0)));
     let b = cx.debug_bounds("odk-skeleton").unwrap();
     assert_eq!((b.size.width, b.size.height), (px(120.0), px(80.0)));
 }
@@ -46,7 +48,7 @@ fn a_block_is_the_size_it_is_given(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_control_skeleton_keeps_a_controls_size_in_an_items_action(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(500.0)).child(
+        Stack::new().w(px(500.0)).child(
             crate::Item::new("Natural scroll")
                 .description("Content moves with your fingers.")
                 .action(Skeleton::control().label("Reading Natural scroll")),
@@ -69,7 +71,9 @@ fn a_control_skeleton_keeps_a_controls_size_in_an_items_action(cx: &mut TestAppC
 /// Item 23: in a column narrower than it, a control's stand-in takes the column's width.
 #[gpui::test]
 fn a_control_skeleton_is_never_wider_than_its_column(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().w(px(40.0)).child(Skeleton::control()));
+    let cx = open(cx, |_, _| {
+        Stack::new().w(px(40.0)).child(Skeleton::control())
+    });
     assert_eq!(
         cx.debug_bounds("odk-skeleton").unwrap().size.width,
         px(40.0)

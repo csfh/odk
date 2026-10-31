@@ -4,7 +4,7 @@
 //! it.
 
 use gpui::{
-    AnyElement, App, Div, ElementId, FocusHandle, InteractiveElement, IntoElement, MouseButton,
+    AnyElement, App, ElementId, FocusHandle, InteractiveElement, IntoElement, MouseButton,
     ParentElement, RenderOnce, SharedString, Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe};
@@ -14,7 +14,8 @@ use odk_theme::semantic::Role;
 use crate::Icon;
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::input::field_mark;
-use crate::layout::{StyledExt, h_flex, v_flex};
+use crate::layout::StyledExt;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{
     Checkbox, Input, InputGroup, NumberInput, PasswordInput, RadioGroup, SearchInput, Select,
@@ -223,8 +224,8 @@ impl Describe for FormField {
 }
 
 /// A column of form fields and actions, `form_gap` (16 px) apart.
-pub fn form() -> Div {
-    v_flex().gap(px(crate::foundation().layout.form_gap))
+pub fn form() -> Stack {
+    Stack::new().gap(px(crate::foundation().layout.form_gap))
 }
 
 impl RenderOnce for FormField {
@@ -239,7 +240,7 @@ impl RenderOnce for FormField {
         let description = self.accessible_description();
         let invalid = self.invalid();
 
-        let mut label = h_flex()
+        let mut label = Row::new()
             .id(child_id(&self.id, "label"))
             .debug_selector(|| part_name(&self.id, "label"))
             .gap(px(c.foundation().spacing.s1))
@@ -271,7 +272,7 @@ impl RenderOnce for FormField {
                 });
         }
 
-        let mut field = v_flex()
+        let mut field = Stack::new()
             .debug_selector(|| part_name(&self.id, "field"))
             .w_full()
             .min_w_0()
@@ -297,7 +298,7 @@ impl RenderOnce for FormField {
         }
         if let Some(message) = self.message {
             let m = c.form_message(message.role);
-            let mut row = h_flex()
+            let mut row = Row::new()
                 .debug_selector(|| part_name(&self.id, "message"))
                 .items_start()
                 .gap(px(c.foundation().spacing.s1))

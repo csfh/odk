@@ -2,7 +2,8 @@ use gpui::{App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Wi
 use odk_a11y::{Accessible, Describe, Role};
 
 use crate::components;
-use crate::layout::{StyledExt, h_flex};
+use crate::layout::StyledExt;
+use crate::stack::Row;
 
 /// A key or chord, such as `Ctrl+K`, drawn as one keycap per key in the monospace face.
 /// Small enough to sit inline in text, in tooltips and in command items.
@@ -56,7 +57,7 @@ impl RenderOnce for Kbd {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let k = components().kbd();
         let g = k.geometry;
-        h_flex()
+        Row::new()
             .gap(px(g.gap))
             .children(self.keys.into_iter().map(|key| {
                 div()

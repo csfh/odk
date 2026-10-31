@@ -16,7 +16,8 @@ use crate::decoration::{self, ClipFit};
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name, roving_among};
 use crate::icon::{self, Glyph};
 use crate::interaction::{Pointer, RingTarget, pointer_states};
-use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
+use crate::layout::{StyledExt, text_width, truncate_end};
+use crate::stack::Row;
 use crate::theme::colour;
 
 type ChangeHandler = Rc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
@@ -249,7 +250,7 @@ impl RenderOnce for ToggleGroup {
         );
 
         let (keys, key_enabled) = (handles.clone(), enabled.clone());
-        let mut group = h_flex()
+        let mut group = Row::new()
             .id(self.id.clone())
             .debug_selector(|| part_name(&self.id, "group"))
             .relative()

@@ -3,7 +3,7 @@
 //! picked with the controls, read from the component tokens. Everything here is a real control
 //! in the active Omarchy theme; hover it with the pointer and Tab to see its ring.
 
-use odk::gpui::{Div, px};
+use odk::gpui::px;
 use odk::prelude::*;
 
 use crate::buttons::{caption, heights, row};
@@ -103,18 +103,18 @@ fn group(title: &'static str) -> impl IntoElement {
 /// A column as wide as a form's at most. It keeps its content's height in the scrolling page.
 /// Not `w_full` as well: GPUI 0.2.2 measures wrapping text in a column with both at the full
 /// width, so the column comes out shorter than its content (`docs/checks.md`).
-fn column() -> Div {
-    v_flex()
+fn column() -> Stack {
+    Stack::new()
         .flex_shrink_0()
         .gap(Space::Md)
         .max_w(px(INPUT_WIDTH))
 }
 
 /// The section.
-pub fn section(g: &mut FormsPage, c: &Content, cx: &mut Context<FormsPage>) -> Div {
+pub fn section(g: &mut FormsPage, c: &Content, cx: &mut Context<FormsPage>) -> Stack {
     // Uncontrolled controls keep their own state, so the Content switch gives them new ids.
     let k = usize::from(g.worst_case);
-    v_flex()
+    Stack::new()
         .flex_shrink_0()
         .gap(Space::Lg)
         .child(caption(
@@ -146,7 +146,7 @@ pub fn section(g: &mut FormsPage, c: &Content, cx: &mut Context<FormsPage>) -> D
                     heights()
                 ))
                     .into_any_element(),
-                v_flex()
+                Stack::new()
                     .gap(Space::Lg)
                     .children(Density::ALL.iter().enumerate().map(|(n, &d)| density_row(n, d)))
                     .into_any_element(),
@@ -184,7 +184,7 @@ pub fn section(g: &mut FormsPage, c: &Content, cx: &mut Context<FormsPage>) -> D
         })
 }
 
-fn text_fields(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPage>) -> Div {
+fn text_fields(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPage>) -> Stack {
     let [placeholder, value, read_only, disabled, echo] = c.inputs;
     let [area_placeholder, area_value, area_read_only] = c.textareas;
     let [before, after, group_placeholder, copy] = c.groups;
@@ -329,7 +329,7 @@ fn text_fields(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsP
         )
 }
 
-fn selection(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPage>) -> Div {
+fn selection(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPage>) -> Stack {
     let (placeholder, [first, second, third, fourth], echo) = c.select;
     let options = move |select: Select| {
         select
@@ -379,7 +379,7 @@ fn selection(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPag
             "Combobox: ODK has none yet; the command palette (below) is its searchable list, on the same field and menu tokens.",
         ))
         .child(
-            v_flex()
+            Stack::new()
                 .gap(Space::Sm)
                 .child(Checkbox::new(("hidden", k), hidden))
                 .child(Checkbox::new(("wrap", k), wrap).default_checked(true))
@@ -399,7 +399,7 @@ fn selection(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPag
             radios(("radio-row", k)).horizontal(true).default_value("second"),
         ))
         .child(
-            v_flex()
+            Stack::new()
                 .gap(Space::Sm)
                 .child(Switch::new(("wifi", k), wifi).default_checked(true))
                 .child(Switch::new(("bluetooth", k), bluetooth))
@@ -412,7 +412,7 @@ fn selection(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPag
         )
 }
 
-fn density_row(n: usize, d: Density) -> Div {
+fn density_row(n: usize, d: Density) -> Row {
     row()
         .items_center()
         .child(
@@ -469,15 +469,15 @@ fn density_row(n: usize, d: Density) -> Div {
         .child(caption(format!("{} {} px", d.name(), d.metrics().height)))
 }
 
-fn states(k: usize) -> Div {
+fn states(k: usize) -> Stack {
     let state = |label: &'static str, input: Input| {
-        v_flex()
+        Stack::new()
             .gap(Space::Xs)
             .w(px(170.0))
             .child(caption(label))
             .child(input)
     };
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .child(
             row()
@@ -525,7 +525,7 @@ fn states(k: usize) -> Div {
         )
 }
 
-fn example_form(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPage>) -> Div {
+fn example_form(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<FormsPage>) -> Stack {
     let t = &c.form;
     let f = &g.form;
     let email_wrong = f.sent && !f.email.contains('@');
@@ -639,7 +639,7 @@ fn example_form(g: &mut FormsPage, c: &Content, k: usize, cx: &mut Context<Forms
         )
         .child(agree)
         .child(
-            h_flex()
+            Row::new()
                 .flex_wrap()
                 .gap(Space::Sm)
                 .child(Button::new("ex-cancel").label(cancel).on_click(cx.listener(

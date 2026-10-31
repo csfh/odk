@@ -10,7 +10,7 @@ use odk_theme::component::ResizeHandleStyle;
 
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw};
 use crate::drawn;
-use crate::{Button, Resizable, ResizablePanel, Text, v_flex};
+use crate::{Button, Resizable, ResizablePanel, Stack, Text};
 
 type Seen = Rc<RefCell<Vec<Vec<f32>>>>;
 
@@ -19,10 +19,10 @@ fn split(seen: &Seen, after: &Count, disabled: bool) -> impl Fn() -> gpui::AnyEl
     let (seen, after) = (seen.clone(), after.clone());
     move || {
         let (seen, after) = (seen.clone(), after.clone());
-        v_flex()
+        Stack::new()
             .size_full()
             .child(
-                v_flex().h(px(300.0)).w_full().child(
+                Stack::new().h(px(300.0)).w_full().child(
                     Resizable::horizontal("split", "List and detail")
                         .disabled(disabled)
                         .panel(

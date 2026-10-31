@@ -27,12 +27,12 @@ pub fn page_renders() -> usize {
 pub(crate) fn page(page: Page, body: impl IntoElement) -> impl IntoElement {
     PAGE_RENDERS.with(|n| n.set(n.get() + 1));
     let meta = page.meta();
-    let mut column = v_flex()
+    let mut column = Stack::new()
         .w_full()
         .max_w(odk::gpui::px(CONTENT_MAX_WIDTH))
         .gap(Space::Lg)
         .child(
-            v_flex()
+            Stack::new()
                 .gap(Space::Xs)
                 .child(Heading::new(meta.title))
                 .child(Text::new(meta.description).muted()),
@@ -94,8 +94,8 @@ pub(crate) fn swatch_sized(c: Color, width: f32, height: f32) -> Div {
 }
 
 /// One labelled line of a table of values.
-pub(crate) fn kv(label: impl Into<SharedString>, value: impl Into<SharedString>) -> Div {
-    h_flex()
+pub(crate) fn kv(label: impl Into<SharedString>, value: impl Into<SharedString>) -> Row {
+    Row::new()
         .items_start()
         .gap(Space::Md)
         .child(
@@ -112,8 +112,8 @@ pub(crate) fn colour_kv(
     label: impl Into<SharedString>,
     c: Color,
     note: impl Into<SharedString>,
-) -> Div {
-    h_flex()
+) -> Row {
+    Row::new()
         .gap(Space::Md)
         .child(
             div()
@@ -126,8 +126,8 @@ pub(crate) fn colour_kv(
 }
 
 /// A wrapping row of things.
-pub(crate) fn wrap() -> Div {
-    h_flex().flex_wrap().gap(Space::Sm)
+pub(crate) fn wrap() -> Row {
+    Row::new().flex_wrap().gap(Space::Sm)
 }
 
 /// A block of code in the monospace type role, with a button that copies it. GPUI's text cannot
@@ -143,7 +143,7 @@ pub(crate) fn code_panel_owned(id: &'static str, code: SharedString) -> impl Int
     let edge = snapshot.semantic.border.subtle;
     let text = code;
     let copy = text.clone();
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .p(Space::Md)
         .bg(rgba(surface.to_rgba_u32()))
@@ -151,7 +151,7 @@ pub(crate) fn code_panel_owned(id: &'static str, code: SharedString) -> impl Int
         .border_color(rgba(edge.to_rgba_u32()))
         .rounded(odk::gpui::px(odk::ui::foundation().geometry.radius.default))
         .child(
-            h_flex().justify_end().child(
+            Row::new().justify_end().child(
                 Button::new(SharedString::from(format!("copy-{id}")))
                     .label("Copy")
                     .variant(ButtonVariant::Outline)
@@ -175,7 +175,7 @@ pub(crate) fn code_panel_owned(id: &'static str, code: SharedString) -> impl Int
 /// One `Text` per line. GPUI refuses a text run that contains a newline, and a scroll on one
 /// axis clips the other, so a long line wraps instead of scrolling sideways (ADR 0058).
 fn code_lines(text: SharedString) -> impl IntoElement {
-    let mut lines = v_flex().w_full().min_w_0();
+    let mut lines = Stack::new().w_full().min_w_0();
     for line in text.lines() {
         let line = if line.is_empty() {
             "\u{00a0}".to_owned()

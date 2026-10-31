@@ -4,7 +4,7 @@ use odk_theme::JND;
 
 use super::{FIXTURES, open, publish_fixture, redraw};
 use crate::text::drawn;
-use crate::{Heading, Text, v_flex};
+use crate::{Heading, Stack, Text};
 
 /// Items 14, 15: text reports itself as text, named by its content.
 #[test]
@@ -35,7 +35,7 @@ fn a_heading_reports_its_level() {
 #[gpui::test]
 fn they_draw_their_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Text::new("Body"))
             .child(Text::new("Aside").muted())
             .child(Heading::new("Zero").level(0))
@@ -80,7 +80,7 @@ fn they_draw_their_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
 fn mono_text_draws_the_mono_role_in_the_colour_of_its_kind(cx: &mut TestAppContext) {
     use odk_theme::foundation::TypeRole;
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Text::new("plain"))
             .child(Text::new("code").mono())
             .child(Text::new("quiet").muted())
@@ -109,7 +109,7 @@ fn single_line_text_keeps_one_line_where_plain_text_wraps(cx: &mut TestAppContex
     }
     let long = "/usr/lib/some/very/long/path/to/a/program --with --many --arguments --and more";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(160.0))
             .child(line("wraps", Text::new(long)))
             .child(line("one", Text::new(long).single_line()))
@@ -138,7 +138,7 @@ fn headings_draw_their_level_s_type_role(cx: &mut TestAppContext) {
         div().debug_selector(move || name.into()).child(child)
     }
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(600.0))
             .child(line("body", Text::new("Body")))
             .child(line("aside", Text::new("Aside").muted()))

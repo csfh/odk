@@ -8,7 +8,7 @@ use odk_a11y::{Describe, Role};
 
 use super::{Count, open, press, redraw, reduce_motion};
 use crate::overlay::probe;
-use crate::{Button, Dialog, Text, v_flex};
+use crate::{Button, Dialog, Stack, Text};
 
 /// A window with a button that opens a dialog, which has a body button and two actions.
 fn dialog_window<'a>(
@@ -21,7 +21,7 @@ fn dialog_window<'a>(
         let [opened, inside, cancel, save] = counts.clone();
         let (to_open, to_close) = (is_open.clone(), is_open.clone());
         let (c, s) = (cancel.clone(), save.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("open")
                     .label("Rename")
@@ -163,7 +163,7 @@ fn it_fits_a_small_window_and_its_body_scrolls(cx: &mut TestAppContext) {
             )
             .open(is_open.get())
             .content(|_, _| {
-                let mut body = v_flex();
+                let mut body = Stack::new();
                 for n in 0..60 {
                     body = body.child(Text::new(format!("Zeile {n}")));
                 }
@@ -378,7 +378,7 @@ fn the_overlay_host_takes_no_room_in_the_root(cx: &mut TestAppContext) {
 fn a_popover_in_a_sheet_is_below_a_dialog_opened_over_it(cx: &mut TestAppContext) {
     use std::cell::{Cell, RefCell};
 
-    use crate::{Select, Sheet, v_flex};
+    use crate::{Select, Sheet, Stack};
     use gpui::{ParentElement, px};
     let (shown, picks, closed) = (
         Rc::new(Cell::new(false)),
@@ -392,7 +392,7 @@ fn a_popover_in_a_sheet_is_below_a_dialog_opened_over_it(cx: &mut TestAppContext
             .open(true)
             .content(move |_, _| {
                 let (p, c) = (p.clone(), c.clone());
-                v_flex()
+                Stack::new()
                     .child(
                         Dialog::new("inner", "Confirm")
                             .open(s.get())
@@ -504,7 +504,7 @@ fn the_body_scrolls_the_focused_control_into_view(cx: &mut TestAppContext) {
         Dialog::new("d", "Notes")
             .open(true)
             .content(|_, _| {
-                let mut body = v_flex();
+                let mut body = Stack::new();
                 for n in 0..40 {
                     body = body.child(Text::new(format!("Line {n}")));
                 }

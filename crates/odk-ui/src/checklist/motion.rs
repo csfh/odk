@@ -276,7 +276,7 @@ fn a_component_removed_mid_transition_leaves_no_animation_behind(cx: &mut TestAp
     let (p, v) = (present.clone(), value.clone());
     let cx = open(cx, move |_, _| {
         if p.get() {
-            crate::v_flex()
+            crate::Stack::new()
                 .child(Switch::new("s", "Wi-Fi"))
                 .child(Progress::new("p", "Upload").value(v.get()))
                 .into_any_element()

@@ -24,7 +24,7 @@ impl ThemePage {
     }
 }
 
-fn describe(d: &ThemeDiagnostics) -> Div {
+fn describe(d: &ThemeDiagnostics) -> Stack {
     let missing = if d.missing.is_empty() {
         "none".to_owned()
     } else {
@@ -34,7 +34,7 @@ fn describe(d: &ThemeDiagnostics) -> Div {
             .collect::<Vec<_>>()
             .join(", ")
     };
-    let mut lines = v_flex()
+    let mut lines = Stack::new()
         .gap(Space::Xs)
         .child(kv(
             "Name",
@@ -85,8 +85,6 @@ fn describe(d: &ThemeDiagnostics) -> Div {
     lines
 }
 
-use odk::gpui::Div;
-
 impl Render for ThemePage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = odk::ui::theme_snapshot();
@@ -95,25 +93,25 @@ impl Render for ThemePage {
             let themes = self.themes.read(cx);
             themes.choice().and_then(|name| themes.loaded(name))
         };
-        let mut body = v_flex().gap(Space::Lg).child(section("System theme"));
+        let mut body = Stack::new().gap(Space::Lg).child(section("System theme"));
         body = body.child(match &system {
             Some(d) => describe(d),
-            None => v_flex().child(Text::new(
+            None => Stack::new().child(Text::new(
                 "This gallery is not following Omarchy's theme (no diagnostics were kept).",
             )),
         });
         body = body.child(section("Preview"));
         body = body.child(match &preview {
-            Some(loaded) => v_flex()
+            Some(loaded) => Stack::new()
                 .gap(Space::Sm)
                 .child(Text::new(format!("{} is drawn in place of the system's. Omarchy's selection and files are untouched.", pretty(&loaded.name))))
                 .child(describe(&loaded.diagnostics)),
-            None => v_flex().child(Text::new("No theme is being previewed: the gallery draws the system's.")),
+            None => Stack::new().child(Text::new("No theme is being previewed: the gallery draws the system's.")),
         });
 
         let components = odk::ui::components();
         body = body.child(section("Component tokens")).child(
-            v_flex()
+            Stack::new()
                 .gap(Space::Xs)
                 .child(kv("Generation", components.generation().to_string()))
                 .child(kv(
@@ -128,7 +126,7 @@ impl Render for ThemePage {
         );
 
         let rows = self.rows.get(&components);
-        let mut issues = v_flex().gap(Space::Xs);
+        let mut issues = Stack::new().gap(Space::Xs);
         let mut count = 0;
         for row in rows.iter() {
             for result in row.contrast.iter().filter(|r| !r.passes()) {
@@ -156,7 +154,7 @@ impl Render for ThemePage {
             )).muted())
             .child(issues);
 
-        let mut notes = v_flex().gap(Space::Xs);
+        let mut notes = Stack::new().gap(Space::Xs);
         for note in &theme.resolution.notes {
             notes = notes.child(Text::new(format!("⚠ {note}")));
         }

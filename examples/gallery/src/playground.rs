@@ -214,7 +214,7 @@ impl PlaygroundPage {
             None => b.variant.appearance(),
         };
         let density = b.density.unwrap_or(config.density);
-        let mut view = v_flex().gap(Space::Md).child(group("The button"));
+        let mut view = Stack::new().gap(Space::Md).child(group("The button"));
         view = view.child(Text::new(format!(
             "{} at {} density: {} px high",
             appearance.name(),
@@ -274,7 +274,7 @@ impl Render for PlaygroundPage {
         let mut densities = vec![(None, "the application's")];
         densities.extend(Density::ALL.map(|d| (Some(d), d.name())));
 
-        let button_controls = v_flex()
+        let button_controls = Stack::new()
             .gap(Space::Sm)
             // Eight variants are two rows of four, so they fit a narrow window.
             .child(choice(
@@ -384,7 +384,7 @@ impl Render for PlaygroundPage {
                 ));
             }
         }
-        let field_controls = v_flex()
+        let field_controls = Stack::new()
             .gap(Space::Sm)
             .child(choice(
                 "pg-control",
@@ -449,12 +449,12 @@ impl Render for PlaygroundPage {
 
         page(
             Page::Playground,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(Text::new("Everything here is a real component built from the properties you set. Changes apply at once and keep what you have typed. Density here is this button's own; to change the whole gallery's, use the toolbar.").muted())
                 .child(section("Button"))
                 .child(button_controls)
-                .child(h_flex().py(Space::Md).child(b.build("pg-button")))
+                .child(Row::new().py(Space::Md).child(b.build("pg-button")))
                 .child(code_panel_owned("playground-button", button_code))
                 .child(section("Form control"))
                 .child(field_controls)

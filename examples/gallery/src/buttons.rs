@@ -78,7 +78,7 @@ pub(crate) fn choice<T: Copy + PartialEq + 'static, V: 'static>(
     current: T,
     set: impl Fn(&mut V, T, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
-) -> Div {
+) -> Row {
     choice_labelled(id, label, true, options, current, set, cx)
 }
 
@@ -91,7 +91,7 @@ pub(crate) fn choice_labelled<T: Copy + PartialEq + 'static, V: 'static>(
     current: T,
     set: impl Fn(&mut V, T, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
-) -> Div {
+) -> Row {
     // A current value that is not among the options selects none of them, as when the options
     // are one part of a longer list.
     let at = options.iter().position(|(v, _)| *v == current);
@@ -99,7 +99,7 @@ pub(crate) fn choice_labelled<T: Copy + PartialEq + 'static, V: 'static>(
     for (n, (_, name)) in options.iter().enumerate() {
         group = group.item(n.to_string(), *name);
     }
-    h_flex()
+    Row::new()
         .gap(Space::Md)
         .when(show_label, |row| row.child(Text::new(label).muted()))
         .child(
@@ -130,8 +130,8 @@ fn chord_text(c: &Chord) -> String {
     parts.join("+")
 }
 
-pub(crate) fn row() -> Div {
-    h_flex().flex_wrap().gap(Space::Sm)
+pub(crate) fn row() -> Row {
+    Row::new().flex_wrap().gap(Space::Sm)
 }
 
 /// The three control heights at the user's text size, for a caption: "28, 34 and 40 px" at 12 px
@@ -191,8 +191,8 @@ fn swatch(c: Color) -> Div {
 }
 
 /// The section. `long` is the Content switch's longest button label.
-pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<ButtonsPage>) -> Div {
-    v_flex()
+pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<ButtonsPage>) -> Stack {
+    Stack::new()
         .gap(Space::Md)
         .child(caption(
             "Variants, at the application's density. Tab to see the focus ring; hover and press with the pointer.",
@@ -371,7 +371,7 @@ pub fn section(g: &mut ButtonsPage, long: &'static str, cx: &mut Context<Buttons
 
 /// The diagnostics of the button the controls pick: its tokens by source, its geometry, its
 /// contrast and the theme it came from.
-fn inspector(g: &mut ButtonsPage, cx: &mut Context<ButtonsPage>) -> Div {
+fn inspector(g: &mut ButtonsPage, cx: &mut Context<ButtonsPage>) -> Stack {
     let tokens = odk::ui::components();
     let stale = !g
         .inspector
@@ -409,7 +409,7 @@ fn inspector(g: &mut ButtonsPage, cx: &mut Context<ButtonsPage>) -> Div {
         odk::ui::theme_snapshot().semantic.mode.name(),
     );
 
-    let mut lines = v_flex().gap(Space::Xs).child(Text::new(theme_line));
+    let mut lines = Stack::new().gap(Space::Xs).child(Text::new(theme_line));
     match find(i.state) {
         Some(row) => {
             lines = lines.child(Text::new(format!(
@@ -491,7 +491,7 @@ fn inspector(g: &mut ButtonsPage, cx: &mut Context<ButtonsPage>) -> Div {
     let densities: Vec<_> = Density::ALL.map(|d| (d, d.name())).to_vec();
     let states: Vec<_> = STATES.map(|s| (s, s)).to_vec();
     let (variant, emphasis, density, state) = (i.variant, i.emphasis, i.density, i.state);
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(choice(
             "inspect-variant",
@@ -502,7 +502,7 @@ fn inspector(g: &mut ButtonsPage, cx: &mut Context<ButtonsPage>) -> Div {
             cx,
         ))
         .child(
-            h_flex()
+            Row::new()
                 .flex_wrap()
                 .gap(Space::Xl)
                 .child(choice(
@@ -531,7 +531,7 @@ fn inspector(g: &mut ButtonsPage, cx: &mut Context<ButtonsPage>) -> Div {
                 )),
         )
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Lg)
                 .items_start()
                 .child(sample)
@@ -543,8 +543,8 @@ pub(crate) fn colour_line(
     what: &'static str,
     c: Color,
     source: odk::theme::semantic::ColourRef,
-) -> Div {
-    h_flex()
+) -> Row {
+    Row::new()
         .gap(Space::Sm)
         .child(swatch(c))
         .child(Text::new(format!("{what}: {} from {source}", c.to_hex())))

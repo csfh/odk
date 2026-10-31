@@ -2,7 +2,7 @@
 use odk::prelude::*;
 
 fn status() -> impl IntoElement {
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .child(Badge::new("Beta").tone(Tone::Info).marked())
         .child(StatusIndicator::new(Status::Success, "Connected"))

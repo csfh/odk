@@ -10,10 +10,10 @@ use odk_theme::foundation::{CornerRadius, Density};
 use odk_theme::{ThemeManager, ThemeSource};
 
 use super::{FIXTURES, open, press, redraw};
-use crate::{Badge, NavList, Progress, Tabs, Text, ToggleGroup, Tone, v_flex};
+use crate::{Badge, NavList, Progress, Stack, Tabs, Text, ToggleGroup, Tone};
 
-fn scene() -> gpui::Div {
-    v_flex()
+fn scene() -> Stack {
+    Stack::new()
         .w(px(480.0))
         .child(
             Tabs::new("t", "Sections")

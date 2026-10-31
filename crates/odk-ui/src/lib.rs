@@ -54,6 +54,7 @@ mod separator;
 mod sheet;
 mod skeleton;
 mod spinner;
+mod stack;
 mod status;
 mod switch;
 mod tabs;
@@ -101,8 +102,7 @@ pub use item::Item;
 pub use item_group::ItemGroup;
 pub use kbd::Kbd;
 pub use layout::{
-    Space, StyledExt, content_column, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame,
-    truncate_end, truncate_lines, v_flex,
+    Space, StyledExt, middle_ellipsis, root, scroll_y, sidebar_frame, truncate_end, truncate_lines,
 };
 pub use menu::{ContextMenu, DropdownMenu, Menu, MenuItem};
 pub use nav_list::NavList;
@@ -126,6 +126,7 @@ pub use separator::Separator;
 pub use sheet::{Sheet, Side};
 pub use skeleton::Skeleton;
 pub use spinner::Spinner;
+pub use stack::{Row, Stack};
 pub use status::{Status, StatusIndicator};
 pub use switch::Switch;
 pub use tabs::Tabs;
@@ -157,11 +158,10 @@ pub mod prelude {
         EndEllipsis, FileChooser, FixedWidth, FormField, Glyph, Grid, Heading, HoverCard, Icon,
         Image, ImageFit, Ink, Input, InputGroup, Item, ItemGroup, ItemGroupVariant, Kbd, Menu,
         MenuItem, MiddleEllipsis, NavList, NumberInput, PasswordInput, Popover, Progress,
-        RadioGroup, Resizable, ResizablePanel, Scene, SearchInput, Select, Separator, Sheet, Side,
-        Size, Skeleton, SortDirection, SortKey, Space, Spinner, StartFolder, Status,
+        RadioGroup, Resizable, ResizablePanel, Row, Scene, SearchInput, Select, Separator, Sheet,
+        Side, Size, Skeleton, SortDirection, SortKey, Space, Spinner, Stack, StartFolder, Status,
         StatusIndicator, StrokeWidth, StyledExt, Switch, Tabs, Text, TextAnchor, TextBaseline,
-        Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column,
-        content_column_for_grid, form, h_flex, middle_ellipsis, root, scroll_y, sidebar_frame,
-        toast, truncate_end, truncate_lines, v_flex,
+        Textarea, Toast, ToggleGroup, Tone, Tooltip, WindowConfig, Wrap, content_column_for_grid,
+        form, middle_ellipsis, root, scroll_y, sidebar_frame, toast, truncate_end, truncate_lines,
     };
 }

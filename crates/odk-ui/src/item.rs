@@ -8,7 +8,8 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::foundation::Density;
 
 use crate::components;
-use crate::layout::{StyledExt, h_flex, v_flex};
+use crate::layout::StyledExt;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 
 /// A row of content, as shadcn/ui's `Item`: a title, an optional description and the lines
@@ -101,7 +102,7 @@ impl RenderOnce for Item {
         let name = self.title.clone();
         let part = move |p: &str| format!("odk-item/{name}/{p}");
 
-        let mut words = v_flex()
+        let mut words = Stack::new()
             .debug_selector({
                 let part = part.clone();
                 move || part("words")
@@ -133,13 +134,13 @@ impl RenderOnce for Item {
                     .child(text),
             );
         }
-        let mut row = h_flex()
+        let mut row = Row::new()
             .w_full()
             .gap(px(s.gap))
             .child(words.children(self.lines));
         for action in self.actions {
             row = row.child(
-                h_flex()
+                Row::new()
                     .debug_selector({
                         let part = part.clone();
                         move || part("action")
@@ -148,7 +149,7 @@ impl RenderOnce for Item {
             );
         }
         let title = self.title;
-        let mut item = v_flex()
+        let mut item = Stack::new()
             .debug_selector(move || format!("odk-item/{title}"))
             .w_full()
             .min_w_0()
@@ -157,7 +158,7 @@ impl RenderOnce for Item {
             .child(row);
         if let Some(footer) = self.footer {
             item = item.child(
-                v_flex()
+                Stack::new()
                     .debug_selector(move || part("footer"))
                     .w_full()
                     .child(footer),

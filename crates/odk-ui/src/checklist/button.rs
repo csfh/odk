@@ -14,7 +14,7 @@ use odk_theme::{JND, ThemeManager, ThemeSource};
 
 use super::{Count, FIXTURES, open, press, publish_fixture, redraw, reduce_motion};
 use crate::button::probe;
-use crate::{Button, Chord, Size, h_flex, v_flex};
+use crate::{Button, Chord, Row, Size, Stack};
 
 fn bounds(cx: &mut VisualTestContext, part: &'static str) -> Bounds<Pixels> {
     cx.debug_bounds(part)
@@ -57,7 +57,7 @@ fn each_button_is_one_tab_stop(cx: &mut TestAppContext) {
     let (a, b) = (first.clone(), second.clone());
     let cx = open(cx, move |_, _| {
         let (a, b) = (a.clone(), b.clone());
-        h_flex()
+        Row::new()
             .child(
                 Button::new("a")
                     .label("A")
@@ -146,7 +146,7 @@ fn a_disabled_button_is_skipped_and_ignores_presses(cx: &mut TestAppContext) {
     let (a, b) = (off.clone(), on.clone());
     let cx = open(cx, move |_, _| {
         let (a, b) = (a.clone(), b.clone());
-        h_flex()
+        Row::new()
             .child(
                 Button::new("off")
                     .label("Off")
@@ -182,7 +182,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
     let (loading, off) = (Rc::new(Cell::new(false)), Rc::new(Cell::new(false)));
     let (l, o) = (loading.clone(), off.clone());
     let cx = open(cx, move |_, _| {
-        h_flex()
+        Row::new()
             .child(
                 Button::new("b")
                     .label("Save")
@@ -229,7 +229,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
 #[gpui::test]
 fn the_spinner_takes_the_icon_s_place_or_covers_the_label(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        h_flex()
+        Row::new()
             .child(Button::new("b").label("Save").loading(true))
             .child(
                 Button::new("i")
@@ -265,7 +265,7 @@ fn the_spinner_takes_the_icon_s_place_or_covers_the_label(cx: &mut TestAppContex
 #[gpui::test]
 fn each_density_has_its_height_and_a_button_s_own_wins(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("compact")
                     .label("Save")
@@ -322,7 +322,7 @@ fn each_density_has_its_height_and_a_button_s_own_wins(cx: &mut TestAppContext) 
 #[gpui::test]
 fn icons_and_label_share_one_centred_line(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().children(Density::ALL.map(|d| {
+        Stack::new().children(Density::ALL.map(|d| {
             Button::new(d.name())
                 .leading_icon("✓")
                 .label("Save")
@@ -362,7 +362,8 @@ fn icons_and_label_share_one_centred_line(cx: &mut TestAppContext) {
 #[gpui::test]
 fn icon_only_buttons_are_squares(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        h_flex().children(Density::ALL.map(|d| Button::icon(d.name(), "⚙", "Settings").density(d)))
+        Row::new()
+            .children(Density::ALL.map(|d| Button::icon(d.name(), "⚙", "Settings").density(d)))
     });
     for d in Density::ALL {
         let id = d.name();
@@ -382,7 +383,7 @@ fn icon_only_buttons_are_squares(cx: &mut TestAppContext) {
 fn a_long_label_truncates_only_in_a_width_it_was_given(cx: &mut TestAppContext) {
     const LONG: &str = "Änderungen speichern und fortfahren";
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 div()
                     .w(px(120.0))
@@ -404,7 +405,7 @@ fn a_long_label_truncates_only_in_a_width_it_was_given(cx: &mut TestAppContext) 
 #[gpui::test]
 fn corners_follow_the_application(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        h_flex()
+        Row::new()
             .children(ButtonVariant::ALL.map(|v| Button::new(v.name()).label("Go").variant(v)))
             .children(Density::ALL.map(|d| Button::icon(d.name(), "⚙", "Settings").density(d)))
     });
@@ -432,7 +433,7 @@ fn a_larger_target_takes_the_pointer_and_presses_once(cx: &mut TestAppContext) {
     let c = clicks.clone();
     let cx = open(cx, move |_, _| {
         let c = c.clone();
-        h_flex().child(
+        Row::new().child(
             Button::icon("t", "⚙", "Settings")
                 .density(Density::Compact)
                 .target_size(44.0)
@@ -519,7 +520,7 @@ fn a_press_released_elsewhere_does_nothing(cx: &mut TestAppContext) {
 #[gpui::test]
 fn the_ring_is_drawn_outside_while_focused(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        h_flex()
+        Row::new()
             .p(px(8.0))
             .child(Button::new("off").label("Off").disabled(true))
             .child(
@@ -623,7 +624,7 @@ fn it_draws_its_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
         ("primary-muted", ButtonVariant::Primary, Emphasis::Muted),
     ];
     let cx = open(cx, move |_, _| {
-        h_flex()
+        Row::new()
             .flex_wrap()
             .children(ButtonVariant::ALL.map(|v| Button::new(v.name()).label("Go").variant(v)))
             .children(emphases.map(|(id, v, e)| Button::new(id).label("Go").variant(v).emphasis(e)))
@@ -736,7 +737,7 @@ fn recorder(
             heard.clone(),
             clicks.clone(),
         );
-        v_flex()
+        Stack::new()
             .child(
                 Button::new("rec")
                     .label(if listening.get() {

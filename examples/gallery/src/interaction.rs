@@ -201,7 +201,7 @@ impl Render for InteractionPage {
         ));
 
         // Selection controls.
-        let selection = v_flex()
+        let selection = Stack::new()
             .gap(Space::Md)
             .child(
                 row()
@@ -317,14 +317,14 @@ impl Render for InteractionPage {
             );
 
         // The log: newest last.
-        let mut lines = v_flex().gap(Space::Xs);
+        let mut lines = Stack::new().gap(Space::Xs);
         if self.log.is_empty() {
             lines = lines.child(Text::new("Nothing has happened yet.").muted());
         }
         for (n, line) in &self.log {
             lines = lines.child(Text::new(format!("{n:>3}  {line}")));
         }
-        let log = v_flex()
+        let log = Stack::new()
             .gap(Space::Sm)
             .child(
                 row().child(
@@ -370,7 +370,7 @@ impl Render for InteractionPage {
         if self.popover {
             open.push("popover");
         }
-        let state = v_flex()
+        let state = Stack::new()
             .gap(Space::Xs)
             .child(Text::new(format!(
                 "Theme: {} (generation {})",
@@ -417,7 +417,7 @@ impl Render for InteractionPage {
             (Tone::Warning, "Check"),
             (Tone::Danger, "Failed"),
         ];
-        let status = v_flex()
+        let status = Stack::new()
             .gap(Space::Sm)
             .child(caption(
                 "Every status says what it is in words and in a mark. The second row has no hue at all and means the same.",
@@ -455,7 +455,7 @@ impl Render for InteractionPage {
             }
         }
         tightest.sort_by_key(|t| t.0);
-        let mut contrast = v_flex().gap(Space::Xs).child(caption(
+        let mut contrast = Stack::new().gap(Space::Xs).child(caption(
             "The pair of each component with the least room over its minimum, from the resolved tokens (WCAG 2.2: 4.5:1 for text, 3:1 for essential non-text). A token-level check, not a test with a screen reader or an accessibility tree, which the gallery has not had.",
         ));
         for (component, label, found, required, against) in tightest {
@@ -464,7 +464,7 @@ impl Render for InteractionPage {
             )));
         }
 
-        let wrap = |body: odk::gpui::Div| {
+        let wrap = |body: Stack| {
             body.capture_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
                 this.note(format!(
                     "key {}{}",
@@ -478,7 +478,7 @@ impl Render for InteractionPage {
         page(
             crate::Page::Interaction,
             wrap(
-                v_flex()
+                Stack::new()
                     .flex_shrink_0()
                     .gap(Space::Lg)
                         .child(caption(

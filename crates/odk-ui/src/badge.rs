@@ -11,7 +11,8 @@ use odk_theme::semantic::{self, Emphasis};
 
 use crate::decoration::{self, Applied, FlowKind, TextDecoration};
 use crate::icon::{self, Glyph};
-use crate::layout::{StyledExt, h_flex};
+use crate::layout::StyledExt;
+use crate::stack::Row;
 use crate::{Icon, Tone, components};
 
 /// A short label, such as a count or a state, in a small box: as high as its text, as wide as its
@@ -128,7 +129,7 @@ impl RenderOnce for Badge {
         let lines = decoration::flow_lines(flow).unwrap_or(1);
         let (was, probe) =
             decoration::truncation_probe(&id, self.label.clone(), size, lines, window, cx);
-        let mut badge = h_flex()
+        let mut badge = Row::new()
             .debug_selector(|| "odk-badge".into())
             .max_w_full()
             .min_w_0()

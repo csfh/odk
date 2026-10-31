@@ -12,7 +12,7 @@ use odk_a11y::{Describe, Role};
 use super::stability::{Step, assert_still};
 use super::{Count, open, press, redraw};
 use crate::input::{point_of, probe};
-use crate::{Button, Dialog, Input, InputGroup, Size, v_flex};
+use crate::{Button, Dialog, Input, InputGroup, Size, Stack};
 
 /// A part's name that is built, which a test may leak.
 fn named(name: String) -> &'static str {
@@ -66,7 +66,7 @@ fn tab_goes_from_the_field_to_the_button(cx: &mut TestAppContext) {
 #[gpui::test]
 fn it_is_as_high_as_an_input_of_its_size(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Input::new("i-sm", "A").size(Size::Sm))
             .child(
                 InputGroup::new("g-sm", "A")
@@ -139,7 +139,7 @@ fn a_press_on_the_text_around_the_field_focuses_it(cx: &mut TestAppContext) {
 #[gpui::test]
 fn nothing_moves_when_it_is_used(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(260.0))
             .child(
                 InputGroup::new("g", "Website")
@@ -169,7 +169,7 @@ fn a_disabled_group_is_skipped_and_disables_its_button(cx: &mut TestAppContext) 
     let (c, a) = (clicked.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let (c, a) = (c.clone(), a.clone());
-        v_flex()
+        Stack::new()
             .child(
                 InputGroup::new("g", "Website")
                     .default_value("abc")
@@ -237,7 +237,7 @@ fn it_reports_a_text_input_with_the_groups_name(_: &mut TestAppContext) {
 #[gpui::test]
 fn long_addons_truncate_and_the_button_stays_inside(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(240.0)).child(
+        Stack::new().w(px(240.0)).child(
             InputGroup::new("g", "Website")
                 .prefix("https://wiki.omarchy.org/troubleshooting/backups/")
                 .suffix("日本語のとても長いドメイン名.example.com 😀😀😀")

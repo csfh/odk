@@ -6,7 +6,7 @@ use odk_a11y::{Describe, Role};
 
 use super::{Count, open, press, redraw, reduce_motion};
 use crate::overlay::probe;
-use crate::{Align, Button, Placement, Popover, Text, h_flex, v_flex};
+use crate::{Align, Button, Placement, Popover, Row, Stack, Text};
 
 fn click(cx: &mut VisualTestContext, part: &'static str) {
     let at = cx.debug_bounds(part).unwrap().center();
@@ -23,13 +23,13 @@ fn window(
 ) -> &mut VisualTestContext {
     open(cx, move |_, _| {
         let (inside, beside) = (inside.clone(), beside.clone());
-        h_flex()
+        Row::new()
             .child(tweak(
                 Popover::new("pop", "Filter", Button::new("trigger").label("Filter"))
                     .title("Filter results")
                     .content(move |_, _| {
                         let (a, b) = (inside.clone(), inside.clone());
-                        v_flex()
+                        Stack::new()
                             .child(
                                 Button::new("one")
                                     .label("One")
@@ -189,14 +189,14 @@ fn a_controlled_popover_asks_and_the_application_decides(cx: &mut TestAppContext
 #[gpui::test]
 fn it_flips_to_the_side_that_has_room(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Popover::new("top", "Top", Button::new("a").label("A"))
                     .default_open(true)
                     .content(|_, _| Text::new("Under the button")),
             )
             .child(
-                v_flex().pt(px(700.0)).child(
+                Stack::new().pt(px(700.0)).child(
                     Popover::new("low", "Low", Button::new("b").label("B"))
                         .default_open(true)
                         .content(|_, _| Text::new("Over the button")),
@@ -224,7 +224,7 @@ fn it_flips_to_the_side_that_has_room(cx: &mut TestAppContext) {
 #[gpui::test]
 fn it_can_sit_beside_its_trigger_or_end_where_it_ends(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().pt(px(200.0)).pl(px(300.0)).child(
+        Stack::new().pt(px(200.0)).pl(px(300.0)).child(
             Popover::new("p", "Side", Button::new("t").label("Trigger"))
                 .default_open(true)
                 .placement(Placement::Right)

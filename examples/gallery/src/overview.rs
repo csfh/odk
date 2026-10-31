@@ -53,7 +53,7 @@ pub const NOT_BUILT: [(&str, &str); 7] = [
 impl Render for OverviewPage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let config = odk::ui::foundation_config(cx);
-        let mut coverage = v_flex().gap(Space::Sm);
+        let mut coverage = Stack::new().gap(Space::Sm);
         for category in Category::ALL {
             let pages: Vec<Page> = Page::ALL
                 .into_iter()
@@ -66,7 +66,7 @@ impl Render for OverviewPage {
             for page in pages {
                 let gallery = self.gallery.clone();
                 coverage = coverage.child(
-                    h_flex()
+                    Row::new()
                         .flex_wrap()
                         .gap(Space::Md)
                         .child(
@@ -81,18 +81,18 @@ impl Render for OverviewPage {
                 );
             }
         }
-        let mut missing = v_flex().gap(Space::Sm);
+        let mut missing = Stack::new().gap(Space::Sm);
         for (what, why) in NOT_BUILT {
             missing = missing.child(kv(what, why));
         }
         page(
             Page::Overview,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(Text::new("Every page uses the real ODK components in the theme Omarchy has selected. Hover, press and Tab through them; they respond as they would in an application. Use the toolbar to preview another installed theme without changing Omarchy's, and to change density, corners and motion for the whole gallery."))
                 .child(section("How to use it"))
                 .child(
-                    v_flex()
+                    Stack::new()
                         .gap(Space::Xs)
                         .child(kv("Find a page", "Type in the sidebar's search: a component, a category, a token such as roles.warning.muted, or a word such as “focus”. Tab to the results, then Up and Down move through them and Enter opens one."))
                         .child(kv("Preview a theme", "Choose one in the toolbar. “System theme” returns to Omarchy's. Nothing is written."))
@@ -102,7 +102,7 @@ impl Render for OverviewPage {
                 )
                 .child(section("Now"))
                 .child(
-                    v_flex()
+                    Stack::new()
                         .gap(Space::Xs)
                         .child(kv("Theme", themes::system_name(cx)))
                         .child(kv("Density", config.density.name()))

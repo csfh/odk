@@ -15,8 +15,9 @@ use crate::decoration::{self, ClipFit};
 use crate::focus::{child_id, part_name};
 use crate::icon::{self, Glyph};
 use crate::interaction::RingTarget;
-use crate::layout::{StyledExt, h_flex, text_width, truncate_end};
+use crate::layout::{StyledExt, text_width, truncate_end};
 use crate::link::link;
+use crate::stack::Row;
 use crate::theme::colour;
 use crate::{DropdownMenu, MenuItem, components};
 
@@ -165,7 +166,7 @@ impl RenderOnce for Breadcrumb {
         let mut items: Vec<Option<Crumb>> = self.items.into_iter().map(Some).collect();
         // A focused link's ring is painted from outside the row, which clips its labels.
         let ring = RingTarget::default();
-        let mut row = h_flex()
+        let mut row = Row::new()
             .debug_selector(|| part_name(&self.id, "row"))
             .flex_1()
             .gap(px(s.gap))

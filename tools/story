@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Runs a story in watch mode: rebuilds and reopens its window whenever it or ODK changes.
+#
+#   tools/story NAME        (runs stories/NAME.rs, e.g. tools/story button)
+#
+# This opens a window on the display it is run from, so run it yourself, in your own terminal.
+# Anything that drives a session without the owner (CLAUDE.md, "Windows: headless only") uses
+# tools/headless-shot instead. The window closes while a change builds and opens again when the
+# build is done; a compile error stays in the terminal, with no window, until the next change.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+name=${1:-}
+[[ -n $name && -f stories/$name.rs ]] || {
+    sed -n 4p "$0" >&2
+    echo "stories: $(cd stories && ls ./*.rs 2>/dev/null | sed 's|^\./||; s|\.rs$||' | tr '\n' ' ')" >&2
+    exit 2
+}
+[[ $name =~ ^[a-z0-9_-]+$ ]] || { echo "stories: $name is not a story name" >&2; exit 2; }
+grep -q "^name = \"$name\"" stories/Cargo.toml || {
+    printf 'stories/%s.rs has no [[bin]] in stories/Cargo.toml; add:\n\n[[bin]]\nname = "%s"\npath = "%s.rs"\n' "$name" "$name" "$name" >&2
+    exit 2
+}
+command -v watchexec >/dev/null || { echo "watchexec is not installed (pacman -S watchexec)" >&2; exit 1; }
+
+export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-8}
+# watchexec joins what follows into one string for a shell, so the name goes into the string itself
+# (it is checked above). The story is exec'd after the build, so it is watchexec's own child and a
+# restart ends it.
+exec watchexec --restart --shell=bash --exts rs,toml,svg \
+    --watch stories \
+    --watch crates/odk --watch crates/odk-ui --watch crates/odk-theme --watch crates/odk-a11y \
+    -- "cargo build -p stories --bin $name && exec ./target/debug/$name"

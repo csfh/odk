@@ -9,7 +9,7 @@ use odk_theme::foundation::CornerRadius;
 use odk_theme::semantic::{Emphasis, Role as Intent};
 
 use super::{FIXTURES, open, publish_fixture, redraw};
-use crate::{Badge, Density, Tone, h_flex, v_flex};
+use crate::{Badge, Density, Row, Stack, Tone};
 
 /// Items 14, 15: a badge is text named by its label.
 #[test]
@@ -59,7 +59,7 @@ fn a_long_label_stays_on_one_line(cx: &mut TestAppContext) {
         } else {
             "Synced"
         };
-        v_flex().w(px(120.0)).child(Badge::new(label))
+        Stack::new().w(px(120.0)).child(Badge::new(label))
     });
     let short = cx.debug_bounds("odk-badge").unwrap();
     assert!(
@@ -101,7 +101,7 @@ fn every_role_and_emphasis_draws_its_tokens(cx: &mut TestAppContext) {
         .collect();
     let shown = looks.clone();
     let cx = open(cx, move |_, _| {
-        h_flex().flex_wrap().children(
+        Row::new().flex_wrap().children(
             shown
                 .iter()
                 .map(|(label, a)| Badge::new(label.clone()).appearance(*a).marked()),
@@ -146,7 +146,7 @@ fn every_role_and_emphasis_draws_its_tokens(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_badge_is_its_text_high_with_the_application_s_corners(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        h_flex()
+        Row::new()
             .child(Badge::new("Failed").tone(Tone::Danger).marked())
             .child(Badge::new("3"))
     });

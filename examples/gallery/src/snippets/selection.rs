@@ -2,7 +2,7 @@
 use odk::prelude::*;
 
 fn choices() -> impl IntoElement {
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .child(
             FormField::new("country-field", "Country").child(

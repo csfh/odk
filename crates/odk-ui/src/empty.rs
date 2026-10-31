@@ -8,7 +8,8 @@ use odk_a11y::{Accessible, Describe, Role};
 
 use crate::components;
 use crate::icon::{Icon, still};
-use crate::layout::{StyledExt, h_flex, v_flex};
+use crate::layout::StyledExt;
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 
 /// What a list or a page shows when there is nothing in it, as shadcn/ui's `Empty`: an optional
@@ -84,7 +85,7 @@ impl RenderOnce for Empty {
             move || format!("odk-empty/{name}/{p}")
         };
 
-        let mut words = v_flex()
+        let mut words = Stack::new()
             .items_center()
             .w_full()
             .max_w(px(s.measure))
@@ -121,7 +122,7 @@ impl RenderOnce for Empty {
                 .child(still(icon, s.icon_size, s.icon))
         });
         let actions = (!self.actions.is_empty()).then(|| {
-            h_flex()
+            Row::new()
                 .debug_selector(part("actions"))
                 .flex_wrap()
                 .justify_center()
@@ -130,7 +131,7 @@ impl RenderOnce for Empty {
                 .children(self.actions)
         });
         let title = self.title;
-        v_flex()
+        Stack::new()
             .debug_selector(move || format!("odk-empty/{title}"))
             .w_full()
             .items_center()

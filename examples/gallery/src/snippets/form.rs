@@ -15,7 +15,7 @@ fn sign_up() -> impl IntoElement {
                 .child(Checkbox::new("terms", "I accept the terms").invalid(true)),
         )
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Sm)
                 .child(Button::new("submit").label("Create account").variant(ButtonVariant::Primary))
                 .child(Button::new("cancel").label("Cancel").variant(ButtonVariant::Outline)),

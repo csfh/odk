@@ -3,7 +3,7 @@ use odk_a11y::{Describe, Role};
 
 use super::{Count, open, press, redraw, reduce_motion};
 use crate::overlay::probe;
-use crate::{Button, Tooltip, h_flex, v_flex};
+use crate::{Button, Row, Stack, Tooltip};
 
 fn centre(cx: &mut VisualTestContext, part: &'static str) -> gpui::Point<gpui::Pixels> {
     let b = cx.debug_bounds(part).unwrap();
@@ -27,7 +27,7 @@ fn focus_opens_it_and_escape_closes_it(cx: &mut TestAppContext) {
     let (c, a) = (clicks.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let (c, a) = (c.clone(), a.clone());
-        h_flex()
+        Row::new()
             .child(Tooltip::new(
                 "tt",
                 "Save the file",
@@ -64,7 +64,7 @@ fn focus_opens_it_and_escape_closes_it(cx: &mut TestAppContext) {
 #[gpui::test]
 fn the_pointer_opens_it_after_a_delay_and_can_rest_on_it(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().pt(px(120.0)).child(Tooltip::new(
+        Stack::new().pt(px(120.0)).child(Tooltip::new(
             "tt",
             "Save the file",
             Button::new("save").label("Save"),
@@ -96,13 +96,13 @@ fn the_pointer_opens_it_after_a_delay_and_can_rest_on_it(cx: &mut TestAppContext
 #[gpui::test]
 fn it_opens_above_and_flips_below_at_the_top(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(Tooltip::new(
                 "top",
                 "At the top",
                 Button::new("a").label("A"),
             ))
-            .child(v_flex().pt(px(200.0)).child(Tooltip::new(
+            .child(Stack::new().pt(px(200.0)).child(Tooltip::new(
                 "low",
                 "Further down",
                 Button::new("b").label("B"),
@@ -132,7 +132,7 @@ fn it_opens_above_and_flips_below_at_the_top(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_long_text_wraps_inside_a_small_window(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().pt(px(200.0)).child(Tooltip::new(
+        Stack::new().pt(px(200.0)).child(Tooltip::new(
             "tt",
             "Speichert alle geöffneten Dokumente und synchronisiert sie mit https://cloud.example.com/aleksandra.wisniewska-kowalczyk",
             Button::new("save").label("Save"),
@@ -164,7 +164,7 @@ fn a_long_text_wraps_inside_a_small_window(cx: &mut TestAppContext) {
 #[gpui::test]
 fn it_sits_right_above_its_button(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().pt(px(200.0)).child(Tooltip::new(
+        Stack::new().pt(px(200.0)).child(Tooltip::new(
             "tt",
             "Save the file",
             Button::new("save").label("Save"),

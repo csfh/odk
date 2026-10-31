@@ -8,7 +8,7 @@ use odk_a11y::{Describe, Role};
 use odk_theme::component::EmptyStyle;
 
 use super::open;
-use crate::{Button, Empty, Icon, v_flex};
+use crate::{Button, Empty, Icon, Stack};
 
 fn bounds(cx: &mut VisualTestContext, part: &str) -> Bounds<Pixels> {
     let name: &'static str = Box::leak(part.to_owned().into_boxed_str());
@@ -50,7 +50,7 @@ fn reports_a_status_named_by_its_title_with_its_description() {
 /// Items 1 and 34: it draws its component tokens.
 #[gpui::test]
 fn draws_its_tokens(cx: &mut TestAppContext) {
-    let _cx = open(cx, |_, _| v_flex().w(px(600.0)).child(no_matches()));
+    let _cx = open(cx, |_, _| Stack::new().w(px(600.0)).child(no_matches()));
     let s = crate::drawn::last::<EmptyStyle>(TITLE);
     assert_eq!(s, crate::components().empty());
 }
@@ -59,7 +59,7 @@ fn draws_its_tokens(cx: &mut TestAppContext) {
 /// given, in that order, by its gaps, inside its padding.
 #[gpui::test]
 fn its_parts_are_centred_in_order_by_their_gaps(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| v_flex().w(px(600.0)).child(no_matches()));
+    let cx = open(cx, |_, _| Stack::new().w(px(600.0)).child(no_matches()));
     let s = crate::components().empty();
     let empty = bounds(cx, TITLE);
     let [media, title, description, actions] =
@@ -100,7 +100,7 @@ fn its_words_keep_to_their_measure_and_the_bare_one_is_its_title(cx: &mut TestAp
     let long = "Keine passenden Prozesse gefunden, auch nicht nach dem Zurücksetzen aller Filter \
                 und Suchbegriffe, die vorher in dieser Ansicht gesetzt waren 🔥";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(1400.0))
             .child(Empty::new(long).description(long))
             .child(Empty::new("Bare"))

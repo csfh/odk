@@ -7,7 +7,7 @@ use odk_a11y::{Describe, Role};
 use odk_theme::component::{NavLook, States, TabStyle};
 
 use super::{Count, open, press};
-use crate::{Button, Density, Tabs, Text, v_flex};
+use crate::{Button, Density, Stack, Tabs, Text};
 
 /// Items 8, 9, 10: Tab lands on the selected tab, the arrows and Home and End select, and
 /// one more Tab leaves the list. Only the selected tab's panel is built.
@@ -26,7 +26,7 @@ fn tabs_from_the_keyboard(cx: &mut TestAppContext) {
                 Text::new(name)
             }
         };
-        v_flex()
+        Stack::new()
             .child(
                 Tabs::new("t", "Sections")
                     .tab("a", "General", panel("a", &b))
@@ -85,7 +85,7 @@ fn disabled_tabs_are_skipped(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let (s, a) = (s.clone(), a.clone());
-        v_flex()
+        Stack::new()
             .child(
                 Tabs::new("t", "Sections")
                     .tab("a", "General", |_, _| Text::new(""))
@@ -130,7 +130,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
             .tab("b", "Display", |_, _| Text::new("b"))
             .tab("c", "About", |_, _| Text::new("c"));
         let tabs = if o.get() { tabs.disable("c") } else { tabs };
-        v_flex()
+        Stack::new()
             .child(tabs)
             .child(Button::new("after").label("After"))
     });
@@ -251,7 +251,7 @@ fn manual_activation_moves_focus_without_selecting(cx: &mut TestAppContext) {
 fn the_ring_is_painted_around_the_focused_tab(cx: &mut TestAppContext) {
     use crate::interaction::painted;
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Tabs::new("t", "Sections")
                     .manual_activation(true)
@@ -314,7 +314,7 @@ fn the_indicator_fades_between_tabs(cx: &mut TestAppContext) {
 #[gpui::test]
 fn tabs_follow_their_density_and_hold_icons_and_counters(cx: &mut TestAppContext) {
     let cx = open(cx, move |_, _| {
-        v_flex().children(Density::ALL.map(|d| {
+        Stack::new().children(Density::ALL.map(|d| {
             Tabs::new(gpui::SharedString::from(d.name()), "Sections")
                 .density(d)
                 .tab("in", "Inbox", |_, _| Text::new(""))
@@ -359,7 +359,7 @@ fn the_selected_tab_scrolls_into_view(cx: &mut TestAppContext) {
                 |_, _| Text::new(""),
             );
         }
-        v_flex().child(gpui::div().w(px(300.0)).child(tabs))
+        Stack::new().child(gpui::div().w(px(300.0)).child(tabs))
     });
     let list = cx.debug_bounds("t/list").unwrap();
     let inside =

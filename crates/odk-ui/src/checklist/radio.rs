@@ -12,7 +12,7 @@ use odk_theme::foundation::Density;
 use super::stability::{Step, assert_still};
 use super::{FIXTURES, open, press, publish_fixture, redraw};
 use crate::radio::drawn;
-use crate::{Button, RadioGroup, v_flex};
+use crate::{Button, RadioGroup, Stack};
 
 type Seen = Rc<RefCell<Vec<String>>>;
 
@@ -91,11 +91,13 @@ fn tab_enters_on_the_chosen_option_and_leaves_the_group(cx: &mut TestAppContext)
     let a = after.clone();
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex().child(fruits("g").default_value("banana")).child(
-            Button::new("after")
-                .label("After")
-                .on_click(move |_, _, _| a.set(a.get() + 1)),
-        )
+        Stack::new()
+            .child(fruits("g").default_value("banana"))
+            .child(
+                Button::new("after")
+                    .label("After")
+                    .on_click(move |_, _, _| a.set(a.get() + 1)),
+            )
     });
     press(cx, "tab");
     redraw(cx);
@@ -134,7 +136,7 @@ fn a_disabled_group_is_skipped(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(fruits("g").disabled(true).on_change(record(&s)))
             .child(
                 Button::new("after")
@@ -187,7 +189,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
     let off = Rc::new(Cell::new(false));
     let o = off.clone();
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(fruits("g").disabled(o.get()))
             .child(Button::new("after").label("After"))
     });
@@ -212,7 +214,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
 #[gpui::test]
 fn it_draws_its_component_tokens_in_every_fixture(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().children(Density::ALL.map(|d| {
+        Stack::new().children(Density::ALL.map(|d| {
             fruits(match d {
                 Density::Compact => "compact",
                 Density::Default => "default",
@@ -285,7 +287,7 @@ fn the_ring_takes_the_danger_colour_when_wrong(cx: &mut TestAppContext) {
 fn a_long_label_wraps_and_the_next_option_sits_below_it(cx: &mut TestAppContext) {
     use gpui::Styled;
     let cx = open(cx, |_, _| {
-        v_flex().max_w(px(200.0)).child(
+        Stack::new().max_w(px(200.0)).child(
             RadioGroup::new("g", "Region")
                 .item("de", "Bundesrepublik Deutschland (Deutschland)")
                 .item(
@@ -327,7 +329,7 @@ fn a_long_label_wraps_and_the_next_option_sits_below_it(cx: &mut TestAppContext)
 fn long_options_in_a_row_wrap_without_overlapping(cx: &mut TestAppContext) {
     use gpui::Styled;
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .max_w(px(200.0))
             .child(
                 RadioGroup::new("g", "Region")
@@ -372,7 +374,7 @@ fn long_options_in_a_row_wrap_without_overlapping(cx: &mut TestAppContext) {
 fn in_a_row_it_keeps_its_width(cx: &mut TestAppContext) {
     use gpui::Styled;
     let cx = open(cx, |_, _| {
-        crate::h_flex()
+        crate::Row::new()
             .w(px(320.0))
             .child(crate::Input::new("i", "Name"))
             .child(RadioGroup::new("g", "Fruit").item("a", "Apple"))

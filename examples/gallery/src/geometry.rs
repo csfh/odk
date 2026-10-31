@@ -18,7 +18,7 @@ fn corner_sample(radius: f32, border: f32, label: String) -> impl IntoElement {
     let theme = odk::ui::theme_snapshot();
     let line = theme.semantic.border.strong;
     let fill = theme.semantic.surface.raised;
-    v_flex()
+    Stack::new()
         .gap(Space::Xs)
         .child(
             div()
@@ -61,7 +61,7 @@ impl Render for GeometryPage {
             ));
         }
 
-        let mut radius_rows = v_flex().gap(Space::Xs);
+        let mut radius_rows = Stack::new().gap(Space::Xs);
         for (name, value) in [
             ("radius.none", g.radius.none),
             ("radius.default", g.radius.default),
@@ -87,11 +87,11 @@ impl Render for GeometryPage {
                 ),
         );
 
-        let mut heights = v_flex().gap(Space::Md);
+        let mut heights = Stack::new().gap(Space::Md);
         for density in Density::ALL {
             let m = f.controls.for_density(density);
             heights = heights.child(
-                v_flex()
+                Stack::new()
                     .gap(Space::Xs)
                     .child(Text::new(format!(
                         "{}: {} px high, {} px side padding, {} px icons, {} px gap{}",
@@ -142,7 +142,7 @@ impl Render for GeometryPage {
 
         page(
             Page::Geometry,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(section("Corner radius"))
                 .child(Text::new(format!(
@@ -154,7 +154,7 @@ impl Render for GeometryPage {
                 .child(radius_rows)
                 .child(section("Borders and focus"))
                 .child(
-                    v_flex()
+                    Stack::new()
                         .gap(Space::Xs)
                         .child(kv("border.width", format!("{} px", g.border_width)))
                         .child(kv("focus.width", format!("{} px", g.focus_width)))
@@ -162,7 +162,7 @@ impl Render for GeometryPage {
                         .child(kv("thumb.gap", format!("{} px between a track and its thumb", g.thumb_gap))),
                 )
                 .child(Text::new("A token sample of the accent's focus ring around a control's edge. Tab to a real control on any page to see the real one.").muted())
-                .child(h_flex().child(focus))
+                .child(Row::new().child(focus))
                 .child(section("Control heights"))
                 .child(Text::new(format!(
                     "Height at each density, at the user's text size: {}. Real controls, one row per density.",

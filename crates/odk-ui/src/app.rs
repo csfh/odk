@@ -8,8 +8,8 @@ use odk_theme::ThemeManager;
 use odk_theme::foundation::FontFamily;
 
 use crate::focus::{FocusNext, FocusPrevious};
-use crate::layout::v_flex;
 use crate::overlay::RaisedHost;
+use crate::stack::Stack;
 use crate::theme::{self, colour};
 use crate::toast::ToastHost;
 use crate::window::IntoWindowOptions;
@@ -123,7 +123,7 @@ impl Render for Shell {
         // 0043): an application's own text never names one, and text styles are inherited,
         // overlays included.
         let family = theme::family(&theme::foundation(), FontFamily::Ui);
-        v_flex()
+        Stack::new()
             .size_full()
             .bg(colour(semantic.surface.canvas))
             .text_color(colour(semantic.text.primary))

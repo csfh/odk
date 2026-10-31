@@ -6,7 +6,7 @@ use gpui::{Modifiers, ParentElement, Styled, TestAppContext, VisualTestContext, 
 use odk_a11y::{Describe, Role};
 
 use super::{open, press, redraw, reduce_motion};
-use crate::{Button, Switch, v_flex};
+use crate::{Button, Stack, Switch};
 
 type Seen = Rc<RefCell<Vec<bool>>>;
 
@@ -65,7 +65,7 @@ fn a_disabled_switch_is_skipped(cx: &mut TestAppContext) {
     let (s, a) = (seen.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(
                 Switch::new("s", "Wi-Fi")
                     .disabled(true)
@@ -146,7 +146,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
     let off = Rc::new(Cell::new(false));
     let o = off.clone();
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .child(Switch::new("s", "Wi-Fi").disabled(o.get()))
             .child(Button::new("after").label("After"))
     });
@@ -171,7 +171,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_long_label_wraps_beside_the_track(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(200.0)).child(Switch::new(
+        Stack::new().w(px(200.0)).child(Switch::new(
             "s",
             "Automatisch mit bekannten Netzwerken verbinden, auch im Energiesparmodus",
         ))
@@ -212,7 +212,7 @@ fn a_switch_that_starts_on_does_not_slide_in(cx: &mut TestAppContext) {
 fn each_density_has_its_track(cx: &mut TestAppContext) {
     use odk_theme::foundation::Density;
     let cx = open(cx, |_, _| {
-        v_flex().children(Density::ALL.map(|d| Switch::new(d.name(), "Wi-Fi").density(d)))
+        Stack::new().children(Density::ALL.map(|d| Switch::new(d.name(), "Wi-Fi").density(d)))
     });
     for (d, width) in Density::ALL.into_iter().zip([24.0, 28.0, 32.0]) {
         let b = cx

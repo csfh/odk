@@ -16,9 +16,10 @@ use crate::decoration::{self, Applied, ClipFit, FlowKind, OverlayDecoration, Siz
 use crate::focus::{child_id, focus_handle, move_focus, part_name};
 use crate::input::Input;
 use crate::interaction::{Pointer, pointer_states};
-use crate::layout::{h_flex, inside_window, middle_ellipsis, text_width, truncate_end, v_flex};
+use crate::layout::{inside_window, middle_ellipsis, text_width, truncate_end};
 use crate::menu_list::hint_text;
 use crate::overlay::{Action, Dismiss, Transition, during_overlay, layer_over, modal};
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{StyledExt, components};
 use odk_theme::foundation::MotionDuration;
@@ -388,7 +389,7 @@ impl RenderOnce for Command {
                     window,
                     cx,
                 );
-                let mut row = h_flex()
+                let mut row = Row::new()
                     .group(format!("row-{i}"))
                     .id(child_id(&self.id, format!("row-{i}")))
                     .debug_selector(|| part_name(&self.id, &format!("row-{i}")))
@@ -513,7 +514,7 @@ impl RenderOnce for Command {
         let list = during_overlay(list);
         let width = px(COMMAND_WIDTH).min(inside_window(viewport.width, margin));
         let top = viewport.height * COMMAND_TOP;
-        let panel = v_flex()
+        let panel = Stack::new()
             .id(child_id(&self.id, "panel"))
             .debug_selector(|| part_name(&self.id, "panel"))
             .absolute()

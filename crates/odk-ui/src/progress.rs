@@ -12,7 +12,8 @@ use odk_theme::semantic;
 
 use crate::focus::{child_id, part_name};
 use crate::interaction::tween;
-use crate::layout::{StyledExt, h_flex, tail, truncate_end, v_flex};
+use crate::layout::{StyledExt, tail, truncate_end};
+use crate::stack::{Row, Stack};
 use crate::theme::colour;
 use crate::{Tone, components};
 
@@ -165,13 +166,13 @@ impl RenderOnce for Progress {
         crate::drawn::record(&crate::focus::id_path(&self.id), (s, done, shown));
         let value = self.shown_value();
 
-        let mut column = v_flex()
+        let mut column = Stack::new()
             .debug_selector(|| part_name(&self.id, "progress"))
             .w_full()
             .min_w_0()
             .gap(px(s.gap));
         if self.show_label || self.show_value {
-            let mut line = h_flex()
+            let mut line = Row::new()
                 .debug_selector(|| part_name(&self.id, "line"))
                 .gap(px(s.gap))
                 .text_role(s.type_role);

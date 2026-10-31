@@ -2,7 +2,7 @@
 use odk::prelude::*;
 
 fn overlays() -> impl IntoElement {
-    h_flex()
+    Row::new()
         .gap(Space::Md)
         .child(DropdownMenu::new("file", "File").menu(|menu| {
             menu.item(MenuItem::new("Open").hint("Ctrl+O").on_select(|_, _| {}))

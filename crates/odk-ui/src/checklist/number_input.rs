@@ -10,7 +10,7 @@ use odk_a11y::Describe;
 use super::stability::{Step, assert_still};
 use super::{open, press, redraw};
 use crate::input::{drawn, probe};
-use crate::{Button, FormField, Icon, NumberInput, v_flex};
+use crate::{Button, FormField, Icon, NumberInput, Stack};
 
 type Seen = Rc<RefCell<Vec<Option<f64>>>>;
 
@@ -65,7 +65,7 @@ fn enter_and_leaving_commit(cx: &mut TestAppContext) {
     let s = submitted.clone();
     let cx = open(cx, move |_, _| {
         let s = s.clone();
-        v_flex()
+        Stack::new()
             .child(quantity().on_submit(move |v, _, _| s.borrow_mut().push(v)))
             .child(Button::new("after").label("After"))
     });
@@ -103,7 +103,7 @@ fn enter_and_leaving_commit(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_form_field_joins_the_number_error_onto_its_description(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 FormField::new("qty", "Quantity")
                     .description("How many")
@@ -206,7 +206,7 @@ fn a_read_only_field_does_not_step(cx: &mut TestAppContext) {
 #[gpui::test]
 fn nothing_moves_when_it_steps(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(quantity().default_value(1.0))
             .child(Button::new("after").label("After"))
     });
@@ -307,7 +307,7 @@ fn leaving_commits_a_changed_number_and_nothing_else(cx: &mut TestAppContext) {
     let c = committed.clone();
     let cx = open(cx, move |_, _| {
         let c = c.clone();
-        v_flex()
+        Stack::new()
             .child(
                 quantity()
                     .default_value(2.0)

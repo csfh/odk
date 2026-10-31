@@ -60,7 +60,7 @@ fn colour_options(cx: &mut App) {
 #[allow(dead_code)]
 fn buttons(cx: &mut Context<Empty>) -> impl IntoElement {
     // Before: Button::new("save").label("Save").variant(Variant::Primary)
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(
             Button::new("save")
@@ -87,7 +87,7 @@ fn buttons(cx: &mut Context<Empty>) -> impl IntoElement {
 #[allow(dead_code)]
 fn badges() -> impl IntoElement {
     // Before: Badge::new("New").variant(Variant::Primary)
-    h_flex()
+    Row::new()
         .gap(Space::Sm)
         .child(
             Badge::new("New")

@@ -3,7 +3,7 @@
 //! Omarchy theme; in a monochrome one every Role is a grey, and the marks and words still say
 //! what each means.
 
-use odk::gpui::{Div, px};
+use odk::gpui::px;
 use odk::prelude::*;
 use odk::theme::semantic::Role as Intent;
 
@@ -80,8 +80,8 @@ fn group(title: &'static str) -> impl IntoElement {
 }
 
 /// The section.
-pub fn section(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Div {
-    v_flex()
+pub fn section(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Stack {
+    Stack::new()
         .flex_shrink_0()
         .gap(Space::Lg)
         .child(group("Badges"))
@@ -114,7 +114,7 @@ pub fn section(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>
         ))
 }
 
-fn badges(c: &Content) -> Div {
+fn badges(c: &Content) -> Stack {
     let matrix = |emphasis: Emphasis, outlined: bool| {
         row().children(ROLES.map(|(role, name)| {
             let badge = Badge::new(name).role(role).emphasis(emphasis);
@@ -122,7 +122,7 @@ fn badges(c: &Content) -> Div {
         }))
     };
     let [secondary, primary, ghost, info, success, warning, danger] = c.badges;
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(caption(
             "Solid, muted (the default for a status) and subtle, in each Role.",
@@ -162,9 +162,9 @@ fn badges(c: &Content) -> Div {
         )
 }
 
-fn statuses(c: &Content) -> Div {
+fn statuses(c: &Content) -> Stack {
     let [active, inactive, success, warning, error, info] = c.statuses;
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(
             row()
@@ -181,9 +181,9 @@ fn statuses(c: &Content) -> Div {
         ))
 }
 
-fn alerts(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Div {
+fn alerts(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Stack {
     let tones = [Tone::Info, Tone::Success, Tone::Warning, Tone::Danger];
-    let mut list = v_flex().gap(Space::Sm);
+    let mut list = Stack::new().gap(Space::Sm);
     for (n, ((title, description, action), tone)) in c.alerts.into_iter().zip(tones).enumerate() {
         if tone == Tone::Danger && g.alert_dismissed {
             continue;
@@ -242,7 +242,7 @@ fn alerts(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> 
         )
 }
 
-fn progress(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Div {
+fn progress(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Stack {
     let value = g.progress;
     let step = |label: &'static str, by: f64| {
         Button::new(SharedString::from(format!("progress-{label}")))
@@ -260,7 +260,7 @@ fn progress(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -
             this.progress_paused = !this.progress_paused;
             cx.notify();
         }));
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .max_w(px(480.0))
         .child({
@@ -311,7 +311,7 @@ fn progress(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -
         .child(Progress::new("progress-bare", "Syncing").value(70.0))
 }
 
-fn spinners(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Div {
+fn spinners(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -> Row {
     let [save, delete, reset] = c.buttons;
     row()
         .items_center()
@@ -346,9 +346,9 @@ fn spinners(g: &mut FeedbackPage, c: &Content, cx: &mut Context<FeedbackPage>) -
         ))
 }
 
-fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Div {
+fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Stack {
     let card = if g.skeleton_loaded {
-        h_flex()
+        Row::new()
             .items_start()
             .gap(Space::Md)
             .child(
@@ -361,7 +361,7 @@ fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Div {
                     .child(Heading::new("A").level(2)),
             )
             .child(
-                v_flex()
+                Stack::new()
                     .flex_1()
                     .min_w_0()
                     .child(Text::new("Aleksandra Wiśniewska"))
@@ -369,13 +369,13 @@ fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Div {
                     .child(Text::new("Three files shared.").muted()),
             )
     } else {
-        h_flex()
+        Row::new()
             .items_start()
             .gap(Space::Md)
             .child(Skeleton::block(48.0, 48.0).label("Loading the picture"))
-            .child(v_flex().flex_1().min_w_0().child(Skeleton::text(3)))
+            .child(Stack::new().flex_1().min_w_0().child(Skeleton::text(3)))
     };
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .max_w(px(480.0))
         .child(
@@ -413,9 +413,9 @@ fn skeletons(g: &mut FeedbackPage, cx: &mut Context<FeedbackPage>) -> Div {
         ))
 }
 
-fn empties(c: &Content) -> Div {
+fn empties(c: &Content) -> Stack {
     let (title, says, action) = c.empty;
-    v_flex()
+    Stack::new()
         .gap(Space::Md)
         .child(
             Empty::new(title)
@@ -433,14 +433,14 @@ fn empties(c: &Content) -> Div {
         ))
 }
 
-fn separators() -> Div {
-    v_flex()
+fn separators() -> Stack {
+    Stack::new()
         .gap(Space::Sm)
         .max_w(px(480.0))
         .child(Text::new("Display"))
         .child(Separator::horizontal())
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Sm)
                 .child(Text::new("Scaling").muted())
                 .child(Separator::vertical())

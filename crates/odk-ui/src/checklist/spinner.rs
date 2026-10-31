@@ -4,7 +4,7 @@ use odk_theme::component::SpinnerStyle;
 
 use super::{FIXTURES, open, publish_fixture, redraw, reduce_motion};
 use crate::spinner::animates;
-use crate::{Button, Density, Size, Spinner, components, h_flex};
+use crate::{Button, Density, Row, Size, Spinner, components};
 
 /// Items 14, 16: a spinner is a busy Progress named "Loading" unless told otherwise.
 #[test]
@@ -37,7 +37,7 @@ fn stands_still_with_reduced_motion(cx: &mut TestAppContext) {
 #[gpui::test]
 fn its_size_follows_the_density(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        h_flex()
+        Row::new()
             .child(Spinner::new("sm").size(Size::Sm))
             .child(Spinner::new("md"))
             .child(Spinner::new("lg").size(Size::Lg))
@@ -123,7 +123,7 @@ fn a_clipped_spinner_causes_no_redraws(cx: &mut TestAppContext) {
     let c = count.clone();
     let cx = open(cx, move |_, _| {
         c.bump();
-        crate::v_flex()
+        crate::Stack::new()
             .w(gpui::px(100.0))
             .h(gpui::px(10.0))
             .overflow_hidden()
@@ -157,7 +157,7 @@ fn many_spinners_share_their_redraws(cx: &mut TestAppContext) {
     let c = count.clone();
     let cx = open(cx, move |_, _| {
         c.bump();
-        crate::h_flex()
+        crate::Row::new()
             .child(Spinner::new("a"))
             .child(Spinner::new("b"))
             .child(Spinner::new("c"))

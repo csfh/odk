@@ -12,7 +12,7 @@ use super::dialog::dialog_around;
 use super::stability::{Step, assert_still};
 use super::{Count, open, press, redraw, reduce_motion};
 use crate::overlay::probe;
-use crate::{Button, Icon, Input, Select, Size, h_flex, v_flex};
+use crate::{Button, Icon, Input, Row, Select, Size, Stack};
 
 type Changes = Rc<RefCell<Vec<String>>>;
 /// A density or size given to a select.
@@ -108,7 +108,7 @@ fn tab_closes_the_list(cx: &mut TestAppContext) {
     let (c, a) = (changes.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        h_flex().child(fruit(&c)).child(
+        Row::new().child(fruit(&c)).child(
             Button::new("after")
                 .label("After")
                 .on_click(move |_, _, _| a.bump()),
@@ -178,7 +178,7 @@ fn a_disabled_select_is_inert(cx: &mut TestAppContext) {
     let (c, a) = (changes.clone(), after.clone());
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex().child(fruit(&c).disabled(true)).child(
+        Stack::new().child(fruit(&c).disabled(true)).child(
             Button::new("after")
                 .label("After")
                 .on_click(move |_, _, _| a.bump()),
@@ -217,7 +217,7 @@ fn a_select_with_nothing_to_choose_does_not_open(cx: &mut TestAppContext) {
     let a = after.clone();
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(Select::new("none", "Nothing").placeholder("No options"))
             .child(
                 Select::new("off", "All disabled")
@@ -459,7 +459,7 @@ fn reports_the_box_and_its_options() {
 #[gpui::test]
 fn no_state_moves_anything(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(
                 Select::new("sl", "Greeting")
                     .item("s", "Hi")
@@ -516,7 +516,7 @@ fn no_state_moves_anything(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_select_is_as_tall_as_an_input(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Select::new("ssm", "S").size(Size::Sm).item("a", "A"))
             .child(Input::new("ism", "I").size(Size::Sm))
             .child(Select::new("smd", "S").item("a", "A"))

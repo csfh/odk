@@ -17,7 +17,7 @@ use odk_a11y::{Describe, Role};
 use super::stability::{Step, assert_still};
 use super::{Count, open, press, redraw};
 use crate::input::{layout_of, point_of, probe};
-use crate::{Button, Dialog, Textarea, v_flex};
+use crate::{Button, Dialog, Stack, Textarea};
 
 type Seen = Rc<RefCell<Vec<String>>>;
 
@@ -122,7 +122,7 @@ fn tab_leaves_the_field_and_types_no_tab(cx: &mut TestAppContext) {
     let a = after.clone();
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex().child(Textarea::new("t", "Notes")).child(
+        Stack::new().child(Textarea::new("t", "Notes")).child(
             Button::new("after")
                 .label("After")
                 .on_click(move |_, _, _| a.bump()),
@@ -194,7 +194,7 @@ fn shift_up_and_down_select_rows(cx: &mut TestAppContext) {
 fn long_text_wraps_and_the_arrows_follow_the_rows(cx: &mut TestAppContext) {
     let words = "alpha beta gamma delta epsilon zeta eta theta";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(140.0))
             .child(Textarea::new("t", "Notes").rows(6).default_value(words))
     });
@@ -228,7 +228,7 @@ fn long_text_wraps_and_the_arrows_follow_the_rows(cx: &mut TestAppContext) {
 fn a_word_that_does_not_fit_breaks_inside(cx: &mut TestAppContext) {
     let long = "Pneumonoultramicroscopicsilicovolcanoconiosis";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(120.0))
             .child(Textarea::new("t", "Notes").rows(8).default_value(long))
     });
@@ -247,7 +247,7 @@ fn a_word_that_does_not_fit_breaks_inside(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_wrap_belongs_to_the_row_after_it(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex().w(px(100.0)).child(
+        Stack::new().w(px(100.0)).child(
             Textarea::new("t", "Notes")
                 .rows(6)
                 .default_value("aaaa bbbb cccc dddd"),
@@ -407,7 +407,7 @@ fn a_field_at_its_end_leaves_the_wheel_to_what_is_around_it(cx: &mut TestAppCont
     let a = around.clone();
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .on_scroll_wheel(move |_, _, _| a.bump())
             .child(
                 Textarea::new("short", "Short")
@@ -437,7 +437,7 @@ fn a_field_at_its_end_leaves_the_wheel_to_what_is_around_it(cx: &mut TestAppCont
 #[gpui::test]
 fn the_box_is_as_high_as_its_rows_whatever_it_holds(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(180.0))
             .child(Textarea::new("t", "Notes").rows(4))
             .child(Button::new("after").label("After"))
@@ -470,7 +470,7 @@ fn the_box_is_as_high_as_its_rows_whatever_it_holds(cx: &mut TestAppContext) {
 fn worst_case_text_stays_inside_the_box(cx: &mut TestAppContext) {
     let worst = "https://example.com/an/extremely/long/path/without/any/spaces/at/all?q=1\n日本語のとても長い文章がここに続きます😀😀😀😀😀😀😀😀\n\n\nEnd";
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(130.0))
             .child(Textarea::new("t", "Notes").rows(5).default_value(worst))
             .child(Button::new("after").label("After"))
@@ -531,7 +531,7 @@ fn read_only_and_disabled(cx: &mut TestAppContext) {
     let a = after.clone();
     let cx = open(cx, move |_, _| {
         let a = a.clone();
-        v_flex()
+        Stack::new()
             .child(
                 Textarea::new("t", "Notes")
                     .default_value("a\nb")
@@ -613,7 +613,7 @@ fn it_describes_itself_as_a_multiline_text_input(_: &mut TestAppContext) {
 #[gpui::test]
 fn the_placeholder_wraps_inside_the_box(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(160.0))
             .child(Textarea::new("t", "Notes").rows(2).placeholder(
                 "Anzeigename für externe Bildschirme und Projektoren und mehr und noch mehr Text",

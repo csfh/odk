@@ -65,7 +65,7 @@ impl Shown {
 }
 
 /// One row of drawn text: a line, or the part of a wrapped line between two wraps.
-struct Row {
+struct TextRow {
     line: usize,
     /// Offsets in what is drawn. Every offset from `start` up to `end` belongs to this row,
     /// `end` itself only if it is the last row of its line (otherwise it starts the next row).
@@ -89,7 +89,7 @@ struct Line {
 pub(crate) struct TextLayout {
     shown: Shown,
     lines: Vec<Line>,
-    rows: Vec<Row>,
+    rows: Vec<TextRow>,
     line_height: Pixels,
 }
 
@@ -97,7 +97,7 @@ impl TextLayout {
     /// `lines` is `shown.text` shaped, one entry for each line of it.
     pub(crate) fn new(shown: Shown, lines: Vec<WrappedLine>, line_height: Pixels) -> Self {
         let mut placed = Vec::with_capacity(lines.len());
-        let mut rows: Vec<Row> = Vec::new();
+        let mut rows: Vec<TextRow> = Vec::new();
         let mut start = 0;
         for (n, shaped) in lines.into_iter().enumerate() {
             let starts: Vec<usize> = std::iter::once(0)
@@ -111,7 +111,7 @@ impl TextLayout {
             let top = line_height * rows.len();
             for (k, &from) in starts.iter().enumerate() {
                 let last = k + 1 == starts.len();
-                rows.push(Row {
+                rows.push(TextRow {
                     line: n,
                     start: start + from,
                     end: start + starts.get(k + 1).copied().unwrap_or(shaped.len()),
@@ -157,12 +157,12 @@ impl TextLayout {
     }
 
     /// The row an offset in what is drawn belongs to.
-    fn row_of(&self, shown: usize) -> &Row {
+    fn row_of(&self, shown: usize) -> &TextRow {
         let at = self.rows.partition_point(|r| r.start <= shown);
         &self.rows[at.saturating_sub(1)]
     }
 
-    fn x_in(&self, row: &Row, shown: usize) -> Pixels {
+    fn x_in(&self, row: &TextRow, shown: usize) -> Pixels {
         let line = &self.lines[row.line];
         line.shaped.unwrapped_layout.x_for_index(shown - line.start) - row.x0
     }

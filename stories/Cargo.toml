@@ -1,0 +1,20 @@
+[package]
+name = "stories"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+# One bin per story, named here: a story is `stories/<name>.rs`, run with `tools/story <name>`.
+autobins = false
+
+[dependencies]
+deps.workspace = true
+odk.workspace = true
+
+[[bin]]
+name = "button"
+path = "button.rs"
+
+[[bin]]
+name = "item_group"
+path = "item_group.rs"

@@ -99,6 +99,18 @@ StatusIndicator::new(Status::Active, "Online")
 
 `DropdownMenu`, `ContextMenu`, `Popover`, `Tooltip`, `HoverCard`, `Dialog`, `Sheet` and `Toast` keep their builders. A popover or modal opened inside a modal is lifted to a host the `Shell` draws (ADR 0039). Toasts are a manager: `toast(window, cx, Toast::new(..))` returns after queuing, `Toast::persistent()` stays until dismissed, `Toast::timeout(..)` sets how long (a duration too long to count is a toast that stays), and `dismiss_toast` and `set_toast_limit` manage the stack. Placement is `Placement` and `Align`.
 
+## Layout
+
+`v_flex()`, `h_flex()` and `content_column()` are gone (ADR 0088). `Stack`, `Row` and `Grid` are the layout groups, and every method the old helpers' `Div` had works on them:
+
+| Before | After |
+|---|---|
+| `v_flex()` | `Stack::new()` |
+| `h_flex()` | `Row::new()` |
+| `content_column()` | `Stack::page()` |
+
+`root()` and `form()` return a `Stack` and `sidebar_frame()` a `Row`, where each returned a `Div`. A function of yours that returned `Div` for such a group, or returned one of those as a `Div`, returns `Stack` or `Row`, and one that took a `Stateful<Div>` of a group takes a `Stateful<Stack>`. A row that must not centre its children across it is `Row::stretch()`. `Grid`, `ContentColumn` and `content_column_for_grid` are unchanged.
+
 ## Your own components
 
 Follow `docs/contributing-components.md`: read `components()` and `foundation()` in `render`, never the palette, never compute a colour while drawing, take durations from `foundation().motion`.

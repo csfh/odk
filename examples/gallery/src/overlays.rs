@@ -64,7 +64,7 @@ impl Render for OverlaysPage {
 
         let wrap = self.wrap;
         let file = c.file_menu;
-        let menus = h_flex()
+        let menus = Row::new()
             .flex_wrap()
             .gap(Space::Lg)
             .child(DropdownMenu::new("file", "File").menu({
@@ -161,7 +161,7 @@ impl Render for OverlaysPage {
             .child(Text::new(format!("Last chosen: {}", self.last)).muted());
 
         let [save, close] = c.tooltips;
-        let placements = h_flex().flex_wrap().gap(Space::Sm).children(
+        let placements = Row::new().flex_wrap().gap(Space::Sm).children(
             [
                 (Placement::Top, "Top"),
                 (Placement::Right, "Right"),
@@ -185,7 +185,7 @@ impl Render for OverlaysPage {
 
         page(
             crate::Page::Overlays,
-            v_flex()
+            Stack::new()
                 .flex_shrink_0()
                 .gap(Space::Lg)
                 .child(caption(
@@ -193,7 +193,7 @@ impl Render for OverlaysPage {
                 ))
                 .child(section("Kbd"))
                 .child(
-                    h_flex()
+                    Row::new()
                         .flex_wrap()
                         .gap(Space::Sm)
                         .child(Text::new("Open the palette with"))
@@ -211,7 +211,7 @@ impl Render for OverlaysPage {
                     "Hover rests 500 ms before it opens; focus opens it at once. It never takes focus. The last one is at the window's edge, so it sits on the other side.",
                 ))
                 .child(
-                    h_flex()
+                    Row::new()
                         .flex_wrap()
                         .gap(Space::Sm)
                         .child(Tooltip::new(
@@ -243,7 +243,7 @@ impl Render for OverlaysPage {
                         ),
                 )
                 .child(
-                    h_flex().justify_end().child(
+                    Row::new().justify_end().child(
                         Tooltip::new(
                             "tip-edge",
                             "At the edge of the window",
@@ -257,8 +257,8 @@ impl Render for OverlaysPage {
                     "Opens on a press or Enter and takes focus; Tab walks its controls and carries on past them. A press outside closes it. Four placements:",
                 ))
                 .child(placements)
-                .child(h_flex().flex_wrap().gap(Space::Sm).child(filter_popover()).child(
-                    h_flex().flex_1().justify_end().child(
+                .child(Row::new().flex_wrap().gap(Space::Sm).child(filter_popover()).child(
+                    Row::new().flex_1().justify_end().child(
                         Popover::new(
                             "pop-edge",
                             "At the edge",
@@ -273,10 +273,10 @@ impl Render for OverlaysPage {
                     ),
                 ))
                 .child(section("Hover Card"))
-                .child(h_flex().child(
+                .child(Row::new().child(
                     HoverCard::new("hover", "About the account", Text::new(hover_trigger)).content(
                         move |_, _| {
-                            v_flex()
+                            Stack::new()
                                 .gap(Space::Sm)
                                 .child(Heading::new(hover_title).level(3))
                                 .child(Text::new(hover_body).muted())
@@ -343,7 +343,7 @@ fn filter_popover() -> Popover {
     )
     .title("Filter results")
     .content(|_, _| {
-        v_flex()
+        Stack::new()
             .gap(Space::Sm)
             .min_w(px(240.0))
             .child(Input::new("pop-filter-text", "Contains").placeholder("Contains…"))

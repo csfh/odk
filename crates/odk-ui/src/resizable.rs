@@ -15,6 +15,7 @@ use odk_theme::component::States;
 use crate::components;
 use crate::focus::{Axis, child_id, focus_handle, move_focus, part_name};
 use crate::interaction::focus_ring;
+use crate::stack::flow;
 use crate::theme::colour;
 
 /// How far one press of an arrow key moves a handle: a twentieth of the group. ODK's own.
@@ -341,11 +342,10 @@ impl RenderOnce for Resizable {
         crate::drawn::record(&crate::focus::id_path(&self.id), sizes.clone());
 
         let probe_state = state.clone();
-        let mut group = div()
+        let mut group = flow(horizontal)
             .id(self.id.clone())
             .debug_selector(|| part_name(&self.id, "group"))
             .relative()
-            .flex()
             .size_full()
             .min_w_0()
             .min_h_0()
@@ -357,11 +357,6 @@ impl RenderOnce for Resizable {
                 .absolute()
                 .inset_0(),
             );
-        group = if horizontal {
-            group.flex_row()
-        } else {
-            group.flex_col()
-        };
 
         let mut handles = Vec::new();
         let mut before = 0.0;

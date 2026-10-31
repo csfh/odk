@@ -7,7 +7,7 @@ use odk_theme::component::{ProgressStyle, States};
 use odk_theme::semantic::Role as Intent;
 
 use super::{FIXTURES, open, publish_fixture, redraw, reduce_motion};
-use crate::{Progress, Tone, v_flex};
+use crate::{Progress, Stack, Tone};
 
 type Drawn = (ProgressStyle, f32, f32);
 
@@ -42,7 +42,7 @@ fn any_value_draws_safely(cx: &mut TestAppContext) {
         ("inf", f64::INFINITY, 1.0),
     ];
     let cx = open(cx, move |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(200.0))
             .children(values.map(|(id, value, _)| Progress::new(id, "Copying").value(value)))
     });
@@ -94,7 +94,7 @@ fn a_new_value_moves_the_bar(cx: &mut TestAppContext) {
 #[gpui::test]
 fn it_draws_its_tokens_in_every_fixture(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .child(Progress::new("a", "Upload").value(30.0))
             .child(
                 Progress::new("ok", "Upload")
@@ -134,7 +134,7 @@ fn it_draws_its_tokens_in_every_fixture(cx: &mut TestAppContext) {
 #[gpui::test]
 fn its_label_and_value_are_text(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(240.0))
             .child(
                 Progress::new("p", "Copying files")

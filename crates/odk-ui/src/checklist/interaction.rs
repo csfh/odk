@@ -200,7 +200,7 @@ fn the_focused_control_can_be_named(cx: &mut TestAppContext) {
     let shown = Rc::new(Cell::new(false));
     let s = shown.clone();
     let cx = open(cx, move |_, _| {
-        crate::v_flex()
+        crate::Stack::new()
             .child(Button::new("first").label("First"))
             .child(Checkbox::new("second", "Second"))
             .child(
@@ -251,7 +251,7 @@ fn a_dialog_whose_opener_has_gone_closes_safely(cx: &mut TestAppContext) {
     let (shown, opener) = (Rc::new(Cell::new(false)), Rc::new(Cell::new(true)));
     let (s, o) = (shown.clone(), opener.clone());
     let cx = open(cx, move |_, _| {
-        let mut page = crate::v_flex();
+        let mut page = crate::Stack::new();
         if o.get() {
             page = page.child(Button::new("opener").label("Open"));
         }

@@ -2,7 +2,7 @@
 use odk::prelude::*;
 
 fn actions() -> impl IntoElement {
-    h_flex()
+    Row::new()
         .gap(Space::Sm)
         .child(Button::new("save").label("Save").variant(ButtonVariant::Primary))
         .child(Button::new("cancel").label("Cancel").variant(ButtonVariant::Outline))

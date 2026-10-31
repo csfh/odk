@@ -7,8 +7,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, Bounds, Div, ElementId, FocusHandle, InteractiveElement, IntoElement,
-    KeyDownEvent, KeyUpEvent, MouseButton, ParentElement, Pixels, RenderOnce, SharedString,
+    AnyElement, App, Bounds, ElementId, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
+    KeyUpEvent, MouseButton, ParentElement, Pixels, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
@@ -20,6 +20,7 @@ use crate::focus::{FocusNext, FocusPrevious, child_id, move_focus, part_name};
 use crate::layout::{StyledExt, bounds_probe, inside_window};
 use crate::overlay::{Action, Layer, Transition, dismiss_catcher, layer_over, lift};
 use crate::placement::{Align, Placement, place};
+use crate::stack::Stack;
 
 type Build = Box<dyn FnOnce(&mut Window, &mut App) -> AnyElement + 'static>;
 type OpenChange = Rc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
@@ -263,10 +264,8 @@ impl RenderOnce for Popover {
                 crate::overlay::opener(&child_id(&self.id, "layer"), window, cx),
                 crate::overlay::opener(&child_id(&self.id, "layer"), window, cx),
             );
-            let mut panel: Div = div()
+            let mut panel = Stack::new()
                 .debug_selector(|| part_name(&self.id, "popover"))
-                .flex()
-                .flex_col()
                 .gap(px(g.gap))
                 .px(px(g.padding_x))
                 .py(px(g.padding_y))

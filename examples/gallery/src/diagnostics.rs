@@ -7,7 +7,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use odk::gpui::{Div, px};
+use odk::gpui::px;
 use odk::prelude::*;
 use odk::theme::component::{ComponentTokens, Shape, StyleDiagnostic};
 
@@ -47,7 +47,7 @@ impl Rows {
 }
 
 /// One style's line and its three colours with where each came from, as the panels show it.
-pub(crate) fn row_lines(row: &StyleDiagnostic) -> Div {
+pub(crate) fn row_lines(row: &StyleDiagnostic) -> Stack {
     let shape = match row.shape {
         Shape::Rect { radius } => format!("radius {radius} px"),
         Shape::Pill => "a pill".into(),
@@ -74,7 +74,7 @@ pub(crate) fn row_lines(row: &StyleDiagnostic) -> Div {
         ),
         None => "not held to a minimum".into(),
     };
-    v_flex()
+    Stack::new()
         .gap(Space::Xs)
         .child(Text::new(format!(
             "{} {}{role}: {height}, {shape}{type_role}; {contrast}",
@@ -105,7 +105,7 @@ pub fn panel<V: 'static>(
     rows: fn(&mut V) -> &mut Rows,
     pick: fn(&mut V) -> &mut Inspector,
     cx: &mut Context<V>,
-) -> Div {
+) -> Stack {
     let tokens = odk::ui::components();
     let theme = odk::ui::theme_diagnostics(cx)
         .and_then(|t| t.name.clone())
@@ -116,7 +116,7 @@ pub fn panel<V: 'static>(
 
     let f = odk::ui::foundation();
     let metrics = f.controls.for_density(density);
-    let mut lines = v_flex()
+    let mut lines = Stack::new()
         .gap(Space::Xs)
         .child(Text::new(format!(
             "Theme: {theme} (generation {})",
@@ -181,7 +181,7 @@ pub fn panel<V: 'static>(
             "feedback-inspect-rows",
         ),
     };
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .child(choice(
             ids.0,

@@ -216,11 +216,11 @@ pub fn notes(report: &Report, focus: Focus) -> Vec<&Note> {
 /// Everything the report says about one decision.
 fn card(d: &Decision) -> impl IntoElement {
     let e = explain(d);
-    let mut lines = v_flex().gap(Space::Xs);
+    let mut lines = Stack::new().gap(Space::Xs);
     lines = lines
         .child(kv("Selected source token", e.source))
         .child(
-            h_flex()
+            Row::new()
                 .gap(Space::Md)
                 .child(swatch(e.original))
                 .child(Text::new(format!(
@@ -252,12 +252,12 @@ fn card(d: &Decision) -> impl IntoElement {
         lines = lines.child(kv("Fallback", fallback));
     }
     if !e.candidates.is_empty() {
-        let mut table = v_flex()
+        let mut table = Stack::new()
             .gap(Space::Xs)
             .child(Text::new("Candidates, in priority order").muted());
         for c in &e.candidates {
             table = table.child(
-                h_flex()
+                Row::new()
                     .flex_wrap()
                     .gap(Space::Md)
                     .child(Text::new(if c.chosen { "● chosen" } else { "○" }))
@@ -278,7 +278,7 @@ fn card(d: &Decision) -> impl IntoElement {
         }
         lines = lines.child(table);
     }
-    v_flex()
+    Stack::new()
         .gap(Space::Sm)
         .p(Space::Md)
         .border_1()
@@ -293,7 +293,7 @@ impl Render for ResolverPage {
         let report = &theme.resolution;
         let focus = self.focus;
 
-        let summary = v_flex()
+        let summary = Stack::new()
             .gap(Space::Xs)
             .child(kv("Strategy", report.options.strategy.name()))
             .child(kv(
@@ -326,7 +326,7 @@ impl Render for ResolverPage {
                 ),
             ));
 
-        let mut cards = v_flex().gap(Space::Md);
+        let mut cards = Stack::new().gap(Space::Md);
         let shown = decisions(report, focus);
         for d in &shown {
             cards = cards.child(card(d));
@@ -336,7 +336,7 @@ impl Render for ResolverPage {
                 "The resolver recorded no decision for these values in this theme: they are derived without a choice among candidates, so there is nothing to explain.",
             ));
         }
-        let mut notes = v_flex().gap(Space::Xs);
+        let mut notes = Stack::new().gap(Space::Xs);
         let about = self::notes(report, focus);
         for note in &about {
             notes = notes.child(Text::new(format!("⚠ {note}")));
@@ -347,7 +347,7 @@ impl Render for ResolverPage {
 
         page(
             Page::Resolver,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(Text::new("Why the theme's colour was used, adjusted or replaced. Choose a role to see each colour it was given, the candidates the resolver weighed, and the contrast each had. This is the resolver's own report, read from the theme's snapshot: nothing is resolved again here.").muted())
                 .child(summary)

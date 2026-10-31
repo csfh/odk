@@ -85,11 +85,11 @@ fn bar(length: f32) -> impl IntoElement {
 impl Render for SpacingPage {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let f = odk::ui::foundation();
-        let mut scale = v_flex().gap(Space::Sm);
+        let mut scale = Stack::new().gap(Space::Sm);
         for step in &STEPS {
             let length = (step.value)(&f);
             scale = scale.child(
-                h_flex()
+                Row::new()
                     .gap(Space::Md)
                     .child(
                         div()
@@ -99,11 +99,11 @@ impl Render for SpacingPage {
                     .child(bar(length)),
             );
         }
-        let mut layout = v_flex().gap(Space::Sm);
+        let mut layout = Stack::new().gap(Space::Sm);
         for (name, value) in &LAYOUT {
             let length = value(&f.layout);
             layout = layout.child(
-                h_flex()
+                Row::new()
                     .gap(Space::Md)
                     .child(
                         div()
@@ -123,7 +123,7 @@ impl Render for SpacingPage {
         };
         page(
             Page::Spacing,
-            v_flex()
+            Stack::new()
                 .gap(Space::Lg)
                 .child(section("Scale"))
                 .child(Text::new(format!("A 4 px grid. {scale_note}")).muted())
@@ -133,7 +133,7 @@ impl Render for SpacingPage {
                 .child(layout)
                 .child(group("In use"))
                 .child(
-                    v_flex()
+                    Stack::new()
                         .gap(Space::Xs)
                         .child(kv("Gap between sections of a page", format!("{} px (layout.section_gap)", f.layout.section_gap)))
                         .child(kv("A panel's padding", format!("{} px (layout.panel_padding)", f.layout.panel_padding)))

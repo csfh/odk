@@ -16,8 +16,9 @@ use crate::button::Size;
 use crate::decoration::{self, Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, focus_handle, part_name};
 use crate::input::{field_box, field_mark};
-use crate::layout::{bounds_probe, h_flex};
+use crate::layout::bounds_probe;
 use crate::menu_list::{Fit, Menu, MenuItem, Surface, Typeahead, surface};
+use crate::stack::Row;
 use crate::theme::colour;
 use crate::{Icon, components};
 
@@ -466,7 +467,7 @@ impl RenderOnce for Select {
             cx,
         );
         let full_value = shown.clone();
-        let mut field = h_flex()
+        let mut field = Row::new()
             .id(child_id(&id, "trigger"))
             .debug_selector(|| part_name(&id, "trigger"))
             .w_full()

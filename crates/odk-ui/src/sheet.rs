@@ -11,8 +11,9 @@ use odk_theme::foundation::MotionDuration;
 use crate::components;
 use crate::decoration::{Applied, FlowKind, OverlayDecoration, SizeMode};
 use crate::focus::{child_id, part_name};
-use crate::layout::{StyledExt, v_flex};
+use crate::layout::StyledExt;
 use crate::overlay::{Dismiss, Transition, docked, layer_over, modal, modal_header};
+use crate::stack::Stack;
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 type Content = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement + 'static>;
@@ -213,7 +214,7 @@ impl RenderOnce for Sheet {
 
         let style = c.sheet();
         let g = style.geometry;
-        let panel = v_flex()
+        let panel = Stack::new()
             .id(child_id(&self.id, "panel"))
             .debug_selector(|| part_name(&self.id, "panel"))
             .absolute()

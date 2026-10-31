@@ -1,4 +1,4 @@
-//! The layout helpers (`layout.rs`, `grid.rs`): `sidebar_frame`, `content_column`, `scroll_y`,
+//! The layout helpers (`layout.rs`, `grid.rs`): `sidebar_frame`, `Stack`, `Row`, `scroll_y`,
 //! `Grid` and `content_column_for_grid`. They are not components, so no checklist item applies to
 //! them as such; these tests check that the sizes they lay out are the foundation's (item 2) and
 //! that they behave in a window of any size.
@@ -6,11 +6,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use gpui::{InteractiveElement, ParentElement, Styled, TestAppContext, div, px, size};
+use gpui::{
+    InteractiveElement, IntoElement, ParentElement, Stateful, Styled, TestAppContext, div, px, size,
+};
 
 use super::open;
+use crate::stack::flow;
 use crate::{
-    Grid, Item, Select, content_column, content_column_for_grid, foundation, scroll_y,
+    Grid, Item, Row, Select, Space, Stack, content_column_for_grid, foundation, scroll_y,
     sidebar_frame,
 };
 
@@ -80,7 +83,7 @@ fn a_narrow_window_shrinks_the_content_not_the_sidebar(cx: &mut TestAppContext) 
 /// A wide window centres a column of the foundation's content width; a narrow one fills it.
 #[gpui::test]
 fn the_column_is_centred_up_to_its_width_and_fills_a_narrow_window(cx: &mut TestAppContext) {
-    let cx = open(cx, |_, _| content_column().debug_selector(|| "col".into()));
+    let cx = open(cx, |_, _| Stack::page().debug_selector(|| "col".into()));
     let width = foundation().layout.content_width;
     resize(cx, 2400.0, 600.0);
     let col = cx.debug_bounds("col").unwrap();
@@ -100,7 +103,7 @@ fn the_column_is_centred_up_to_its_width_and_fills_a_narrow_window(cx: &mut Test
 #[gpui::test]
 fn the_column_pads_its_content_by_the_panel_padding(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        content_column()
+        Stack::page()
             .debug_selector(|| "col".into())
             .child(div().debug_selector(|| "kid".into()).h(px(10.0)))
     });
@@ -112,6 +115,115 @@ fn the_column_pads_its_content_by_the_panel_padding(cx: &mut TestAppContext) {
     let pad = foundation().layout.panel_padding;
     assert_eq!(f32::from(kid.origin.x - col.origin.x), pad);
     assert_eq!(f32::from(kid.origin.y - col.origin.y), pad);
+}
+
+/// A box of a given size to put in a group, found by `name`.
+fn cell(name: &'static str, width: f32, height: f32) -> impl IntoElement {
+    div()
+        .debug_selector(move || name.into())
+        .w(px(width))
+        .h(px(height))
+}
+
+/// A stack sets its children one under the next, the gap apart, on one left edge.
+#[gpui::test]
+fn a_stack_sets_its_children_one_under_the_next_with_the_gap(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        Stack::new()
+            .gap(Space::Md)
+            .child(cell("a", 20.0, 10.0))
+            .child(cell("b", 20.0, 10.0))
+    });
+    resize(cx, 600.0, 600.0);
+    let (a, b) = (cx.debug_bounds("a").unwrap(), cx.debug_bounds("b").unwrap());
+    assert_eq!(a.origin.x, b.origin.x, "one column");
+    assert_eq!(
+        f32::from(b.origin.y - (a.origin.y + a.size.height)),
+        Space::Md.px()
+    );
+}
+
+/// A row sets its children side by side, the gap apart, and centres them across itself.
+#[gpui::test]
+fn a_row_sets_its_children_side_by_side_and_centres_them_across(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        Row::new()
+            .gap(Space::Md)
+            .child(cell("a", 20.0, 10.0))
+            .child(cell("b", 20.0, 30.0))
+    });
+    resize(cx, 600.0, 600.0);
+    let (a, b) = (cx.debug_bounds("a").unwrap(), cx.debug_bounds("b").unwrap());
+    assert_eq!(
+        f32::from(b.origin.x - (a.origin.x + a.size.width)),
+        Space::Md.px()
+    );
+    let centre = |r: gpui::Bounds<gpui::Pixels>| r.origin.y + r.size.height / 2.0;
+    assert_eq!(centre(a), centre(b), "centred across the row");
+}
+
+/// A stretching row gives its children its whole height; a plain one centres them at their own.
+#[gpui::test]
+fn a_stretching_row_does_not_centre_what_it_holds(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        Stack::new()
+            .child(
+                Row::stretch()
+                    .h(px(40.0))
+                    .child(div().debug_selector(|| "stretched".into()).w(px(20.0))),
+            )
+            .child(
+                Row::new()
+                    .h(px(40.0))
+                    .child(div().debug_selector(|| "centred".into()).w(px(20.0))),
+            )
+    });
+    resize(cx, 600.0, 600.0);
+    assert_eq!(cx.debug_bounds("stretched").unwrap().size.height, px(40.0));
+    assert_eq!(cx.debug_bounds("centred").unwrap().size.height, px(0.0));
+}
+
+/// A stack given an id is still an element, which is what an overlay's panel is: `.id()` on a
+/// `Div` gives a `Stateful<Div>` and on a `Stack` a `Stateful<Stack>`, drawn the same.
+#[gpui::test]
+fn a_stack_given_an_id_is_an_element_an_overlay_accepts(cx: &mut TestAppContext) {
+    fn takes(_: &Stateful<Stack>) {}
+    let cx = open(cx, |_, _| {
+        let panel = Stack::new()
+            .id("panel")
+            .debug_selector(|| "panel".into())
+            .child(cell("kid", 20.0, 10.0));
+        takes(&panel);
+        panel
+    });
+    resize(cx, 600.0, 600.0);
+    assert!(cx.debug_bounds("panel").is_some());
+    assert_eq!(cx.debug_bounds("kid").unwrap().size.height, px(10.0));
+}
+
+/// A group whose direction is chosen while drawing sets only the direction: its children are not
+/// centred across it, as a `Row`'s are.
+#[gpui::test]
+fn a_flow_sets_the_direction_and_nothing_else(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        Stack::new()
+            .child(
+                flow(true)
+                    .child(cell("a", 20.0, 10.0))
+                    .child(cell("b", 20.0, 30.0)),
+            )
+            .child(
+                flow(false)
+                    .child(cell("c", 20.0, 10.0))
+                    .child(cell("d", 20.0, 10.0)),
+            )
+    });
+    resize(cx, 600.0, 600.0);
+    let mut get = |n: &'static str| cx.debug_bounds(n).unwrap();
+    assert_eq!(get("a").origin.y, get("b").origin.y, "level, not centred");
+    assert!(get("b").origin.x > get("a").origin.x, "side by side");
+    assert_eq!(get("c").origin.x, get("d").origin.x);
+    assert!(get("d").origin.y > get("c").origin.y, "one under the next");
 }
 
 /// A scroll region takes the room it is given and no more, however tall its content is.
@@ -144,7 +256,7 @@ fn the_column_is_centred_in_the_content_area_of_the_frame(cx: &mut TestAppContex
         sidebar_frame(
             div().debug_selector(|| "side".into()).size_full(),
             scroll_y("page").child(
-                content_column()
+                Stack::page()
                     .debug_selector(|| "col".into())
                     .child(div().h(px(5000.0))),
             ),
@@ -180,7 +292,7 @@ fn a_field_fills_its_row_under_a_long_paragraph_in_a_scroll_region(cx: &mut Test
         sidebar_frame(
             div().size_full(),
             scroll_y("page").child(
-                content_column()
+                Stack::page()
                     .child(crate::Text::new(LONG))
                     .child(crate::SearchInput::new("find", "Find").placeholder("Find")),
             ),

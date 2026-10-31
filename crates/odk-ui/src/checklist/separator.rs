@@ -2,7 +2,7 @@ use gpui::{ParentElement, Styled, TestAppContext, px};
 use odk_a11y::{Describe, Role};
 
 use super::{open, redraw};
-use crate::{Separator, Text, h_flex, v_flex};
+use crate::{Row, Separator, Stack, Text};
 
 /// Item 14: a separator reports itself as one, with no name, as separators have none.
 #[test]
@@ -15,7 +15,7 @@ fn reports_a_separator() {
 #[gpui::test]
 fn a_horizontal_separator_spans_its_column(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .w(px(300.0))
             .child(Text::new("Above"))
             .child(Separator::horizontal())
@@ -33,7 +33,7 @@ fn a_horizontal_separator_spans_its_column(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_vertical_separator_spans_its_row(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        h_flex()
+        Row::new()
             .h(px(40.0))
             .child(Text::new("Left"))
             .child(Separator::vertical())
@@ -51,7 +51,7 @@ fn a_vertical_separator_spans_its_row(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_squeezed_column_keeps_the_line(cx: &mut TestAppContext) {
     let cx = open(cx, |_, _| {
-        v_flex()
+        Stack::new()
             .h(px(100.0))
             .child(Separator::horizontal())
             .child(gpui::div().h(px(4000.0)))
@@ -70,7 +70,9 @@ fn a_squeezed_column_keeps_the_line(cx: &mut TestAppContext) {
 fn a_separator_is_subtle_and_can_be_inset(cx: &mut TestAppContext) {
     use odk_theme::foundation::Density;
     let cx = open(cx, |_, _| {
-        v_flex().w(px(300.0)).child(Separator::horizontal().inset())
+        Stack::new()
+            .w(px(300.0))
+            .child(Separator::horizontal().inset())
     });
     let s = crate::drawn::last::<odk_theme::component::SeparatorStyle>("odk-separator");
     let c = crate::components();
