@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::assert_known_gap;
+use super::{assert_known_gap, is_known_gap};
 
 /// Every component: its name, its source file, and whether it takes keyboard input of its
 /// own (and so must document it, item 25). A component that only contains buttons, such as
@@ -701,6 +701,46 @@ fn every_component_implements_describe() {
             && !all.contains(&format!("Describe for {name}<"))
         {
             assert_known_gap(name, 14);
+        }
+    }
+}
+
+/// A component's story is `stories/<name>.rs`, its name in snake case: `DataTable` is `data_table`.
+fn story_name(component: &str) -> String {
+    let mut name = String::new();
+    for (i, c) in component.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            name.push('_');
+        }
+        name.extend(c.to_lowercase());
+    }
+    name
+}
+
+#[test]
+fn a_story_is_named_for_its_component_in_snake_case() {
+    assert_eq!(story_name("Button"), "button");
+    assert_eq!(story_name("DataTable"), "data_table");
+    assert_eq!(story_name("NavList"), "nav_list");
+}
+
+/// Item 28: every component has a story of its own, `stories/<name>.rs`, built by the `stories`
+/// crate as a binary of that name. A component without one is a row in Known gaps, and a row
+/// for a component that has one is stale.
+#[test]
+fn every_component_has_a_story() {
+    let stories = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../stories");
+    let manifest = fs::read_to_string(stories.join("Cargo.toml")).unwrap();
+    for (name, _, _) in COMPONENTS {
+        let story = story_name(name);
+        let bin = format!("[[bin]]\nname = \"{story}\"\npath = \"{story}.rs\"");
+        if stories.join(format!("{story}.rs")).is_file() && manifest.contains(&bin) {
+            assert!(
+                !is_known_gap(name, 28),
+                "{name} has a story: remove its row for item 28 from Known gaps"
+            );
+        } else {
+            assert_known_gap(name, 28);
         }
     }
 }

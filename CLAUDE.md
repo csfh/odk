@@ -62,6 +62,7 @@ Every `odk-ui` component must pass `docs/spec/component-checklist.md`.
 
 - Performance is part of it (items 35 and 36): a component never asks for a redraw while idle or out of view, and has a sample in `crates/odk-ui/src/samples.rs`, which the benchmarks and `checklist/performance.rs` draw. GPUI draws the whole window whenever any view is dirty, and a frame request dirties the view's ancestors too (`docs/checks.md`, "Frame cost"), so animate with a timer at the next visible change, as `Spinner` does, and keep a story small enough to draw well inside a frame. A change that touches how a component draws should be measured with `cargo bench`, not guessed at.
 
+- Every component has a story of its own (item 28): `stories/<name>.rs`, the name in snake case, with a `[[bin]]` in `stories/Cargo.toml`. A new component comes with its story in the same pull request; a built one without a story is a row in the checklist's Known gaps until it has one, and the row goes when the story lands (`checklist/source.rs` fails on a stale row).
 - Read the checklist before building or changing a component.
 - A component is done only when it passes every item that applies. Say which items do not apply, rather than skipping them.
 - When a built component fails an item, add it to "Known gaps" in the checklist with the item number, and remove the line once it is fixed. Do not call a component done while it has a gap.

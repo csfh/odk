@@ -26,6 +26,7 @@ Every crate has the workspace's version (ADR 0064). The pre-releases `v0.1.0-rc.
 - `examples/hello`, `examples/gallery` and `examples/todo`, `docs/gallery.md`, `tools/visual-scenarios` and the prebuilt `Hello.oma/` and `Todo.oma/` at the repository root. `stories/` (one small application per component, run with `tools/story NAME`) is the showcase that remains.
 - `tools/idle-cpu` measures any program (`tools/idle-cpu [--max PERCENT] COMMAND...`); its `--all` gate, `--page` and the gallery default went with the gallery. `GALLERY_FRAME_BUDGET_MS` is no longer read.
 - Kept: the `db` and `test-support` features of `odk`, which applications use.
+- Every component needs a story of its own (checklist item 28, scanned in `checklist/source.rs`); the 40 components that have none are listed in Known gaps.
 
 ### Breaking changes (ADR 0047, accepted)
 

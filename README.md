@@ -14,7 +14,7 @@ Pre-release: every crate is 0.0.0. Stable Rust (edition 2024), Linux x86_64.
 | Build an application | `stories/button.rs` (a whole window in a page of code), then `docs/design-language.md` |
 | Move an application from the earlier design system | `docs/migration.md` |
 | Add a component | `docs/contributing-components.md`, `docs/spec/component-checklist.md` |
-| See a component | `stories/` (one story per component, so far `button` and `item_group`); the owner runs one with `tools/story NAME` |
+| See a component | `stories/` (every component has a story of its own; so far `button` and `item_group` do, the rest are listed in the checklist's Known gaps); the owner runs one with `tools/story NAME` |
 | Know whether it is ready | `docs/release-readiness.md`, `CHANGELOG.md` |
 | Understand a decision | `docs/adr/`, with `GLOSSARY.md` for the terms |
 | Work with an agent in this repository | `CLAUDE.md` |
