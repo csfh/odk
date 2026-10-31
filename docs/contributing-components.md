@@ -1,6 +1,6 @@
 # Adding to the design system
 
-The contract for a new `odk-ui` component, token or gallery page. The normative list is `docs/spec/component-checklist.md` (numbered items, tested); this page is the order to work in and where each rule is checked. Read `CLAUDE.md` first: windows are never opened on the user's desktop, and ADRs win over specs.
+The contract for a new `odk-ui` component, token or story. The normative list is `docs/spec/component-checklist.md` (numbered items, tested); this page is the order to work in and where each rule is checked. Read `CLAUDE.md` first: windows are never opened on the user's desktop, and ADRs win over specs.
 
 ## The contract
 
@@ -22,8 +22,8 @@ A new component:
 | 12 | Reacts to a theme change on the next frame and keeps what it holds | 3, 39 | `checklist/forms.rs`, `overlays.rs`, `toast.rs`, `navigation.rs` (`a_theme_change_keeps_...`) |
 | 13 | Does no colour maths, file or theme work in `render`; no theme cache of its own | 3, 40, 42 | `source.rs` (`process_wide_state_is_the_theme_store_and_what_is_listed`) |
 | 14 | Has tests: behaviour in `checklist/<component>.rs`, its entry in `COMPONENTS` in `source.rs`, its logic as unit tests | 27 | `source.rs` (`every_component_is_listed`) |
-| 15 | Is in the gallery, in every state, with worst-case content | 23, 28 | `examples/gallery` tests (`cargo test -p gallery`) |
-| 16 | Is documented: a row in `docs/spec/odk-ui-components.md`, a section in `docs/gallery.md`, a line in `docs/migration.md` if it replaces something | 30 | review |
+| 15 | Can be looked at in every state, with worst-case content | 23, 28 | a story (`stories/`) or `tools/headless-shot`; by hand |
+| 16 | Is documented: a row in `docs/spec/odk-ui-components.md`, a line in `docs/migration.md` if it replaces something | 30 | review |
 | 17 | Follows the API conventions: `new(id, ...)`, builders by value, `on_*` callbacks, `impl Describe`, in the prelude | 14, 24, 26 | `source.rs` (`every_component_implements_describe`, `every_component_is_in_the_prelude`) |
 
 Apply them according to what the component is. A `Separator` has no keyboard behaviour and a `Text` no focus ring; say which items do not apply in the change rather than skipping them. Performance is part of the contract: a component never asks for a redraw while idle or out of view (35), and has a sample in `samples.rs` for the benchmarks (36).
@@ -34,9 +34,9 @@ Apply them according to what the component is. A `Separator` has no keyboard beh
 2. **Tokens.** If it needs a style, add it to the component layer (`crates/odk-theme/src/component/`) as a typed lookup: colours are `ColourRef`s into the semantic layer, geometry derives from the foundation. Add it to the catalogue so `validate` checks every theme, and write its test in `odk-theme/tests/components.rs`. Do not add a colour to the semantic layer for one component; ask whether an existing treatment fits.
 3. **Component.** Read `components()` and `foundation()` once per render; draw states with `interaction.rs` (`pointer_states`, `focus_ring`, `progress`); move focus with `move_focus`; take state precedence from `States`.
 4. **Checklist tests.** Add the component to `COMPONENTS` and `ON_COMPONENT_TOKENS` in `checklist/source.rs`, give it a module under `checklist/`, and break each rule it tests once by hand before trusting it. A gap is an `#[ignore = "known gap: N"]` test that calls `assert_known_gap`, and a row under "Known gaps".
-5. **Gallery.** Put it on the page of its family with its states; pages stay small enough to draw well inside a frame. Run `tools/idle-cpu --all` after a gallery change.
+5. **Story.** `stories/NAME.rs` shows it in its states, as `stories/button.rs` does, with a `[[bin]]` in `stories/Cargo.toml`; keep it small enough to draw well inside a frame. `tools/story NAME` runs it in watch mode (the owner's tool). A story is how a component gets looked at, not yet a requirement.
 6. **Measure.** `cargo bench -p odk-ui -- <Name>` before and after a change to how it draws.
-7. **Look at it.** Headlessly: `tools/headless-shot`, or `tools/visual-scenarios` for the reference set (`docs/gallery.md`, "Reference screenshots"). Never in the user's session.
+7. **Look at it.** Headlessly: `tools/headless-shot` on the story. Never in the user's session.
 8. **Verify.** `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, `tools/check-deps`; update "Built so far" in `odk-ui-components.md`.
 
 ## Adding a token
@@ -52,4 +52,4 @@ Each is allowed on purpose and listed where the check is, so a new one has to be
 - `MAY_READ_THE_SNAPSHOT`: `app.rs` and `layout.rs` draw the window's canvas and text.
 - Named constants for widths fixed on purpose (a dialog 480 px, a toast 336 px, a menu at least 192 px) and for behaviour timings (`select.rs`'s typeahead reset, `spinner.rs`'s scheduler floor).
 - Round parts (switch thumb and track, radio dot, status dot, spinner) are `Shape`s, not a larger radius.
-- The gallery draws swatches of tokens with `colour(..)`; its colour, resolver, compare and diagnostics pages read the palette because showing it is their job.
+- A story that shows tokens may draw swatches with `colour(..)`; stories are not `odk-ui` source, so the source scans do not read them.

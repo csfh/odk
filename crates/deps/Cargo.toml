@@ -8,7 +8,7 @@ publish = false
 description = "Makes every build of one package resolve shared dependencies as the whole workspace does"
 
 # Cargo unifies a dependency's features only across the packages in one build, so `cargo build
-# -p hello` and `cargo build --workspace` can compile `libc` or `serde` with different features,
+# -p stories` and `cargo build --workspace` can compile `libc` or `serde` with different features,
 # and then everything above them, GPUI included, is compiled again. Every workspace member
 # depends on this crate, and it asks for each such dependency with the features the whole
 # workspace uses, so every selection agrees. `tools/check-deps` finds the list; run it

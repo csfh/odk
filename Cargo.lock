@@ -2187,15 +2187,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gallery"
-version = "0.1.0"
-dependencies = [
- "deps",
- "divan",
- "odk",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2698,14 +2689,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "hello"
-version = "0.1.0"
-dependencies = [
- "deps",
- "odk",
-]
 
 [[package]]
 name = "hermit-abi"
@@ -5722,7 +5705,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stories"
-version = "0.1.0"
+version = "0.1.0-rc.3"
 dependencies = [
  "deps",
  "odk",
@@ -6172,15 +6155,6 @@ name = "tinyvec"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
-
-[[package]]
-name = "todo"
-version = "0.1.0"
-dependencies = [
- "deps",
- "odk",
- "tempfile",
-]
 
 [[package]]
 name = "tokio"

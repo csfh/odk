@@ -23,7 +23,7 @@ Your part: do not build a control out of a bare `div` with `on_click`. It has no
 
 Your part: do not move focus yourself with GPUI's `window.focus` in a way that skips the ring. Components use `move_focus`, which also redraws. Give a dialog an action the user can reach. Leave Escape, the scrim or the close button on: a dialog with all three off is refused.
 
-`odk::ui::focused_component(window, cx)` names the control that has focus, in debug builds, for diagnostics; the gallery's Interaction page shows it.
+`odk::ui::focused_component(window, cx)` names the control that has focus, in debug builds, for diagnostics.
 
 ## Names, labels and descriptions
 

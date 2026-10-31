@@ -370,51 +370,6 @@ mod tests {
         );
     }
 
-    /// `odk oma dev examples/<name>` builds the example, writes its licences and carries both
-    /// licence files (ADR 0081), under a manifest that names a publisher, as a signed file needs.
-    #[test]
-    fn the_examples_are_projects_that_carry_their_licences() {
-        let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-        for name in ["hello", "todo"] {
-            let dir = examples.join(name);
-            let project = Project::load(&dir).unwrap();
-            assert_eq!(
-                project.build[0],
-                ["cargo", "build", "--release", "--locked", "-p", name]
-            );
-            let licences = format!("../../target/release/THIRD-PARTY-LICENSES-{name}");
-            assert_eq!(
-                project.build[1],
-                [
-                    "../../tools/third-party-licenses",
-                    "../../Cargo.toml",
-                    licences.as_str(),
-                    name
-                ]
-            );
-            assert_eq!(
-                project.executable,
-                dir.join(format!("../../target/release/{name}"))
-            );
-            let carried = project
-                .includes
-                .iter()
-                .map(|i| (i.source.clone(), i.destination.clone()))
-                .collect::<Vec<_>>();
-            assert_eq!(
-                carried,
-                [
-                    (dir.join("../../LICENSE"), "share/licenses/LICENSE".into()),
-                    (
-                        dir.join(&licences),
-                        "share/licenses/THIRD-PARTY-LICENSES".into()
-                    ),
-                ]
-            );
-            assert!(project.manifest().unwrap().publisher.is_some(), "{name}");
-        }
-    }
-
     #[test]
     fn a_failing_build_command_stops_the_rest() {
         let (dir, loaded) = project(

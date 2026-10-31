@@ -296,8 +296,8 @@ fn previewing(cx: &App) -> bool {
 }
 
 /// Draws `snapshot` in every window in place of the theme the application follows, until
-/// [`end_theme_preview`]. For a tool that shows a theme without choosing it, such as a design
-/// system's gallery: Omarchy's files and its current theme are not touched, and a theme change
+/// [`end_theme_preview`]. For a tool that shows a theme without choosing it, such as a theme
+/// selector: Omarchy's files and its current theme are not touched, and a theme change
 /// the watcher sees meanwhile is kept, not drawn. The snapshot should come from a
 /// [`ThemeManager`] built with [`ThemeManager::following_host`], so that it carries the user's
 /// text size; its request for reduced motion is the followed theme's, whatever it says; the
@@ -393,7 +393,7 @@ pub fn colour_options(cx: &App) -> ResolveOptions {
 /// What the application draws and why: the theme's name and `colors.toml`, its mode, how many
 /// colours it defines and which optional ones it leaves out, whether a fallback of ADR 0041 is
 /// in use, the latest reload's error and the generation. `Display` writes it as a few lines,
-/// for a developer tool such as the gallery. `None` before [`crate::run`] has started.
+/// for a developer tool. `None` before [`crate::run`] has started.
 pub fn theme_diagnostics(cx: &App) -> Option<ThemeDiagnostics> {
     cx.try_global::<Themes>().map(|t| t.diagnostics.clone())
 }

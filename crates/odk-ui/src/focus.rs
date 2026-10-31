@@ -66,7 +66,7 @@ thread_local! {
 
 /// The id of the control that has keyboard focus in `window`, as its part's path: the id the
 /// application gave the component, then the part, as in `"save/focus"`. For diagnostics and
-/// event logs (the gallery's Interaction page). `None` when nothing has focus, when what has it
+/// event logs. `None` when nothing has focus, when what has it
 /// is not an ODK control, and always in a release build, which records no names so that making
 /// a control costs nothing for them.
 pub fn focused_component(window: &Window, cx: &App) -> Option<SharedString> {

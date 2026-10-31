@@ -32,7 +32,7 @@ before any code.
 
 - [ ] Hand checks on `Select`, items 5 and 11 of `docs/spec/component-checklist.md` (hover,
   press and the focus ring under a real pointer). They cannot be tested headlessly; about two
-  minutes in the gallery.
+  minutes in a story, once there is one.
 - [ ] Hand checks on `Textarea`, `InputGroup` and `Command` (items 4, 5, 11 of `docs/spec/component-checklist.md`: both stock themes, and hover, press and the focus ring under a real pointer; the group's ring and the palette's highlight in particular). Their layout, worst-case content and keyboard behaviour were checked headlessly.
 - [ ] `Input::on_submit` and `InputGroup::on_submit` fire on the press of Enter. An application that closes a `Dialog` from `on_submit` gets focus back on its opener in time for the release, which presses it (GPUI presses a focused button on the release of Enter or Space; see `docs/checks.md`). `Command` acts on the release for this reason. Decide whether `Input` should too.
 - [ ] Decide whether the host should draw every `Dialog` and `Sheet`. ADR 0039 lifts only the

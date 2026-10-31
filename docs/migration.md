@@ -58,7 +58,7 @@ odk::ui::preview_theme(cx, manager.snapshot());
 odk::ui::end_theme_preview(cx);
 ```
 
-Tune how colours are resolved (strategy, preferred source colours, stricter contrast) with `odk::ui::set_colour_options(cx, ResolveOptions { .. })`. It never lets contrast go below 4.5:1 for text or 3:1 for indicators. `odk::ui::theme_diagnostics(cx)` says what the theme manager knows, and the gallery's Colour resolver page says why each colour was chosen.
+Tune how colours are resolved (strategy, preferred source colours, stricter contrast) with `odk::ui::set_colour_options(cx, ResolveOptions { .. })`. It never lets contrast go below 4.5:1 for text or 3:1 for indicators. `odk::ui::theme_diagnostics(cx)` says what the theme manager knows.
 
 ## Buttons
 

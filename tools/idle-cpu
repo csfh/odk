@@ -3,34 +3,23 @@
 # headless sway as tools/headless-shot (CLAUDE.md, "Windows: headless only"): the CPU it uses,
 # once it has settled.
 #
-#   tools/idle-cpu [--page ID] [--max PERCENT] [--settle SECONDS] [--window SECONDS] [COMMAND...]
-#   tools/idle-cpu --all
+#   tools/idle-cpu [--max PERCENT] [--settle SECONDS] [--window SECONDS] COMMAND...
 #
-# --max makes it exit 1 when the CPU is over PERCENT. --all is the gate for the gallery: every page,
-# at most 2% while idle and at most 8% on the pages with a spinner in view (a spinner redraws its
-# page ten times a second, and the headless renderer paints the whole window in software each
-# time; the 1% floor is the sway and the process itself). Prints each page and exits 1 if any is over.
+# --max makes it exit 1 when the CPU is over PERCENT. COMMAND is a program built in release mode,
+# for example a story: cargo build --release -p stories --bin button, then
+# tools/idle-cpu target/release/button. It is the number to hold a program to: the benchmarks
+# (cargo bench) draw on a stand-in for text, this does not.
 #
-# With no command it measures target/release/gallery, which is the number to hold the gallery to:
-# the benchmarks (cargo bench) draw on a stand-in for text, this does not. --page sets
-# GALLERY_PAGE, the page the gallery opens on (overview, buttons, fields, selection, form, navigation, feedback, overlays, dialogs, data, colors, resolver, typography, spacing, geometry, motion, interaction, playground, compare, diagnostics).
+# The numbers to hold a program to: at most 2% while idle and at most 8% with a spinner in view.
 #
-# Prints one line, for example:  buttons: 4.6% cpu (0.23 s in 5 s)
+# Prints one line, for example:  button: 0.2% cpu (0.01 s in 5 s)
 # A window that draws nothing while idle prints about 0%: the sway and the logging that counts it
-# cost about 1%. (Surface commits are not frames: GPUI commits on every frame callback of the
-# compositor whether or not it drew, so they are not counted.)
+# cost about 1%; a spinner redraws its window ten times a second, and the headless renderer paints
+# the whole window in software each time. (Surface commits are not frames: GPUI commits on every
+# frame callback of the compositor whether or not it drew, so they are not counted.)
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-
-if [[ ${1:-} == --all ]]; then
-    status=0
-    # Page and its ceiling: the pages with a spinner in view when they open get more.
-    for entry in overview:2 buttons:8 fields:8 selection:2 form:2 navigation:2 feedback:2 overlays:2 dialogs:2 data:2 colors:2 resolver:2 typography:2 spacing:2 geometry:2 motion:2 interaction:2 playground:2 compare:2 diagnostics:2; do
-        "$0" --page "${entry%%:*}" --max "${entry##*:}" || status=1
-    done
-    exit $status
-fi
 
 if [[ ${1:-} == --measure ]]; then
     # Runs inside headless-shot: start the program, let it settle, count over a window.
@@ -55,13 +44,11 @@ if [[ ${1:-} == --measure ]]; then
     exit 0
 fi
 
-page=""
 max=""
 settle=4
 window=5
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --page) page=$2; shift 2 ;;
         --max) max=$2; shift 2 ;;
         --settle) settle=$2; shift 2 ;;
         --window) window=$2; shift 2 ;;
@@ -69,14 +56,13 @@ while [[ $# -gt 0 ]]; do
         *) break ;;
     esac
 done
-[[ $# -gt 0 ]] || set -- "$here/../target/release/gallery"
-[[ -x $1 ]] || { echo "$1 is not built (cargo build --release -p gallery)" >&2; exit 1; }
-[[ -n $page ]] && export GALLERY_PAGE=$page
+[[ $# -gt 0 ]] || { echo "usage: tools/idle-cpu [--max PERCENT] [--settle SECONDS] [--window SECONDS] COMMAND..." >&2; exit 2; }
+[[ -x $1 ]] || { echo "$1 is not built (cargo build --release -p stories --bin NAME)" >&2; exit 1; }
 
 shot=$(mktemp -u /tmp/odk-idle.XXXXXX.png)
 # headless-shot waits `--wait` seconds before its screenshot, which must outlast the measurement.
 out=$("$here/headless-shot" --wait $((settle + window + 4)) "$shot" -- \
-    "$0" --measure "$settle" "$window" "${page:-$(basename "$1")}" "$max" "$@" 2>&1 |
+    "$0" --measure "$settle" "$window" "$(basename "$1")" "$max" "$@" 2>&1 |
     grep -v "^the program exited early" | grep -v "^$shot$" || true)
 rm -f "$shot"
 echo "$out"

@@ -32,7 +32,7 @@ What comes from Omarchy is narrow (`docs/spec/odk-theme-tokens.md`): the theme's
 Specified in `docs/spec/odk-foundation-tokens.md`; the numbers live in `crates/odk-theme/src/foundation.rs` and are asserted by its tests.
 
 - **Geometry**: corner radius `Square` (0) or `Subtle` (2 px), one setting for the whole application, so no rectangle is rounder than 2 px; parts that are round by nature (a switch, a radio, a spinner, a status dot) are shapes, not a larger radius. A border is 1 px; the focus ring is 2 px, drawn outside the control with a gap, so it takes no space.
-- **Density**: `Compact`, `Default` and `Comfortable` give a control 28, 34 and 40 px, horizontal padding 10, 12 and 16 px and icons 14, 16 and 18 px, at Omarchy's default text size of 12 px (the type roles below are at that size too: body is 13 px on a 20 px line). The user's text size scales these (ADR 0043), so on a machine with larger text a "34 px" control is taller; the tests assert the numbers at the default size and the gallery's status bar shows what is in force.
+- **Density**: `Compact`, `Default` and `Comfortable` give a control 28, 34 and 40 px, horizontal padding 10, 12 and 16 px and icons 14, 16 and 18 px, at Omarchy's default text size of 12 px (the type roles below are at that size too: body is 13 px on a 20 px line). The user's text size scales these (ADR 0043), so on a machine with larger text a "34 px" control is taller; the tests assert the numbers at the default size.
 - **Typography**: nine roles (Caption, Small, Body, Body strong, Button, Subtitle, Heading, Title, Mono) with a size, line height and weight each, in Omarchy's font.
 - **Spacing**: a 4 px grid read through `Space`.
 - **Motion**: `Instant` 0, `Fast` 140, `Normal` 180, `Slow` 240, `Enter` 240 and `Exit` 160 ms, one easing curve (`cubic-bezier(0.22, 1, 0.36, 1)`), and reduced motion that removes transitions and loops. A component never invents a duration.
@@ -74,12 +74,12 @@ Specified in `docs/spec/odk-interaction.md` (the contract, state precedence, the
 ## Theming
 
 - **The active theme**: `odk::ui::run` loads Omarchy's current theme before the first window and follows it with a watcher; a change is resolved off the UI thread and published whole, so no reader sees half of one.
-- **Custom themes and previews**: `odk::ui::preview_theme` shows any theme without touching Omarchy's; `end_theme_preview` returns to the followed one. The gallery's toolbar uses both.
+- **Custom themes and previews**: `odk::ui::preview_theme` shows any theme without touching Omarchy's; `end_theme_preview` returns to the followed one.
 - **Live updates**: density, corners, reduced motion, theme and text size change on the next frame and keep values, selection, focus, open overlays and toast deadlines (`checklist/forms.rs`, `overlays.rs`, `toast.rs`, `odk-theme/tests/switching.rs`).
 
 ## Developing
 
 - Adding a component, token or test: `docs/contributing-components.md`.
-- Looking at it: the gallery (`docs/gallery.md`), headlessly through `tools/headless-shot`; reference screenshots with `tools/visual-scenarios`.
+- Looking at it: a story (`stories/`), headlessly through `tools/headless-shot`.
 - Moving an application from the earlier design system: `docs/migration.md`.
 - Where it stands for release: `docs/release-readiness.md`.
