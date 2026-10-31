@@ -2,6 +2,8 @@
 
 Facts the design depends on that have not been proven. Do not assume them. Each is a spike to run at the start of implementation, or earlier if it is cheap. When one is settled, move it to Done and update the ADR or spec it names.
 
+**2026-10-31:** the gallery and the example applications were removed (`stories/` is the showcase). An entry below that says something was driven, measured or seen in `examples/gallery`, `examples/todo` or GPUI's Hello records what was done then; the tools it names (`tools/visual-scenarios`, `tools/idle-cpu --all`) are gone or changed.
+
 ## Open
 
 | Check | Why it matters | How to check |

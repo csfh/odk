@@ -1,13 +1,12 @@
 //! Item 23 with the worst realistic content, in small windows: nothing runs out of its box or
-//! out of the window, and no button is pushed out of reach. The gallery's "Worst case" switch
-//! shows the same content (`examples/gallery/src/content.rs`).
+//! out of the window, and no button is pushed out of reach.
 
 use gpui::{Bounds, ParentElement, Pixels, Styled, TestAppContext, VisualTestContext, px, size};
 
 use super::{open, press, redraw, reduce_motion};
 use crate::{
-    Alert, Button, Dialog, DropdownMenu, HoverCard, MenuItem, Select, Sheet, Size, Stack, Text,
-    Toast, Tone, toast,
+    Alert, Button, Dialog, DropdownMenu, HoverCard, MenuItem, Popover, Row, Select, Sheet, Size,
+    Stack, Text, Toast, Tone, toast,
 };
 
 const URL: &str =
@@ -68,6 +67,32 @@ fn an_alert_wraps_a_long_url_and_keeps_its_action(cx: &mut TestAppContext) {
         within(bounds(cx, "a/dismiss/button"), alert),
         "so does dismiss"
     );
+}
+
+/// A popover on a trigger at the end of a row opens against the window's edge and is shifted into
+/// the window, not clipped by it, in a wide window and in a narrow one.
+#[gpui::test]
+fn a_popover_at_the_end_of_a_row_stays_inside_the_window(cx: &mut TestAppContext) {
+    let cx = open(cx, |_, _| {
+        Row::new().justify_end().child(
+            Popover::new("pop", "Filter", Button::new("t").label("Filter"))
+                .default_open(true)
+                .content(|_, _| {
+                    Stack::new()
+                        .w(px(200.0))
+                        .child(Text::new("Filter results by status"))
+                }),
+        )
+    });
+    reduce_motion();
+    for width in [1400.0, 300.0] {
+        let screen = shrink_window(cx, width);
+        let popover = bounds(cx, "pop/popover");
+        assert!(
+            within(popover, screen),
+            "at {width} px the popover spans {popover:?}"
+        );
+    }
 }
 
 #[gpui::test]

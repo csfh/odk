@@ -8,14 +8,14 @@ A component is done when it passes every item below that applies to it. Mark an 
 
 The tests live in `crates/odk-ui/src/checklist/`, one module per component plus `source.rs` for the rules every component shares, and run with `cargo test`. Each test names the items it checks.
 
-- **Worst-case tests** (`content.rs`) check item 23 in small windows with the worst realistic content (long compounds, unbroken URLs, Japanese, emoji): nothing leaves its box or the window, and no button is pushed out of reach. The gallery's Content switch shows the same content.
+- **Worst-case tests** (`content.rs`) check item 23 in small windows with the worst realistic content (long compounds, unbroken URLs, Japanese, emoji): nothing leaves its box or the window, and no button is pushed out of reach.
 - **Stability tests** (`stability.rs`) check item 32: they measure every part of a component, and its neighbours, by the names components give their parts (`part_name`), then focus, hover, press, select and disable parts one by one and fail on any change in bounds.
-- **Source scans** (`source.rs`) check items 1, 2, 12, 14, 15 (no empty names), 25, 26 and 31 for every component in its `COMPONENTS` list, and fail if a public component is missing from that list; item 34 for every file in its `ON_COMPONENT_TOKENS` list (the components on component tokens and the helpers they share), including the legacy helpers a component might reach through (`Space::`, `LINE_HEIGHT`, `transition()`, `focus_layer(`, `layer(`); a name such as `t.text.` counts only where it starts and ends, so `layout.text.` and `.redo()` do not.
+- **Source scans** (`source.rs`) check items 1, 2, 12, 14, 15 (no empty names), 25, 26 and 31 for every component in its `COMPONENTS` list, and fail if a public component is missing from that list; item 28 for every component in its `COMPONENTS` list (the story exists, and a stale Known gaps row for one that has it fails); item 34 for every file in its `ON_COMPONENT_TOKENS` list (the components on component tokens and the helpers they share), including the legacy helpers a component might reach through (`Space::`, `LINE_HEIGHT`, `transition()`, `focus_layer(`, `layer(`); a name such as `t.text.` counts only where it starts and ends, so `layout.text.` and `.redo()` do not.
 - **Behaviour tests** drive each component on GPUI's headless test platform, pressing real keys through the bindings `run` installs. They check items 6–10, 13–17, 20–22 and 33 where they apply. Transitions are followed frame by frame on GPUI's test clock, which a test moves with `advance_clock`, reading how open each overlay was from `overlay::probe`, and item 23 as far as rendering odd content without failing.
 - **Interaction tests** (`interaction.rs`, with the rest of `motion.rs` and `forms.rs`) check items 10, 38 and 39 over several controls at once: a press released elsewhere, a disabled control, a held key, a transition interrupted three ways, and a density, corner or motion change in the middle of use. They are the place to add a control to when it activates.
-- **Performance tests** (`performance.rs`) check items 35 and 36: every component has a sample, a window of each sample, and of all of them together, is not drawn again while idle, and drawing one asks for no further frame. Redraws and frame requests are counted, not timed, so those tests are exact; every request goes through `interaction::request_frame`, which counts them, and a source scan in `source.rs` fails on any other (GPUI's test platform never runs the next frame's callbacks, so a component that asks for a frame at every draw is invisible to a count of redraws). `spinner.rs` holds the one component that moves on its own to a redraw per glyph. Each sample's window, a page of one of each, and all of them together are held to the item 36 thresholds on the least of several draws. How long a frame takes is the benchmarks' to say (`cargo bench -p odk-ui`, `cargo bench -p gallery`), and `examples/gallery/tests/performance.rs` holds each of the gallery's pages to a draw count and to the same 4 ms. `tools/idle-cpu --all` measures the running gallery on a real renderer and fails above 2% CPU idle, 8% with a spinner in view.
+- **Performance tests** (`performance.rs`) check items 35 and 36: every component has a sample, a window of each sample, and of all of them together, is not drawn again while idle, and drawing one asks for no further frame. Redraws and frame requests are counted, not timed, so those tests are exact; every request goes through `interaction::request_frame`, which counts them, and a source scan in `source.rs` fails on any other (GPUI's test platform never runs the next frame's callbacks, so a component that asks for a frame at every draw is invisible to a count of redraws). `spinner.rs` holds the one component that moves on its own to a redraw per glyph. Each sample's window, a page of one of each, and all of them together are held to the item 36 thresholds on the least of several draws. How long a frame takes is the benchmarks' to say (`cargo bench -p odk-ui`), and `tools/idle-cpu COMMAND` measures a running program on a real renderer.
 - **Overlays** (`overlays.rs`, `popover.rs`, `menu.rs`, `dialog.rs`, `sheet.rs`, `toast.rs`): dismissal that goes no further, layer order, one callback per request, a live theme change, the toast manager's clocks (`docs/spec/odk-overlays.md`).
-- **By hand**: items 3, 4, 5, 11, 18 (beyond tone marks), 19, 23 (how it looks), 24, 28 and 29 need eyes on the gallery.
+- **By hand**: items 3, 4, 5, 11, 18 (beyond tone marks), 19, 23 (how it looks), 24, 28 and 29 need eyes on the component's story (`stories/`, or a `tools/headless-shot` screenshot of it); item 28 also has a source scan that the story exists.
 
 A known gap is a test marked `#[ignore = "known gap: <item>"]` that calls `assert_known_gap`, which fails unless the table below has a matching row. `cargo test -p odk-ui -- --ignored` runs them; each must fail until its gap is fixed.
 
@@ -87,8 +87,8 @@ A pointer target is at least 24 px on each side (WCAG 2.5.8), or the space aroun
 ## Proof
 
 27. Unit tests cover its logic: state changes, key handling and what it reports through `Describe`.
-28. `examples/gallery` shows every state, including the worst-case content of item 23.
-29. It has been walked through with the keyboard, headlessly in its checklist tests or by the user in the gallery, and the result is recorded in `docs/checks.md`. Agents never open a window on the user's desktop (`CLAUDE.md`).
+28. It has a story of its own, `stories/<name>.rs` (the component's name in snake case, built by the `stories` crate as a binary of that name and run with `tools/story <name>`), that shows every state, including the worst-case content of item 23.
+29. It has been walked through with the keyboard, headlessly in its checklist tests or by the user in its story, and the result is recorded in `docs/checks.md`. Agents never open a window on the user's desktop (`CLAUDE.md`).
 30. `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` and `tools/check-deps` pass, and "Built so far" in `odk-ui-components.md` is updated.
 
 ## Known gaps
@@ -97,4 +97,43 @@ Where built components fail the checklist, by item number. Remove a line when it
 
 | Component | Fails | What is wrong |
 |---|---|---|
-| | | None at present. |
+| `Alert` | 28 | No story: `stories/alert.rs`, a `[[bin]]` of the `stories` crate. |
+| `Badge` | 28 | No story: `stories/badge.rs`, a `[[bin]]` of the `stories` crate. |
+| `Breadcrumb` | 28 | No story: `stories/breadcrumb.rs`, a `[[bin]]` of the `stories` crate. |
+| `Chart` | 28 | No story: `stories/chart.rs`, a `[[bin]]` of the `stories` crate. |
+| `Checkbox` | 28 | No story: `stories/checkbox.rs`, a `[[bin]]` of the `stories` crate. |
+| `Command` | 28 | No story: `stories/command.rs`, a `[[bin]]` of the `stories` crate. |
+| `DataTable` | 28 | No story: `stories/data_table.rs`, a `[[bin]]` of the `stories` crate. |
+| `ContextMenu` | 28 | No story: `stories/context_menu.rs`, a `[[bin]]` of the `stories` crate. |
+| `Dialog` | 28 | No story: `stories/dialog.rs`, a `[[bin]]` of the `stories` crate. |
+| `Empty` | 28 | No story: `stories/empty.rs`, a `[[bin]]` of the `stories` crate. |
+| `DropdownMenu` | 28 | No story: `stories/dropdown_menu.rs`, a `[[bin]]` of the `stories` crate. |
+| `FormField` | 28 | No story: `stories/form_field.rs`, a `[[bin]]` of the `stories` crate. |
+| `Heading` | 28 | No story: `stories/heading.rs`, a `[[bin]]` of the `stories` crate. |
+| `HoverCard` | 28 | No story: `stories/hover_card.rs`, a `[[bin]]` of the `stories` crate. |
+| `Image` | 28 | No story: `stories/image.rs`, a `[[bin]]` of the `stories` crate. |
+| `Input` | 28 | No story: `stories/input.rs`, a `[[bin]]` of the `stories` crate. |
+| `InputGroup` | 28 | No story: `stories/input_group.rs`, a `[[bin]]` of the `stories` crate. |
+| `Item` | 28 | No story: `stories/item.rs`, a `[[bin]]` of the `stories` crate. |
+| `Kbd` | 28 | No story: `stories/kbd.rs`, a `[[bin]]` of the `stories` crate. |
+| `NavList` | 28 | No story: `stories/nav_list.rs`, a `[[bin]]` of the `stories` crate. |
+| `NumberInput` | 28 | No story: `stories/number_input.rs`, a `[[bin]]` of the `stories` crate. |
+| `PasswordInput` | 28 | No story: `stories/password_input.rs`, a `[[bin]]` of the `stories` crate. |
+| `Popover` | 28 | No story: `stories/popover.rs`, a `[[bin]]` of the `stories` crate. |
+| `Progress` | 28 | No story: `stories/progress.rs`, a `[[bin]]` of the `stories` crate. |
+| `RadioGroup` | 28 | No story: `stories/radio_group.rs`, a `[[bin]]` of the `stories` crate. |
+| `Resizable` | 28 | No story: `stories/resizable.rs`, a `[[bin]]` of the `stories` crate. |
+| `SearchInput` | 28 | No story: `stories/search_input.rs`, a `[[bin]]` of the `stories` crate. |
+| `Select` | 28 | No story: `stories/select.rs`, a `[[bin]]` of the `stories` crate. |
+| `Separator` | 28 | No story: `stories/separator.rs`, a `[[bin]]` of the `stories` crate. |
+| `Sheet` | 28 | No story: `stories/sheet.rs`, a `[[bin]]` of the `stories` crate. |
+| `Skeleton` | 28 | No story: `stories/skeleton.rs`, a `[[bin]]` of the `stories` crate. |
+| `Spinner` | 28 | No story: `stories/spinner.rs`, a `[[bin]]` of the `stories` crate. |
+| `StatusIndicator` | 28 | No story: `stories/status_indicator.rs`, a `[[bin]]` of the `stories` crate. |
+| `Switch` | 28 | No story: `stories/switch.rs`, a `[[bin]]` of the `stories` crate. |
+| `Tabs` | 28 | No story: `stories/tabs.rs`, a `[[bin]]` of the `stories` crate. |
+| `Text` | 28 | No story: `stories/text.rs`, a `[[bin]]` of the `stories` crate. |
+| `Textarea` | 28 | No story: `stories/textarea.rs`, a `[[bin]]` of the `stories` crate. |
+| `Toast` | 28 | No story: `stories/toast.rs`, a `[[bin]]` of the `stories` crate. |
+| `ToggleGroup` | 28 | No story: `stories/toggle_group.rs`, a `[[bin]]` of the `stories` crate. |
+| `Tooltip` | 28 | No story: `stories/tooltip.rs`, a `[[bin]]` of the `stories` crate. |

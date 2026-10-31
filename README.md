@@ -11,10 +11,10 @@ Pre-release: every crate is 0.0.0. Stable Rust (edition 2024), Linux x86_64.
 
 | To | Read |
 |---|---|
-| Build an application | `examples/hello`, then `docs/design-language.md` |
+| Build an application | `stories/button.rs` (a whole window in a page of code), then `docs/design-language.md` |
 | Move an application from the earlier design system | `docs/migration.md` |
 | Add a component | `docs/contributing-components.md`, `docs/spec/component-checklist.md` |
-| See every component | the gallery, `docs/gallery.md` |
+| See a component | `stories/` (every component has a story of its own; so far `button` and `item_group` do, the rest are listed in the checklist's Known gaps); the owner runs one with `tools/story NAME` |
 | Know whether it is ready | `docs/release-readiness.md`, `CHANGELOG.md` |
 | Understand a decision | `docs/adr/`, with `GLOSSARY.md` for the terms |
 | Work with an agent in this repository | `CLAUDE.md` |
@@ -41,7 +41,7 @@ cargo fmt --check
 tools/check-deps          # after changing a dependency
 ```
 
-Looking at the gallery without opening a window on your desktop: `tools/headless-shot` and `tools/visual-scenarios` run it under a private headless compositor (`docs/gallery.md`). `tools/idle-cpu --all` is the gate for a change to the gallery.
+Looking at a story without opening a window on your desktop: `tools/headless-shot` runs it under a private headless compositor, and `tools/idle-cpu` measures what it costs while idle.
 
 ## License
 

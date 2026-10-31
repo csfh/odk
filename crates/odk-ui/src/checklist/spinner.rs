@@ -116,7 +116,7 @@ fn it_redraws_once_per_glyph_not_once_per_frame(cx: &mut TestAppContext) {
 }
 
 /// Item 19, performance: a spinner that cannot be seen, scrolled or clipped out of its parent,
-/// asks for nothing: a gallery with spinners further down the page is idle at its top.
+/// asks for nothing: a page with spinners further down is idle at its top.
 #[gpui::test]
 fn a_clipped_spinner_causes_no_redraws(cx: &mut TestAppContext) {
     let count = super::Count::default();

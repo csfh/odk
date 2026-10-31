@@ -194,8 +194,9 @@ What a control reports when a press and its release both land on it, or a key th
 _Avoid_: click (for a key too), trigger
 
 **Theme preview**:
-A theme an ODK application draws in place of the one it follows, without choosing it: Omarchy's selection and every theme file stay as they are, and the followed theme keeps loading underneath, to be drawn again when the preview ends (`odk::ui::preview_theme`, `docs/spec/odk-source-palette.md`). The gallery's theme selector makes one.
+A theme an ODK application draws in place of the one it follows, without choosing it: Omarchy's selection and every theme file stay as they are, and the followed theme keeps loading underneath, to be drawn again when the preview ends (`odk::ui::preview_theme`, `docs/spec/odk-source-palette.md`). An application's theme selector makes one.
 _Avoid_: theme switch (that changes Omarchy's theme), override
 
-**Gallery**:
-`examples/gallery`: ODK's design-system explorer, an application that shows every component in each state, the foundation tokens and the resolver's reasoning, in the user's theme or a preview (`docs/gallery.md`).
+**Story**:
+A small application that shows one component in its states, with the worst-case content, run in watch mode so a change to the source is on screen at once (`stories/`, `tools/story NAME`).
+_Avoid_: demo, example (the example applications went with the gallery), gallery page

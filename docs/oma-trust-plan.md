@@ -203,7 +203,7 @@ This phase can start the writer after phase 1. An example that is meant to be ex
 
 The writer is built (`oma::image::write`, [`docs/spec/oma-image.md`](spec/oma-image.md), "What the writer emits") and tested against the reader, against `fsck.erofs` and, in CI, against the kernel. `bundle` does not call it yet: it would stop emitting directories, which `install`, `run` and `dev` still take until phase 5.
 
-**Modules.** `crates/oma/src/bundle.rs`, `examples/hello`, `examples/todo`, and the example README.
+**Modules.** `crates/oma/src/bundle.rs`, `examples/hello`, `examples/todo`, and the example README (the examples were removed on 2026-10-31).
 
 **Tests.** The writer rejects a manifest that does not fit in the prefix, a missing seed, and an output that does not verify under phase 1. Round-trip: bytes the writer emits are bytes phase 1 and phase 3's reader accept, and the same inputs give the same bytes. CI mounts a written image with the kernel's EROFS driver, since the runner has root and a loop device. Example keys are marked as fixtures.
 

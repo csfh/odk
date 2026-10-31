@@ -83,7 +83,7 @@ Spacing by purpose. A component asks for a purpose, not a step, when one fits.
 | `field_gap` | 6 | its own value: an optical exception to the grid, between a field's label and its control, and between the other parts of a form field (description, message) |
 | `menu_item_gap` | 8 | `s2` |
 | `sidebar_width` | 220 | its own value: the width of an application's sidebar (`sidebar_frame`) |
-| `sidebar_padding` | 8 | `space.2`: how far a sidebar's content is inset from its edges (`sidebar_frame`), as the gallery's sidebar is |
+| `sidebar_padding` | 8 | `space.2`: how far a sidebar's content is inset from its edges (`sidebar_frame`) |
 | `content_width` | 1000 | its own value: the widest a page's column grows (`Stack::page`); a wider window centres it |
 | `wide_content_width` | 1400 | its own value: the widest a page's column grows while it holds a grid's columns side by side (`content_column_for_grid`); one column stays at `content_width` |
 | `grid_column_width` | 520 | its own value: the narrowest a grid's column is; a page's grid has as many columns as fit at this width with `section_gap` between them, so two fit only once the page is wider than `content_width` (`content_column_for_grid`) |
