@@ -4,8 +4,8 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ElementId, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent, ParentElement,
-    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    App, ElementId, Empty, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
+    ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
@@ -43,7 +43,8 @@ const SEGMENT_GROUP: &str = "odk-segment";
 /// Tab reaches the group, the arrow keys move between options without choosing, Home and End
 /// jump to the ends, and Space or Enter toggles the focused one. The arrow keys skip a disabled
 /// option, and a disabled group is not a tab stop. A truncated label shows the full text in a
-/// tooltip on hover and while that segment has focus; the tooltip adds no tab stop.
+/// tooltip on hover and while that segment has focus; the tooltip adds no tab stop. A group with
+/// no options draws nothing.
 ///
 /// Uncontrolled by default, keeping its own selection from `default_value`; pass `value` to
 /// control it and follow `on_change`.
@@ -224,6 +225,12 @@ impl RenderOnce for ToggleGroup {
         let selected = self.value.clone().unwrap_or_else(|| state.read(cx).clone());
         let controlled = self.value.is_some();
 
+        // A group with no options draws nothing: no frame without segments. The selection is
+        // read first, so it survives a moment with no options.
+        if self.items.is_empty() {
+            return Empty.into_any_element();
+        }
+
         let enabled: Rc<Vec<usize>> = Rc::new(
             (0..self.items.len())
                 .filter(|i| !self.disabled && !self.items[*i].disabled)
@@ -395,7 +402,7 @@ impl RenderOnce for ToggleGroup {
         }
         // As wide as its options, not stretched across a column, and never wider than it.
         group.style().align_self = Some(gpui::AlignSelf::Start);
-        group.max_w_full()
+        group.max_w_full().into_any_element()
     }
 }
 
