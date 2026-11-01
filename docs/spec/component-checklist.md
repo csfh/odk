@@ -101,7 +101,7 @@ Where built components fail the checklist, by item number. Remove a line when it
 | `Badge` | 28 | No story: `stories/badge.rs`, a `[[bin]]` of the `stories` crate. |
 | `Breadcrumb` | 28 | No story: `stories/breadcrumb.rs`, a `[[bin]]` of the `stories` crate. |
 | `Chart` | 28 | No story: `stories/chart.rs`, a `[[bin]]` of the `stories` crate. |
-| `Checkbox` | 28 | No story: `stories/checkbox.rs`, a `[[bin]]` of the `stories` crate. |
+| `Checkbox` | 23 | An Arabic label is drawn below the box, clipped at the window's left edge, with a stray tick beside the column (`stories/checkbox.rs`, "Worst case"); a long label, an unbreakable word and Japanese wrap correctly. A bare `Text` with the same string wraps correctly in the same column, so it is the row `Checkbox` and `Switch` share (`toggle.rs`, `labelled`), not `Text`. |
 | `Command` | 28 | No story: `stories/command.rs`, a `[[bin]]` of the `stories` crate. |
 | `DataTable` | 28 | No story: `stories/data_table.rs`, a `[[bin]]` of the `stories` crate. |
 | `ContextMenu` | 28 | No story: `stories/context_menu.rs`, a `[[bin]]` of the `stories` crate. |
@@ -115,7 +115,6 @@ Where built components fail the checklist, by item number. Remove a line when it
 | `Input` | 28 | No story: `stories/input.rs`, a `[[bin]]` of the `stories` crate. |
 | `InputGroup` | 28 | No story: `stories/input_group.rs`, a `[[bin]]` of the `stories` crate. |
 | `Item` | 28 | No story: `stories/item.rs`, a `[[bin]]` of the `stories` crate. |
-| `Kbd` | 28 | No story: `stories/kbd.rs`, a `[[bin]]` of the `stories` crate. |
 | `NavList` | 28 | No story: `stories/nav_list.rs`, a `[[bin]]` of the `stories` crate. |
 | `NumberInput` | 28 | No story: `stories/number_input.rs`, a `[[bin]]` of the `stories` crate. |
 | `PasswordInput` | 28 | No story: `stories/password_input.rs`, a `[[bin]]` of the `stories` crate. |
@@ -130,10 +129,10 @@ Where built components fail the checklist, by item number. Remove a line when it
 | `Skeleton` | 28 | No story: `stories/skeleton.rs`, a `[[bin]]` of the `stories` crate. |
 | `Spinner` | 28 | No story: `stories/spinner.rs`, a `[[bin]]` of the `stories` crate. |
 | `StatusIndicator` | 28 | No story: `stories/status_indicator.rs`, a `[[bin]]` of the `stories` crate. |
-| `Switch` | 28 | No story: `stories/switch.rs`, a `[[bin]]` of the `stories` crate. |
+| `Switch` | 23 | The same as `Checkbox`: an Arabic label is drawn below the track, clipped at the window's left edge (`stories/switch.rs`, "Worst case"), through the shared `labelled` row in `toggle.rs`. |
 | `Tabs` | 28 | No story: `stories/tabs.rs`, a `[[bin]]` of the `stories` crate. |
 | `Text` | 28 | No story: `stories/text.rs`, a `[[bin]]` of the `stories` crate. |
 | `Textarea` | 28 | No story: `stories/textarea.rs`, a `[[bin]]` of the `stories` crate. |
 | `Toast` | 28 | No story: `stories/toast.rs`, a `[[bin]]` of the `stories` crate. |
-| `ToggleGroup` | 28 | No story: `stories/toggle_group.rs`, a `[[bin]]` of the `stories` crate. |
+| `ToggleGroup` | 23 | Seven options in a 260 px column are drawn past the group's frame instead of truncating or wrapping (`stories/toggle_group.rs`, "Worst case"); two long labels truncate with `…` correctly. A short Arabic option is also cut to `العر…` while the group has room. |
 | `Tooltip` | 28 | No story: `stories/tooltip.rs`, a `[[bin]]` of the `stories` crate. |
