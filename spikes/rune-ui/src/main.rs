@@ -57,9 +57,9 @@ pub const FRUITS: [&str; 4] = ["Apple", "Banana", "Cherry", "Damson"];
 pub struct State {
     pub host: Host,
     pub saves: u32,
-    pub fruit: Option<usize>,
-    pub open: bool,
-    pub highlighted: usize,
+    pub fruit: Pick,
+    pub dialog: bool,
+    pub colour: Pick,
     pub name: TextEdit,
 }
 
@@ -68,9 +68,9 @@ impl Default for State {
         State {
             host: Host::default_host(),
             saves: 0,
-            fruit: None,
-            open: false,
-            highlighted: 0,
+            fruit: Pick::default(),
+            dialog: false,
+            colour: Pick::default(),
             name: TextEdit::new(""),
         }
     }
@@ -117,15 +117,28 @@ fn activation(k: &KeyEvent) -> bool {
     matches!(&k.key, Key::Enter) || matches!(&k.key, Key::Text(t) if t == " ")
 }
 
+/// What one `Select` shows: the chosen option, whether it is open, the highlighted row.
+#[derive(Default)]
+pub struct Pick {
+    pub chosen: Option<usize>,
+    pub open: bool,
+    pub highlighted: usize,
+}
+
+/// Where a `Select`'s `Pick` lives in the application's state. Rune's handlers get the whole
+/// state, so a component reaches its own part through an accessor like this one.
+pub type PickOf = fn(&mut State) -> &mut Pick;
+
 /// `odk::ui::Select`: a trigger and a listbox anchored under it, closed by Escape or a press
-/// outside, with focus going back to the trigger.
-pub fn select(h: &Host, s: &State, layer: &mut Vec<El>) -> El {
-    let value = s.fruit.map(|i| FRUITS[i]).unwrap_or("Pick a fruit");
+/// outside, with focus going back to the trigger. `id` prefixes its keys.
+pub fn select(h: &Host, id: &str, label: &str, pick: &Pick, of: PickOf, layer: &mut Vec<El>) -> El {
+    let trigger_key = format!("{id}-trigger");
+    let value = pick.chosen.map(|i| FRUITS[i]).unwrap_or("Pick a fruit");
     let mut trigger = row()
-        .key("fruit-trigger")
+        .key(trigger_key.clone())
         .role("combobox")
-        .label("Fruit")
-        .expanded(s.open)
+        .label(label)
+        .expanded(pick.open)
         .focusable(true)
         .focus_ring(2.0, 2.0, h.accent)
         .w(h.space(180.0))
@@ -135,92 +148,148 @@ pub fn select(h: &Host, s: &State, layer: &mut Vec<El>) -> El {
         .radius(2.0)
         .fill(h.surface)
         .outline(1.0, 0.0, h.border)
-        .on_press(|s: &mut State| s.open = !s.open)
-        .on_key(|s: &mut State, k: &KeyEvent, _: &mut Tx| match k.key {
-            Key::Down | Key::Enter if !s.open => {
-                s.open = true;
-                true
+        .on_press(move |s: &mut State| {
+            let p = of(s);
+            p.open = !p.open;
+        })
+        .on_key(move |s: &mut State, k: &KeyEvent, _: &mut Tx| {
+            let p = of(s);
+            match k.key {
+                Key::Down | Key::Enter if !p.open => {
+                    p.open = true;
+                    true
+                }
+                _ => false,
             }
-            _ => false,
         })
         .child(
             text(value)
                 .font(h.body())
-                .color(if s.fruit.is_some() { h.text } else { h.muted })
+                .color(if pick.chosen.is_some() {
+                    h.text
+                } else {
+                    h.muted
+                })
                 .a11y_hidden(),
         );
-    if let Some(i) = s.fruit {
+    if let Some(i) = pick.chosen {
         trigger = trigger.a11y_value(FRUITS[i]);
     }
-    if !s.open {
+    if !pick.open {
         return trigger;
     }
     let mut list = col()
-        .key("fruit-listbox")
+        .key(format!("{id}-listbox"))
         .role("listbox")
-        .label("Fruit")
+        .label(label)
         .focus_group()
         .padding(4.0);
     for (i, fruit) in FRUITS.iter().enumerate() {
         let item = row()
-            .key(format!("fruit-{i}"))
+            .key(format!("{id}-{i}"))
             .role("option")
             .label(*fruit)
             .focusable(true)
-            .focus_selected(s.fruit == Some(i))
+            .focus_selected(pick.chosen == Some(i))
             .position_in_set(i + 1, FRUITS.len())
             .h(h.space(24.0))
             .px(h.space(8.0))
             .center_y()
             .radius(2.0)
-            .fill(if s.highlighted == i {
+            .fill(if pick.highlighted == i {
                 h.border
             } else {
                 h.surface
             })
             .on_press(move |s: &mut State| {
-                s.fruit = Some(i);
-                s.open = false;
+                let p = of(s);
+                p.chosen = Some(i);
+                p.open = false;
             })
             .child(text(*fruit).font(h.body()).color(h.text).a11y_hidden());
         list = list.child(item);
     }
     let popup = col()
-        .key("fruit-content")
-        .focus_return("fruit-trigger")
+        .key(format!("{id}-content"))
+        .focus_return(&trigger_key)
         .min_w(h.space(180.0))
         .radius(2.0)
         .fill(h.surface)
         .outline(1.0, 0.0, h.border)
-        .modal(true, |s: &mut State| s.open = false)
-        .on_key(|s: &mut State, k: &KeyEvent, _: &mut Tx| match k.key {
-            Key::Down => {
-                s.highlighted = (s.highlighted + 1).min(FRUITS.len() - 1);
-                true
+        .modal(true, move |s: &mut State| of(s).open = false)
+        .on_key(move |s: &mut State, k: &KeyEvent, _: &mut Tx| {
+            let p = of(s);
+            match k.key {
+                Key::Down => {
+                    p.highlighted = (p.highlighted + 1).min(FRUITS.len() - 1);
+                    true
+                }
+                Key::Up => {
+                    p.highlighted = p.highlighted.saturating_sub(1);
+                    true
+                }
+                Key::Enter => {
+                    p.chosen = Some(p.highlighted);
+                    p.open = false;
+                    true
+                }
+                _ => false,
             }
-            Key::Up => {
-                s.highlighted = s.highlighted.saturating_sub(1);
-                true
-            }
-            Key::Enter => {
-                s.fruit = Some(s.highlighted);
-                s.open = false;
-                true
-            }
-            _ => false,
         })
         .child(list)
-        .anchored("fruit-trigger", Side::Bottom, Align::Start, 4.0);
+        .anchored(trigger_key, Side::Bottom, Align::Start, 4.0);
     // A scrim under the popup takes presses outside it.
     layer.push(
-        el().key("fruit-scrim")
+        el().key(format!("{id}-scrim"))
             .absolute(0.0, 0.0)
             .w_full()
             .h_full()
-            .on_press(|s: &mut State| s.open = false),
+            .on_press(move |s: &mut State| of(s).open = false),
     );
     layer.push(popup);
     trigger
+}
+
+/// `odk::ui::Dialog`: a modal over a scrim, holding a `Select`, so a popover opens inside a
+/// modal (ADR 0039 lifts these to a host because GPUI cannot nest `deferred`).
+pub fn dialog(h: &Host, s: &State, layer: &mut Vec<El>) {
+    if !s.dialog {
+        return;
+    }
+    let mut inner = Vec::new();
+    let colour = select(
+        h,
+        "colour",
+        "Colour",
+        &s.colour,
+        |s| &mut s.colour,
+        &mut inner,
+    );
+    layer.push(
+        el().key("dialog-scrim")
+            .absolute(0.0, 0.0)
+            .w_full()
+            .h_full()
+            .fill(h.canvas.alpha(0.6)),
+    );
+    layer.push(
+        col()
+            .key("dialog")
+            .role("dialog")
+            .label("Settings")
+            .focus_return("open-dialog")
+            .absolute(h.space(60.0), h.space(40.0))
+            .w(h.space(300.0))
+            .padding(h.space(16.0))
+            .gap(h.space(12.0))
+            .radius(2.0)
+            .fill(h.surface)
+            .outline(1.0, 0.0, h.border)
+            .modal(true, |s: &mut State| s.dialog = false)
+            .child(text("Settings").font(h.body()).color(h.text))
+            .child(colour),
+    );
+    layer.extend(inner);
 }
 
 /// `odk::ui::Input`: one line, a placeholder, Rune's editor (undo, selection, IME).
@@ -266,8 +335,19 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
                 .color(h.text),
         )
         .child(button(&h, "save", "Save", |s: &mut State| s.saves += 1))
-        .child(select(&h, s, &mut layer))
-        .child(input(&h, s));
+        .child(select(
+            &h,
+            "fruit",
+            "Fruit",
+            &s.fruit,
+            |s| &mut s.fruit,
+            &mut layer,
+        ))
+        .child(input(&h, s))
+        .child(button(&h, "open-dialog", "Settings", |s: &mut State| {
+            s.dialog = true
+        }));
+    dialog(&h, s, &mut layer);
     el().key("root")
         .w_full()
         .h_full()
@@ -278,7 +358,7 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
 fn main() {
     rune::run(AppSpec::<State> {
         scenes: &[
-            ("open", |s| s.open = true),
+            ("open", |s| s.fruit.open = true),
             ("large", |s| s.host.base_size = 18.0),
         ],
         ..AppSpec::new("ODK on Rune", (480.0, 360.0), State::default, view)

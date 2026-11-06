@@ -72,14 +72,14 @@ fn tab_then_enter_and_space_press_the_button() {
 fn the_select_opens_and_a_click_chooses() {
     let mut rt = runtime(State::default());
     tap(&mut rt, "fruit-trigger");
-    assert!(rt.state.open);
+    assert!(rt.state.fruit.open);
     assert!(rt.find("fruit-2").is_some(), "the listbox is drawn");
     let (_, ty) = rt.find("fruit-trigger").unwrap();
     let (_, oy) = rt.find("fruit-0").unwrap();
     assert!(oy > ty, "it opens under its trigger");
     tap(&mut rt, "fruit-2");
-    assert_eq!(rt.state.fruit, Some(2));
-    assert!(!rt.state.open);
+    assert_eq!(rt.state.fruit.chosen, Some(2));
+    assert!(!rt.state.fruit.open);
 }
 
 #[test]
@@ -89,9 +89,9 @@ fn escape_closes_the_select_and_focus_goes_back_to_its_trigger() {
     press(&mut rt, Key::Tab);
     assert_eq!(focused(&rt), Some("fruit-trigger".into()));
     press(&mut rt, Key::Down);
-    assert!(rt.state.open, "Down opens it");
+    assert!(rt.state.fruit.open, "Down opens it");
     press(&mut rt, Key::Escape);
-    assert!(!rt.state.open, "Escape closes it");
+    assert!(!rt.state.fruit.open, "Escape closes it");
     assert_eq!(focused(&rt), Some("fruit-trigger".into()));
 }
 
@@ -103,7 +103,7 @@ fn arrows_and_enter_choose_in_the_listbox() {
     press(&mut rt, Key::Down);
     press(&mut rt, Key::Up);
     press(&mut rt, Key::Enter);
-    assert_eq!(rt.state.fruit, Some(1));
+    assert_eq!(rt.state.fruit.chosen, Some(1));
 }
 
 #[test]
@@ -113,8 +113,8 @@ fn a_click_outside_closes_the_select() {
     rt.pointer_down(460.0, 340.0);
     rt.pointer_up(460.0, 340.0);
     settle(&mut rt);
-    assert!(!rt.state.open);
-    assert_eq!(rt.state.fruit, None);
+    assert!(!rt.state.fruit.open);
+    assert_eq!(rt.state.fruit.chosen, None);
 }
 
 #[test]
@@ -132,7 +132,10 @@ fn typing_edits_the_input_and_undo_takes_it_back() {
 #[test]
 fn a_screen_reader_sees_roles_names_and_values() {
     let mut rt = runtime(State {
-        fruit: Some(0),
+        fruit: Pick {
+            chosen: Some(0),
+            ..Pick::default()
+        },
         ..State::default()
     });
     settle(&mut rt);
@@ -235,5 +238,169 @@ fn an_installed_family_rune_was_not_given_is_not_found() {
     assert_eq!(
         installed, unknown,
         "C059 falls back as an unknown family does"
+    );
+}
+
+#[test]
+fn a_select_inside_a_dialog_opens_over_it_and_escape_closes_one_layer_at_a_time() {
+    let mut rt = runtime(State::default());
+    tap(&mut rt, "open-dialog");
+    assert!(rt.state.dialog);
+    tap(&mut rt, "colour-trigger");
+    assert!(
+        rt.state.colour.open,
+        "a press inside the modal reaches its select"
+    );
+    let (_, ty) = rt.find("colour-trigger").unwrap();
+    let (_, oy) = rt.find("colour-1").unwrap();
+    assert!(
+        oy > ty,
+        "the listbox is anchored under its trigger inside the dialog"
+    );
+    tap(&mut rt, "colour-1");
+    assert_eq!(
+        rt.state.colour.chosen,
+        Some(1),
+        "a press on the nested listbox chooses"
+    );
+    assert!(rt.state.dialog, "and the dialog stays open");
+
+    press(&mut rt, Key::Down);
+    assert!(
+        rt.state.colour.open,
+        "Down on the focused trigger reopens it"
+    );
+    press(&mut rt, Key::Escape);
+    assert!(!rt.state.colour.open, "the first Escape closes the listbox");
+    assert!(rt.state.dialog, "but not the dialog");
+    assert_eq!(
+        focused(&rt),
+        Some("colour-trigger".into()),
+        "focus is back on the trigger"
+    );
+    press(&mut rt, Key::Escape);
+    assert!(!rt.state.dialog, "the second Escape closes the dialog");
+    assert_eq!(
+        focused(&rt),
+        Some("open-dialog".into()),
+        "and focus goes back to its opener"
+    );
+}
+
+#[test]
+fn the_dialog_holds_tab_inside_it() {
+    let mut rt = runtime(State::default());
+    tap(&mut rt, "open-dialog");
+    for _ in 0..4 {
+        press(&mut rt, Key::Tab);
+        let f = focused(&rt);
+        assert_eq!(
+            f,
+            Some("colour-trigger".into()),
+            "Tab stays on the dialog's one control"
+        );
+    }
+}
+
+#[test]
+fn ime_pre_edit_is_shown_but_not_inserted_and_a_commit_inserts() {
+    let mut rt = runtime(State::default());
+    tap(&mut rt, "name");
+    rt.ime(rune::Ime::Preedit("にほ".into(), Some((6, 6))));
+    settle(&mut rt);
+    assert_eq!(rt.state.name.text, "", "pre-edit is not part of the text");
+    assert_eq!(
+        rt.state.name.preedit.as_ref().map(|p| p.0.as_str()),
+        Some("にほ")
+    );
+    rt.ime(rune::Ime::Commit("日本".into()));
+    settle(&mut rt);
+    assert_eq!(rt.state.name.text, "日本");
+    assert!(rt.state.name.preedit.is_none());
+}
+
+/// A page of `ROWS` rows of every control, for frame cost.
+const ROWS: usize = 100;
+
+fn page(s: &State, cx: &mut Cx<State>) -> El {
+    let h = s.host;
+    cx.reduced_motion(h.reduced_motion);
+    let mut layer = Vec::new();
+    let mut body = col()
+        .key("page")
+        .w_full()
+        .padding(8.0)
+        .gap(4.0)
+        .fill(h.canvas);
+    for i in 0..ROWS {
+        body = body.child(
+            row()
+                .key(format!("row{i}"))
+                .gap(8.0)
+                .child(
+                    text(format!("Row {i}, saved {}", s.saves))
+                        .font(h.body())
+                        .color(h.text),
+                )
+                .child(button(&h, "save", "Save", |s: &mut State| s.saves += 1))
+                .child(select(
+                    &h,
+                    &format!("f{i}"),
+                    "Fruit",
+                    &s.fruit,
+                    |s| &mut s.fruit,
+                    &mut layer,
+                ))
+                .child(input(&h, s)),
+        );
+    }
+    el().key("root")
+        .w_full()
+        .h_full()
+        .child(body.scroll(rune::ScrollSpec {
+            stick_bottom: false,
+        }))
+        .children(layer)
+}
+
+fn timed(f: impl FnOnce()) -> f64 {
+    let t = std::time::Instant::now();
+    f();
+    t.elapsed().as_secs_f64() * 1000.0
+}
+
+#[test]
+fn frame_cost_of_a_page_of_controls() {
+    let env = Env {
+        system_dark: true,
+        scale: 1.0,
+    };
+    let mut rt = Runtime::new(State::default(), page, (900.0, 700.0), env);
+    let first = timed(|| {
+        rt.frame(0.0);
+    });
+    settle(&mut rt);
+    let mut change = Vec::new();
+    for _ in 0..20 {
+        rt.state.saves += 1;
+        rt.invalidate();
+        change.push(timed(|| {
+            rt.frame(1.0 / 60.0);
+        }));
+    }
+    let mut idle = Vec::new();
+    for _ in 0..20 {
+        idle.push(timed(|| {
+            rt.frame(1.0 / 60.0);
+        }));
+    }
+    change.sort_by(f64::total_cmp);
+    idle.sort_by(f64::total_cmp);
+    println!(
+        "{ROWS} rows ({} controls): first frame {first:.2} ms, a change {:.2} ms median {:.2} ms worst, idle {:.3} ms median",
+        ROWS * 3,
+        change[10],
+        change[19],
+        idle[10]
     );
 }
