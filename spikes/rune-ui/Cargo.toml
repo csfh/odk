@@ -1,0 +1,12 @@
+[package]
+name = "rune-ui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Rune is git-only and pre-release; its README asks for a pinned rev of `dev`.
+# Default features off: no Metal, no Ogg audio, no D-Bus portal client, no SVG. Only AccessKit.
+[dependencies]
+rune = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b", default-features = false, features = ["accessibility"] }
+
+[workspace]
