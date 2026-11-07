@@ -49,6 +49,8 @@ ADR 0089 is the decision. This is only the order of that port. The tree stays on
 5. **The screen-reader grant.** The session bus stays refused. A sandboxed window is readable by the screen reader, and the check is written into `docs/checks.md`.
 6. **GPUI leaves,** with `odk::gpui` and `patches/gpui`, in the same change as the steps above are done.
 
+Step 1 is the crate `odk-view`. `odk` does not depend on it, and GPUI stays the toolkit `odk-ui` draws with until step 6.
+
 ## Design language migration
 
 Not normative, like the rest of this file. It plans the move to the four token layers of ADR 0040, which was `proposed` until the user's brief for the button redesign accepted it on 2026-10-22 (step 7). Audited on 2026-10-21 against GPUI 0.2.2, Rust 1.96. The work is done (step 10); read this section as history, and `docs/design-language.md` for what exists.

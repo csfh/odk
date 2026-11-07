@@ -32,7 +32,7 @@ serde = { version = "1", features = ["alloc", "default", "derive", "rc", "std"] 
 serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
 toml_parser = { version = "1", features = ["alloc", "default", "std"] }
 winnow = { version = "1", features = ["alloc", "ascii", "binary", "default", "parser", "std"] }
-hashbrown = { version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown = { version = "0.17", default-features = false, features = ["default-hasher", "inline-more", "raw-entry"] }
 crossbeam-utils = { version = "0.8", features = ["default", "std"] }
 event-listener = { version = "5", features = ["default", "parking", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "default", "std"] }
@@ -77,6 +77,42 @@ zbus_names = "4"
 percent-encoding = { version = "2", features = ["alloc", "default", "std"] }
 syn_2 = { package = "syn", version = "2", features = ["clone-impls", "default", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"] }
 zerocopy = { version = "0.8", features = ["derive", "simd", "zerocopy-derive"] }
+# What Rune (ADR 0089) builds that a single crate would otherwise build with fewer features.
+ahash = { version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "default", "getrandom", "no-rng", "runtime-rng", "std"] }
+arrayvec = { version = "0.7", default-features = false, features = ["default", "std"] }
+bytemuck = { version = "1", default-features = false, features = ["aarch64_simd", "bytemuck_derive", "derive", "extern_crate_alloc", "min_const_generics", "wasm_simd"] }
+getrandom = { version = "0.3", default-features = false, features = ["std"] }
+linux-raw-sys_04 = { package = "linux-raw-sys", version = "0.4", default-features = false, features = ["elf", "errno", "general", "ioctl", "no_std", "prctl", "system"] }
+litemap = { version = "0.8", default-features = false, features = ["alloc"] }
+num-traits = { version = "0.2", default-features = false, features = ["default", "i128", "libm", "std"] }
+profiling = { version = "1", default-features = false, features = ["default", "procmacros", "profiling-procmacros"] }
+raw-window-handle = { version = "0.6", default-features = false, features = ["alloc", "std"] }
+read-fonts = { version = "0.41", default-features = false, features = ["experimental_font_api", "std"] }
+slotmap = { version = "1", default-features = false, features = ["default", "std"] }
+smol_str = { version = "0.2", default-features = false, features = ["default", "std"] }
+stable_deref_trait = { version = "1", default-features = false, features = ["alloc"] }
+strict-num = { version = "0.1", default-features = false, features = ["approx-eq", "default", "float-cmp"] }
+writeable = { version = "0.6", default-features = false, features = ["alloc"] }
+x11rb = { version = "0.13", default-features = false, features = ["allow-unsafe-code", "as-raw-xcb-connection", "cursor", "dl-libxcb", "libc", "libloading", "once_cell", "randr", "render", "resource_manager", "shape", "sync", "xcursor", "xfixes", "xinput", "xkb"] }
+x11rb-protocol = { version = "0.13", default-features = false, features = ["randr", "render", "resource_manager", "shape", "std", "sync", "xfixes", "xinput", "xkb"] }
+zbus = { version = "5", default-features = false, features = ["async-executor", "async-fs", "async-io", "async-lock", "async-process", "async-task", "blocking", "url"] }
+zerofrom = { version = "0.1", default-features = false, features = ["alloc", "derive"] }
+image = { version = "0.25", default-features = false, features = ["avif", "bmp", "dds", "default", "default-formats", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "rayon", "tga", "tiff", "webp"] }
+rustix_038 = { package = "rustix", version = "0.38", default-features = false, features = ["alloc", "default", "event", "fs", "libc-extra-traits", "pipe", "process", "shm", "std", "system", "thread", "use-libc-auxv"] }
+swash = { version = "0.2", default-features = false, features = ["default", "render", "scale", "std"] }
+tiny-skia-path = { version = "0.11", default-features = false, features = ["default", "std"] }
+yoke = { version = "0.8", default-features = false, features = ["alloc", "derive", "zerofrom"] }
+either = { version = "1", default-features = false, features = ["default", "std", "use_std"] }
+half = { version = "2", default-features = false, features = ["alloc", "default", "num-traits", "std"] }
+num-rational = { version = "0.4", default-features = false, features = ["default", "num-bigint", "num-bigint-std", "std"] }
+rgb = { version = "0.8", default-features = false, features = ["argb", "as-bytes", "bytemuck", "default", "grb"] }
+tiny-skia = { version = "0.11", default-features = false, features = ["default", "png", "png-format", "simd", "std"] }
+zerovec = { version = "0.11", default-features = false, features = ["alloc", "derive", "yoke"] }
+potential_utf = { version = "0.1", default-features = false, features = ["alloc", "writeable", "zerovec"] }
+tinystr = { version = "0.8", default-features = false, features = ["alloc", "zerovec"] }
+zerotrie = { version = "0.2", default-features = false, features = ["alloc", "yoke", "zerofrom"] }
+icu_locale_core = { version = "2.3", default-features = false, features = ["alloc", "zerovec"] }
+icu_provider = { version = "2.3", default-features = false, features = ["alloc", "baked"] }
 
 [build-dependencies]
 # A member with no proc macros of its own, such as odk-a11y, otherwise builds these for its build
@@ -97,10 +133,14 @@ indexmap = { version = "2", features = ["default", "serde", "std"] }
 # dependency here when it is added above.
 [package.metadata.cargo-machete]
 ignored = [
+    "ahash",
+    "arrayvec",
+    "bytemuck",
     "concurrent-queue",
     "crossbeam-utils",
     "crypto-common",
     "digest_010",
+    "either",
     "equivalent",
     "event-listener",
     "event-listener-strategy",
@@ -110,33 +150,56 @@ ignored = [
     "futures-io",
     "futures-sink",
     "futures-util",
+    "getrandom",
     "getrandom_02",
+    "half",
     "hashbrown",
     "http",
     "httparse",
+    "icu_locale_core",
+    "icu_provider",
     "idna",
+    "image",
     "indexmap",
     "libc",
     "linux-raw-sys",
+    "linux-raw-sys_04",
+    "litemap",
     "log",
     "memchr",
     "mio",
+    "num-rational",
+    "num-traits",
     "once_cell",
     "percent-encoding",
+    "potential_utf",
     "proc-macro2",
+    "profiling",
     "quote",
     "rand_core",
+    "raw-window-handle",
+    "read-fonts",
+    "rgb",
     "rustix",
+    "rustix_038",
     "rustls",
     "semver",
     "serde",
     "serde_core",
     "serde_json",
     "slab",
+    "slotmap",
     "smallvec",
+    "smol_str",
+    "stable_deref_trait",
+    "strict-num",
     "subtle",
+    "swash",
     "syn",
     "syn_2",
+    "tiny-skia",
+    "tiny-skia-path",
+    "tinystr",
     "toml_parser",
     "typenum",
     "unicode-ident",
@@ -144,10 +207,18 @@ ignored = [
     "wayland-backend",
     "wayland-sys",
     "winnow",
+    "writeable",
+    "x11rb",
+    "x11rb-protocol",
+    "yoke",
+    "zbus",
     "zbus_macros",
     "zbus_names",
     "zerocopy",
+    "zerofrom",
     "zeroize",
+    "zerotrie",
+    "zerovec",
     "zvariant",
     "zvariant_derive",
     "zvariant_utils",

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "stories"]
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "crates/odk-view", "stories"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -18,6 +18,8 @@ odk-db = { path = "crates/odk-db" }
 deps = { path = "crates/deps" }
 # Exact pin, ADR 0029. Bump deliberately and test; GPUI breaks in minor releases.
 gpui = "=0.2.2"
+# Git revision, ADR 0089. The spike checked `dev` at 7ead7d6. Default features stay off.
+rune = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b", default-features = false, features = ["accessibility"] }
 
 # GPUI, taffy and the text stack do all of a frame's layout and painting. Unoptimised they are an
 # order of magnitude slower, which made running a GPUI program unusable (docs/checks.md, "Frame cost").
