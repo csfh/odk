@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0089
+---
+
 # ODK's text input is our own editing model, on GPUI's `EntityInputHandler`
 
 `Input`, `Textarea`, `InputGroup` and `Command` all need a caret, a selection, IME, the clipboard and scrolling, and GPUI 0.2.2 supplies only the platform end of that: `EntityInputHandler` (UTF-16 ranges, marked text, the bounds of a range), `Window::handle_input`, shaped and wrapped text layout, and the clipboard and primary selection. Everything between those and a working field is ODK's, inside `odk-ui`.

@@ -38,6 +38,17 @@ The PipeWire playback-only check is not needed for v1. It only matters if a sepa
 
 The ODK crates are a second track and can start after step 0: the Luau host and Plugin loader first, since the `mlua` spike decides its shape, then the UI layer and theming. Nothing in the OMA track waits for it, and a real ODK application is the best test for step 3 once it exists.
 
+## Rune
+
+ADR 0089 is the decision. This is only the order of that port. The tree stays on GPUI until the last step.
+
+1. **Host.** A window, colours, text size and reduced motion from `odkd`, the named font as bytes before the window opens, and a root layer list for a popup. Tests run on Rune's headless runtime.
+2. **`Button`, `Input` and `Select`.** Checked against `docs/spec/odk-interaction.md`. The text fields stay unfinished until a selection writes the primary selection and a middle-click pastes it.
+3. **The remaining components,** including `DataTable`, `Resizable` and `Chart`. `Stack`, `Row` and `Grid` keep their names and jobs.
+4. **`oma-consent` on Rune,** still not depending on ODK, still only reporting an answer.
+5. **The screen-reader grant.** The session bus stays refused. A sandboxed window is readable by the screen reader, and the check is written into `docs/checks.md`.
+6. **GPUI leaves,** with `odk::gpui` and `patches/gpui`, in the same change as the steps above are done.
+
 ## Design language migration
 
 Not normative, like the rest of this file. It plans the move to the four token layers of ADR 0040, which was `proposed` until the user's brief for the button redesign accepted it on 2026-10-22 (step 7). Audited on 2026-10-21 against GPUI 0.2.2, Rust 1.96. The work is done (step 10); read this section as history, and `docs/design-language.md` for what exists.

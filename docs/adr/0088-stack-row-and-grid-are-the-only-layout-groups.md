@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0089
 ---
 
 # Stack, Row and Grid are the only layout groups

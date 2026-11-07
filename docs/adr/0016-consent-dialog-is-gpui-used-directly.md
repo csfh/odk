@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0025
+status: amended by ADR 0025 and ADR 0089
 ---
 
 # The omalaunch consent dialog uses GPUI directly, not through ODK

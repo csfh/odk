@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0079
+status: amended by ADR 0079 and ADR 0089
 ---
 
 # GPUI is pinned to an exact crates.io version
