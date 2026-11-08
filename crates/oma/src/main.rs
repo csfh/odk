@@ -61,6 +61,9 @@ enum Command {
         /// Stay, relay terminal signals and exit with the application's status
         #[arg(long)]
         wait: bool,
+        /// Install the built Bundle and stop, leaving it unstarted
+        #[arg(long, conflicts_with = "wait")]
+        no_run: bool,
     },
     /// Replace this user's odk with the newer release odk.csfh.dev serves, when it verifies under
     /// the release root compiled into this program (ADR 0086)
@@ -248,7 +251,11 @@ fn main() -> ExitCode {
                 }
             })
         }),
-        Command::Dev { project, wait } => {
+        Command::Dev {
+            project,
+            wait,
+            no_run,
+        } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
                 eprintln!("odk oma: $HOME is not set");
                 return ExitCode::FAILURE;
@@ -292,6 +299,9 @@ fn main() -> ExitCode {
                     "odk oma: something else is serving {}, so the application will use that daemon, not the one just built",
                     socket.display()
                 );
+            }
+            if no_run {
+                return ExitCode::SUCCESS;
             }
             let host = oma::sandbox::launch::HostEnv::from_process();
             let agent = oma::fetch::agent();
@@ -623,4 +633,25 @@ fn signing(
         expires_at: at(now + i64::from(expires_in) * 86_400)?,
         update_url,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::*;
+
+    #[test]
+    fn dev_no_run_parses_and_conflicts_with_wait() {
+        let cli = Cli::try_parse_from(["odk oma", "dev", "--no-run"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Dev {
+                no_run: true,
+                wait: false,
+                ..
+            }
+        ));
+        assert!(Cli::try_parse_from(["odk oma", "dev", "--no-run", "--wait"]).is_err());
+    }
 }
