@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0029
+status: amended by ADR 0029 and ADR 0089
 ---
 
 # GPUI is pinned and wrapped by an ODK UI layer, with a raw escape hatch

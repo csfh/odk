@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0089
+---
+
 # ODK's UI components are our own, built on GPUI only, shipped as a versioned crate
 
 ODK provides a stock set of UI components for applications: buttons, inputs, dialogs and the like. We write them ourselves on top of GPUI and depend on no third-party component library. An existing one, `gpui-component`, is on crates.io and describes itself as based on shadcn/ui; we rejected it so that GPUI is the only moving, pre-1.0 UI dependency we track (ADR 0004) and the components follow Omarchy's theme the way ADR 0019 requires, under our control.

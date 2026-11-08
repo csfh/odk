@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0089
+---
+
 # ODK apps are Rust and GPUI, with Luau as the plugin layer
 
 ODK applications are written in Rust with a GPUI user interface. Lua is embedded so that Omarchy applications can be extended with Plugins; it is not the language applications are written in. Lua-authored applications are out of scope.

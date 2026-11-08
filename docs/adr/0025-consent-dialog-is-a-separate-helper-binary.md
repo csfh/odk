@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0033
+status: amended by ADR 0033 and ADR 0089
 ---
 
 # The consent dialog is a separate helper binary, and oma does not link GPUI

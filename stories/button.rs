@@ -2,22 +2,10 @@
 //! for looking at while its code changes. Run it in watch mode with `tools/story button`.
 
 use odk::prelude::*;
+use stories::{row, section};
 
 struct ButtonStory {
     saving: bool,
-}
-
-/// A titled group of children, with a line saying what it shows.
-fn section(title: &'static str, note: &'static str, body: impl IntoElement) -> Stack {
-    Stack::new()
-        .gap(Space::Sm)
-        .child(Heading::new(title).level(2))
-        .child(Text::new(note).muted())
-        .child(body)
-}
-
-fn row() -> Row {
-    Row::new().flex_wrap().gap(Space::Sm)
 }
 
 impl Render for ButtonStory {

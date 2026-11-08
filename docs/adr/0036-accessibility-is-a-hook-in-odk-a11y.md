@@ -1,3 +1,7 @@
+---
+status: amended by ADR 0089
+---
+
 # Accessibility starts as a hook: components describe themselves through `odk-a11y`
 
 The pinned GPUI (ADR 0029) has no accessibility tree. ODK components still need a role and an accessible name, so a later accessibility layer does not mean revisiting each component. A small internal crate, `odk-a11y`, defines `Role`, `Accessible` (role, name, selected, disabled, busy) and a `Describe` trait that every component implements. The checklist tests read these descriptions. The platform does not: there is still no tree to put them in, so a screen reader gets nothing. When GPUI or a library such as AccessKit gives us a tree, `odk-ui` hands the descriptions over, and components keep their API. `odk-a11y` does not depend on GPUI, so it builds and tests without a window, like `odk-theme`.

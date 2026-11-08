@@ -4,17 +4,9 @@
 
 use odk::gpui::px;
 use odk::prelude::*;
+use stories::section;
 
 struct ItemGroupStory;
-
-/// A titled group of children, with a line saying what it shows.
-fn section(title: &'static str, note: &'static str, body: impl IntoElement) -> Stack {
-    Stack::new()
-        .gap(Space::Sm)
-        .child(Heading::new(title).level(3))
-        .child(Text::new(note).muted())
-        .child(body)
-}
 
 /// Every slot an item has, in one group.
 fn settings(variant: ItemGroupVariant, key: &'static str) -> ItemGroup {

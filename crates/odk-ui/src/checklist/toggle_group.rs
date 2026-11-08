@@ -264,6 +264,25 @@ fn long_options_fit_a_narrow_column(cx: &mut TestAppContext) {
     assert!(one_letter < floor, "a one-letter option is not padded");
 }
 
+/// Item 23: a group with no options draws nothing, not a frame without segments. The second
+/// group shows the frame is found by that name when there is an option.
+#[gpui::test]
+fn a_group_with_no_options_draws_nothing(cx: &mut TestAppContext) {
+    let cx = open(cx, move |_, _| {
+        Stack::new()
+            .child(ToggleGroup::new("empty", "Nothing"))
+            .child(ToggleGroup::new("one", "One").item("only", "Only"))
+    });
+    assert!(
+        cx.debug_bounds("empty/group").is_none(),
+        "an empty group draws a frame"
+    );
+    assert!(
+        cx.debug_bounds("one/group").is_some(),
+        "a group with an option draws its frame"
+    );
+}
+
 fn segment(part: &str) -> SegmentStyle {
     crate::drawn::last::<SegmentStyle>(part)
 }
