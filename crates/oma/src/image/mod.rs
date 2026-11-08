@@ -172,10 +172,16 @@ impl<'a> Image<'a> {
     }
 
     /// Writes the regular file at the Manifest path `relative` to `target`, `0755`, replacing it
-    /// in one step and only when its bytes differ: the one file of an image that is written out
-    /// onto the host, a daemon's program (ADR 0084). A running program keeps the file it started
-    /// from.
+    /// in one step and only when its bytes differ: a daemon's program (ADR 0084). A running
+    /// program keeps the file it started from.
     pub fn write_out(&self, relative: &str, target: &Path) -> io::Result<()> {
+        self.write_regular(relative, target, 0o755)
+    }
+
+    /// Writes the regular file at `relative` to `target` with `mode`, replacing it in one step
+    /// and only when its bytes differ. The directory is created `0700`. A daemon's program is
+    /// `0755` (ADR 0084); an icon is `0644` (ADR 0090).
+    pub(crate) fn write_regular(&self, relative: &str, target: &Path, mode: u32) -> io::Result<()> {
         let tree = Tree {
             file: self.file,
             nodes: &self.nodes,
@@ -190,7 +196,10 @@ impl<'a> Image<'a> {
             Ok(())
         })?;
         if fs::read(target).is_ok_and(|on_disk| on_disk == bytes) {
-            return Ok(());
+            let on_disk = fs::metadata(target)?.permissions().mode() & 0o777;
+            if on_disk == mode {
+                return Ok(());
+            }
         }
         let dir = target.parent().expect("a file in a directory");
         fs::DirBuilder::new()
@@ -205,9 +214,9 @@ impl<'a> Image<'a> {
             .write(true)
             .create(true)
             .truncate(true)
-            .mode(0o755)
+            .mode(mode)
             .open(&partial)?;
-        out.set_permissions(Permissions::from_mode(0o755))?;
+        out.set_permissions(Permissions::from_mode(mode))?;
         out.write_all(&bytes)?;
         out.sync_all()?;
         fs::rename(&partial, target)
