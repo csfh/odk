@@ -159,3 +159,56 @@ impl Icon {
         rune::icon(self.drawing(), size).color(colour).a11y_hidden()
     }
 }
+
+/// What a component shows where it takes an icon: one of ODK's icons, or a character, as an
+/// application may still give one (ADR 0083).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Glyph {
+    Icon(Icon),
+    Text(String),
+}
+
+impl From<Icon> for Glyph {
+    fn from(icon: Icon) -> Self {
+        Self::Icon(icon)
+    }
+}
+
+impl From<&str> for Glyph {
+    fn from(text: &str) -> Self {
+        Self::Text(text.to_string())
+    }
+}
+
+impl From<String> for Glyph {
+    fn from(text: String) -> Self {
+        Self::Text(text)
+    }
+}
+
+/// The weight a character glyph is set in.
+const GLYPH_WEIGHT: f32 = 400.0;
+
+impl Glyph {
+    /// The glyph in a square of `size` points, in `colour`: an icon, or a character in the
+    /// monospace face, centred. It is decoration, so a screen reader does not meet it.
+    pub(crate) fn slot(self, size: f32, colour: rune::Color) -> El {
+        match self {
+            Self::Icon(icon) => icon.mark(size, colour),
+            Self::Text(text) => rune::el()
+                .size(size, size)
+                .center()
+                .child(
+                    rune::text(text)
+                        .font(rune::TextStyle {
+                            family: rune::Family::Mono,
+                            line_height: size,
+                            ..rune::TextStyle::new(size, GLYPH_WEIGHT)
+                        })
+                        .color(colour)
+                        .a11y_hidden(),
+                )
+                .a11y_hidden(),
+        }
+    }
+}

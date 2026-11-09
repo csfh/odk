@@ -7,6 +7,7 @@ use crate::host::Hosted;
 use crate::ink::ink;
 use crate::style::{self, Paint, text_style};
 use odk_a11y::{Accessible, Describe, Role};
+use odk_theme::Color;
 use odk_theme::component::ProseStyle;
 use odk_theme::foundation::TypeRole;
 use rune::{El, text};
@@ -29,13 +30,32 @@ pub enum Flow {
 
 /// `element` flowing as `flow`. Rune keeps the whole string for copying and for a screen
 /// reader whatever is cut.
-fn flowed(element: El, flow: Flow) -> El {
+pub(crate) fn flowed(element: El, flow: Flow) -> El {
     match flow {
-        Flow::Wrap => element.wrap_anywhere(),
+        // A wrapping line may narrow with its row, which Rune does not do of its own accord.
+        Flow::Wrap => element.wrap_anywhere().shrink(),
         Flow::End => element.truncate(),
         Flow::Middle => element.truncate_middle(),
-        Flow::Clamp(lines) => element.max_lines(lines),
+        Flow::Clamp(lines) => element.max_lines(lines).shrink(),
     }
+}
+
+/// `content` in `role` and `colour`, flowing as `flow`: the words inside a component, which
+/// describes itself and so leaves them to it.
+pub(crate) fn words(
+    paint: &Paint,
+    content: impl Into<String>,
+    role: TypeRole,
+    colour: Color,
+    flow: Flow,
+) -> El {
+    flowed(
+        text(content.into())
+            .font(text_style(paint.role(role)))
+            .color(ink(colour))
+            .a11y_hidden(),
+        flow,
+    )
 }
 
 /// `content` in `role` and the style's colour, flowing as `flow`, described as `accessible`.

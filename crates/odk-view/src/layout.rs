@@ -15,6 +15,14 @@ use rune::{Cx, El, col, row};
 use crate::host::Hosted;
 use crate::style;
 
+/// `element` as wide as its content and no wider than its column, where a column holds it: a
+/// badge or a status in a stack. Rune's `max_w` takes points, not a share of the parent, so the
+/// element sits in a row, which stretches across a column and lets a `shrink` element narrow
+/// along it (`odk-ui`'s `max_w_full`).
+pub(crate) fn inline(element: El) -> El {
+    row().shrink().child(element)
+}
+
 /// A step of the foundation's spacing scale: 4, 8, 12, 16 and 24 points at the base text size.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Space {
