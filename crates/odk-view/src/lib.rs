@@ -6,6 +6,7 @@
 
 mod badge;
 mod button;
+mod checkbox;
 mod describe;
 mod empty;
 mod face;
@@ -23,11 +24,14 @@ mod skeleton;
 mod status;
 mod store;
 mod style;
+mod switch;
 mod text;
+mod toggle;
 mod tone;
 
 pub use badge::Badge;
 pub use button::Button;
+pub use checkbox::Checkbox;
 pub use empty::Empty;
 pub use face::Face;
 pub use host::{Hosted, frame, headless, start};
@@ -44,5 +48,6 @@ pub use separator::Separator;
 pub use skeleton::Skeleton;
 pub use status::{Status, StatusIndicator};
 pub use store::Store;
+pub use switch::Switch;
 pub use text::{Flow, Heading, Text};
 pub use tone::Tone;

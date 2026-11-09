@@ -50,10 +50,20 @@ pub struct Store {
     buttons: HashMap<String, ButtonSlot>,
     selects: HashMap<String, SelectSlot>,
     inputs: HashMap<String, InputSlot>,
+    toggles: HashMap<String, bool>,
     primary: RefCell<String>,
 }
 
 impl Store {
+    /// Whether the uncontrolled toggle `id` is on: what a press last made it, else `default`.
+    pub(crate) fn toggle_value(&self, id: &str, default: bool) -> bool {
+        self.toggles.get(id).copied().unwrap_or(default)
+    }
+
+    pub(crate) fn set_toggle(&mut self, id: &str, on: bool) {
+        self.toggles.insert(id.to_string(), on);
+    }
+
     pub(crate) fn button_mut(&mut self, id: &str) -> &mut ButtonSlot {
         self.buttons.entry(id.to_string()).or_default()
     }
