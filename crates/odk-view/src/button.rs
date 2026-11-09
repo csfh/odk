@@ -215,7 +215,7 @@ impl<F> Button<F> {
     }
 }
 
-fn activator(ev: &KeyEvent) -> Option<Activator> {
+pub(crate) fn activator(ev: &KeyEvent) -> Option<Activator> {
     if ev.mods.cmd || ev.mods.ctrl || ev.mods.alt || ev.mods.logo {
         return None;
     }
