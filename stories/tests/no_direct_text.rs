@@ -49,6 +49,11 @@ fn walk(dir: &Path, hits: &mut Vec<String>) {
         if path.file_name().is_some_and(|n| n == "no_direct_text.rs") {
             continue;
         }
+        // The Rune stories' one helper sets a font until `odk-view` has `Text` and `Heading`
+        // (the plan's batch of leaf components); the stories themselves still may not.
+        if path.ends_with("rune/support.rs") {
+            continue;
+        }
         let source =
             fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         for (n, line) in source.lines().enumerate() {

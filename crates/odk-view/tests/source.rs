@@ -18,6 +18,10 @@ const HOST: &[&str] = &[
     "style.rs",
 ];
 
+/// Files that are not controls: a mark and the layout groups are decoration or structure, so no
+/// `Describe` (item 14), though every other rule here still reads them.
+const NOT_CONTROLS: &[&str] = &["icon.rs", "layout.rs"];
+
 fn sources() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found: Vec<(String, String)> = fs::read_dir(&dir)
@@ -186,6 +190,9 @@ fn components_draw_only_component_tokens() {
 #[test]
 fn every_component_implements_describe_and_draws_it() {
     for (file, text) in components() {
+        if NOT_CONTROLS.contains(&file.as_str()) {
+            continue;
+        }
         assert!(
             text.contains("Describe for "),
             "{file} does not implement Describe"

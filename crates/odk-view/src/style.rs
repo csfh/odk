@@ -2,10 +2,12 @@
 
 use std::sync::Arc;
 
-use odk_theme::component::ComponentTokens;
+use odk_theme::component::{ComponentTokens, FocusRing};
 use odk_theme::foundation::{FoundationConfig, FoundationTokens, TypeRole, TypeStyle};
 use odk_theme::{TextScale, ThemeSnapshot};
-use rune::TextStyle;
+use rune::{El, TextStyle};
+
+use crate::ink::ink;
 
 pub(crate) struct Paint {
     scale: TextScale,
@@ -44,4 +46,10 @@ impl Paint {
 
 pub(crate) fn text_style(style: TypeStyle) -> TextStyle {
     TextStyle::new(style.size, style.weight.value())
+}
+
+/// `element`'s focus ring, as the component layer sets it: drawn when the keyboard has focus on
+/// the control, and nothing else moves.
+pub(crate) fn focus_ring(element: El, ring: &FocusRing) -> El {
+    element.focus_ring(ring.width, ring.offset, ink(ring.colour))
 }
