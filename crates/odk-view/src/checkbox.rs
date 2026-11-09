@@ -161,6 +161,7 @@ impl<T: 'static> Checkbox<T> {
             gap: g.gap,
             mark: s.invalid_mark,
             enter: false,
+            stop: None,
         };
         labelled(
             &paint,

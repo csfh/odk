@@ -51,6 +51,8 @@ pub struct Store {
     selects: HashMap<String, SelectSlot>,
     inputs: HashMap<String, InputSlot>,
     toggles: HashMap<String, bool>,
+    choices: HashMap<String, String>,
+    selections: HashMap<String, Vec<String>>,
     primary: RefCell<String>,
 }
 
@@ -58,6 +60,24 @@ impl Store {
     /// Whether the uncontrolled toggle `id` is on: what a press last made it, else `default`.
     pub(crate) fn toggle_value(&self, id: &str, default: bool) -> bool {
         self.toggles.get(id).copied().unwrap_or(default)
+    }
+
+    /// The option an uncontrolled group `id` last chose, if one was.
+    pub(crate) fn choice(&self, id: &str) -> Option<&str> {
+        self.choices.get(id).map(String::as_str)
+    }
+
+    /// The options an uncontrolled segmented group `id` last had on, if it was ever changed.
+    pub(crate) fn selection(&self, id: &str) -> Option<&[String]> {
+        self.selections.get(id).map(Vec::as_slice)
+    }
+
+    pub(crate) fn set_selection(&mut self, id: &str, values: Vec<String>) {
+        self.selections.insert(id.to_string(), values);
+    }
+
+    pub(crate) fn set_choice(&mut self, id: &str, value: &str) {
+        self.choices.insert(id.to_string(), value.to_string());
     }
 
     pub(crate) fn set_toggle(&mut self, id: &str, on: bool) {

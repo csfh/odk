@@ -38,6 +38,9 @@ pub(crate) struct Look {
     pub mark: Option<Color>,
     /// Whether Enter toggles it as well as Space: a switch does, a checkbox does not.
     pub enter: bool,
+    /// Whether Tab stops here, for an option of a group, which has one stop among its options.
+    /// `None` leaves it to the control's own state.
+    pub stop: Option<bool>,
 }
 
 /// `control` beside `label`: a row as wide as its content and no wider than its column, so a
@@ -54,6 +57,7 @@ pub(crate) fn labelled<T: 'static>(
 ) -> El {
     let usable = !accessible.disabled;
     let enter = look.enter;
+    let stop = look.stop;
     let line = paint.role(look.role).line_height;
     // The row is the pointer target. Pad it when the text line is shorter than the minimum
     // target, so the control stays centred on the first line and the target still meets it.
@@ -72,6 +76,9 @@ pub(crate) fn labelled<T: 'static>(
         .shrink()
         .child(row().h(line).center_y().child(control))
         .child(words(paint, label, look.role, look.colour, Flow::Wrap));
+    if let Some(stop) = stop {
+        labelled = labelled.focus_selected(stop);
+    }
     if let Some(colour) = look.mark {
         labelled = labelled.child(
             row()
@@ -84,41 +91,43 @@ pub(crate) fn labelled<T: 'static>(
     if !usable {
         return inline(labelled);
     }
-    let press = toggle.clone();
-    let release = toggle;
+    inline(pressable(labelled, id, enter, toggle))
+}
+
+/// `element` that acts on a press, and on Space released on it (and Enter, with `enter`): Rune
+/// presses a focused control on Space's press and not on Enter, so the keys are taken here and
+/// acted on at their release, once for each hold.
+pub(crate) fn pressable<T: 'static>(element: El, id: &str, enter: bool, act: Toggle<T>) -> El {
+    let press = act.clone();
+    let release = act;
     let key_id = id.to_string();
     let up_id = id.to_string();
-    inline(
-        labelled
-            .on_press(move |hosted: &mut Hosted<T>| press(hosted))
-            .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
-                // Space toggles a checkbox and a switch; Enter toggles a switch only (WAI-ARIA).
-                // Rune presses a focused control on Space's press, so take the key here and act
-                // on its release.
-                let Some(key) = toggling(ev, enter) else {
-                    return false;
-                };
-                if !tx.key_repeat() {
-                    let slot = hosted.ui.button_mut(&key_id);
-                    if slot.armed.is_none() {
-                        slot.armed = Some(key);
-                    }
+    element
+        .on_press(move |hosted: &mut Hosted<T>| press(hosted))
+        .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
+            let Some(key) = toggling(ev, enter) else {
+                return false;
+            };
+            if !tx.key_repeat() {
+                let slot = hosted.ui.button_mut(&key_id);
+                if slot.armed.is_none() {
+                    slot.armed = Some(key);
                 }
-                true
-            })
-            .on_key_up(move |hosted: &mut Hosted<T>, ev: &KeyEvent, _: &mut Tx| {
-                let Some(key) = toggling(ev, enter) else {
-                    return false;
-                };
-                let slot = hosted.ui.button_mut(&up_id);
-                if slot.armed != Some(key) {
-                    return false;
-                }
-                slot.armed = None;
-                release(hosted);
-                true
-            }),
-    )
+            }
+            true
+        })
+        .on_key_up(move |hosted: &mut Hosted<T>, ev: &KeyEvent, _: &mut Tx| {
+            let Some(key) = toggling(ev, enter) else {
+                return false;
+            };
+            let slot = hosted.ui.button_mut(&up_id);
+            if slot.armed != Some(key) {
+                return false;
+            }
+            slot.armed = None;
+            release(hosted);
+            true
+        })
 }
 
 /// The key that toggles: Space, and Enter where `enter` says so.
