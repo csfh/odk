@@ -4,6 +4,7 @@
 //! GPUI, until the port's last step. Nothing here links GPUI. A component's own state lives in
 //! [`Store`]: an open list, a caret and a held key.
 
+mod alert;
 mod badge;
 mod button;
 mod checkbox;
@@ -29,6 +30,7 @@ mod text;
 mod toggle;
 mod tone;
 
+pub use alert::Alert;
 pub use badge::Badge;
 pub use button::Button;
 pub use checkbox::Checkbox;

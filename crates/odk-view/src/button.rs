@@ -2,6 +2,7 @@
 
 use crate::describe::apply;
 use crate::host::Hosted;
+use crate::icon::Glyph;
 use crate::ink::ink;
 use crate::store::Activator;
 use crate::style::{self, focus_ring, text_style};
@@ -14,6 +15,9 @@ use rune::{El, Key, KeyEvent, Tx, row, text};
 pub struct Button<F> {
     id: String,
     label: String,
+    leading: Option<Glyph>,
+    trailing: Option<Glyph>,
+    name: Option<String>,
     disabled: bool,
     busy: bool,
     variant: ButtonVariant,
@@ -26,11 +30,57 @@ impl<F> Button<F> {
         Self {
             id: id.into(),
             label: label.into(),
+            leading: None,
+            trailing: None,
+            name: None,
             disabled: false,
             busy: false,
             variant: ButtonVariant::Primary,
             density: Density::Default,
             on_press,
+        }
+    }
+
+    /// A button that is an icon alone: a square as wide as it is high. It has no text to be named
+    /// by, so it takes its accessible name here. The icon is one of ODK's (`Icon::Close`) or a
+    /// character.
+    pub fn icon(
+        id: impl Into<String>,
+        icon: impl Into<Glyph>,
+        name: impl Into<String>,
+        on_press: F,
+    ) -> Self {
+        Self::new(id, "", on_press)
+            .leading_icon(icon)
+            .accessible_name(name)
+    }
+
+    /// An icon before the label, at the density's icon size and gap.
+    pub fn leading_icon(mut self, icon: impl Into<Glyph>) -> Self {
+        self.leading = Some(icon.into());
+        self
+    }
+
+    /// An icon after the label, such as `Icon::ArrowRight` for an action that goes on.
+    pub fn trailing_icon(mut self, icon: impl Into<Glyph>) -> Self {
+        self.trailing = Some(icon.into());
+        self
+    }
+
+    /// The accessible name, where the label does not give one: an icon-only button's.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// What the button holds: an icon with no label is an icon-only button; otherwise the label
+    /// leads.
+    fn layout(&self) -> ButtonLayout {
+        match (&self.leading, &self.trailing, self.label.is_empty()) {
+            (Some(_), None, true) | (None, Some(_), true) => ButtonLayout::IconOnly,
+            (Some(_), _, _) => ButtonLayout::LeadingIcon,
+            (None, Some(_), _) => ButtonLayout::TrailingIcon,
+            (None, None, _) => ButtonLayout::Text,
         }
     }
 
@@ -59,7 +109,11 @@ impl<F> Button<F> {
 
 impl<F> Describe for Button<F> {
     fn accessible(&self) -> Accessible {
-        Accessible::new(Role::Button, self.label.clone())
+        let name = match &self.name {
+            Some(name) if self.label.is_empty() => name.clone(),
+            _ => self.label.clone(),
+        };
+        Accessible::new(Role::Button, name)
             .busy(self.busy)
             .disabled(self.disabled)
     }
@@ -72,9 +126,13 @@ impl<F> Button<F> {
         F: Fn(&mut T) + Clone + 'static,
     {
         let accessible = self.accessible();
+        let layout = self.layout();
         let Button {
             id,
             label,
+            leading,
+            trailing,
+            name: _,
             disabled,
             busy,
             variant,
@@ -83,20 +141,21 @@ impl<F> Button<F> {
         } = self;
         let paint = style::paint(hosted.theme());
         let states = States::NONE.disabled(disabled).loading(busy);
-        let style = paint
-            .tokens
-            .button(variant, density, ButtonLayout::Text, states);
+        let style = paint.tokens.button(variant, density, layout, states);
         let responds = style.responds;
         let press = on_press.clone();
         let release = on_press;
         let key_id = id.clone();
         let up_id = id.clone();
-        focus_ring(apply(row().key(id), &accessible), &style.focus)
+        let geometry = style.geometry;
+        let ink_of = ink(style.colours.default.foreground);
+        let mut button = focus_ring(apply(row().key(id), &accessible), &style.focus)
             // A disabled control leaves the Tab order (`docs/spec/odk-interaction.md`, 21). `apply`'s
             // `disabled` already takes it out in Rune; this says the rule where the button is drawn.
             .focusable(!disabled)
-            .h(style.geometry.height)
-            .px(style.geometry.padding_x)
+            .h(geometry.height)
+            .px(geometry.padding_x)
+            .gap(geometry.gap)
             .center()
             .radius(style.geometry.radius)
             .fill(ink(style.colours.default.background))
@@ -133,13 +192,26 @@ impl<F> Button<F> {
                     release(&mut hosted.app);
                 }
                 true
-            })
-            .child(
+            });
+        // An icon-only button is a square as wide as it is high.
+        if let Some(width) = style.width {
+            button = button.w(width);
+        }
+        if let Some(glyph) = leading {
+            button = button.child(glyph.slot(geometry.icon_size, ink_of));
+        }
+        if layout != ButtonLayout::IconOnly {
+            button = button.child(
                 text(label)
                     .font(text_style(paint.button))
-                    .color(ink(style.colours.default.foreground))
+                    .color(ink_of)
                     .a11y_hidden(),
-            )
+            );
+        }
+        if let Some(glyph) = trailing {
+            button = button.child(glyph.slot(geometry.icon_size, ink_of));
+        }
+        button
     }
 }
 

@@ -104,6 +104,10 @@ name = "rune-status_indicator"
 path = "rune/status_indicator.rs"
 
 [[bin]]
+name = "rune-alert"
+path = "rune/alert.rs"
+
+[[bin]]
 name = "rune-checkbox"
 path = "rune/checkbox.rs"
 
