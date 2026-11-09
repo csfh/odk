@@ -126,6 +126,7 @@ impl<T: 'static> Switch<T> {
             gap: g.gap,
             mark: None,
             enter: true,
+            stop: None,
         };
         labelled(
             &paint,
