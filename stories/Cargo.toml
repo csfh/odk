@@ -102,3 +102,7 @@ path = "rune/item_group.rs"
 [[bin]]
 name = "rune-status_indicator"
 path = "rune/status_indicator.rs"
+
+[[bin]]
+name = "rune-alert"
+path = "rune/alert.rs"
