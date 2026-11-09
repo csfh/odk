@@ -1,9 +1,6 @@
 //! What the Rune stories share: the window, and a titled section. A story is
 //! `stories/rune/<name>.rs`, a binary named `rune-<name>`, run with `tools/story rune-<name>`.
 //! The GPUI stories beside it stay until GPUI leaves (ADR 0089).
-//!
-//! This is the one place the Rune stories set a font: `odk-view` has no `Text` or `Heading` yet,
-//! so the text a story needs comes from here, and `tests/no_direct_text.rs` lets this file be.
 
 #![allow(
     dead_code,
@@ -11,17 +8,12 @@
 )]
 
 use odk_theme::ThemeManager;
-use odk_view::{Face, Hosted, Layout, Space, frame, ink, start};
-use rune::{Cx, El, TextStyle, text};
+use odk_theme::foundation::TypeRole;
+use odk_view::{Face, Heading, Hosted, Layout, Space, Text, frame, start};
+use rune::{Cx, El};
 
 /// A story's window width and height in points.
 const WINDOW: (f32, f32) = (900.0, 700.0);
-
-/// A heading's size and weight, in points at the base text size, and a note's.
-const HEADING: (f32, f32) = (16.0, 600.0);
-const NOTE: (f32, f32) = (12.0, 400.0);
-/// A caption's size.
-const CAPTION: f32 = 11.0;
 
 /// Open the story's window on the user's theme, and return when it closes.
 pub fn run<T: 'static>(app: T, view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El) {
@@ -35,23 +27,10 @@ pub fn run<T: 'static>(app: T, view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El) {
 
 /// A titled group of `body`, with a line saying what it shows.
 pub fn section<T>(hosted: &Hosted<T>, title: &str, note: &str, body: El) -> El {
-    let theme = hosted.theme();
-    let (heading, quiet) = (
-        TextStyle::new(theme.text.px(HEADING.0), HEADING.1),
-        TextStyle::new(theme.text.px(NOTE.0), NOTE.1),
-    );
     Layout::of(hosted)
         .stack(Space::Sm)
-        .child(
-            text(title)
-                .font(heading)
-                .color(ink(theme.semantic.text.primary)),
-        )
-        .child(
-            text(note)
-                .font(quiet)
-                .color(ink(theme.semantic.text.secondary)),
-        )
+        .child(Heading::new(title).level(2).show(hosted))
+        .child(Text::new(note).muted().show(hosted))
         .child(body)
 }
 
@@ -85,18 +64,15 @@ pub fn wide_page<T>(
     )
 }
 
-/// A line of the story's own text in the theme's primary colour.
+/// A line of the story's own text.
 pub fn line<T>(hosted: &Hosted<T>, words: impl Into<String>) -> El {
-    let theme = hosted.theme();
-    text(words.into())
-        .font(TextStyle::new(theme.text.px(NOTE.0), NOTE.1))
-        .color(ink(theme.semantic.text.primary))
+    Text::new(words).show(hosted)
 }
 
-/// A small label in the theme's quieter text colour.
+/// A small label in the quieter text colour.
 pub fn caption<T>(hosted: &Hosted<T>, words: &str) -> El {
-    let theme = hosted.theme();
-    text(words)
-        .font(TextStyle::new(theme.text.px(CAPTION), NOTE.1))
-        .color(ink(theme.semantic.text.secondary))
+    Text::new(words)
+        .muted()
+        .role(TypeRole::Caption)
+        .show(hosted)
 }

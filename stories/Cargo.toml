@@ -62,3 +62,23 @@ path = "rune/layout.rs"
 [[bin]]
 name = "rune-select"
 path = "rune/select.rs"
+
+[[bin]]
+name = "rune-heading"
+path = "rune/heading.rs"
+
+[[bin]]
+name = "rune-kbd"
+path = "rune/kbd.rs"
+
+[[bin]]
+name = "rune-separator"
+path = "rune/separator.rs"
+
+[[bin]]
+name = "rune-skeleton"
+path = "rune/skeleton.rs"
+
+[[bin]]
+name = "rune-text"
+path = "rune/text.rs"
