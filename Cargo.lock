@@ -4932,6 +4932,7 @@ dependencies = [
  "odk-a11y",
  "odk-theme",
  "rune",
+ "serde_json",
 ]
 
 [[package]]

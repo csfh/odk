@@ -1,11 +1,20 @@
 //! A select on the Rune host. The open list and its highlight live in the store.
 
+use crate::describe::apply;
 use crate::host::Hosted;
 use crate::ink::ink;
 use crate::style::{self, text_style};
+use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 use odk_theme::foundation::Density;
 use rune::{Align, El, Key, KeyEvent, Side, Tx, col, row, text};
+
+/// The trigger's and the list's width in points at the base text size, unless the application
+/// sets one (ODK's own).
+const DEFAULT_WIDTH: f32 = 180.0;
+
+/// The space between the trigger and its open list, in points (ODK's own).
+const LIST_GAP: f32 = 4.0;
 
 /// One choice from `options`. The open list is drawn into `layers`.
 pub struct Select<F> {
@@ -13,6 +22,7 @@ pub struct Select<F> {
     label: String,
     options: Vec<String>,
     selected: Option<usize>,
+    width: f32,
     on_select: F,
 }
 
@@ -29,7 +39,25 @@ impl<F> Select<F> {
             label: label.into(),
             options,
             selected,
+            width: DEFAULT_WIDTH,
             on_select,
+        }
+    }
+
+    /// The trigger's and the list's width in points at the base text size; the user's text size
+    /// scales it.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = width;
+        self
+    }
+}
+
+impl<F> Describe for Select<F> {
+    fn accessible(&self) -> Accessible {
+        let accessible = Accessible::new(Role::Combobox, self.label.clone());
+        match self.selected.and_then(|index| self.options.get(index)) {
+            Some(option) => accessible.value(option.clone()),
+            None => accessible,
         }
     }
 }
@@ -40,11 +68,13 @@ impl<F> Select<F> {
         T: 'static,
         F: Fn(&mut T, usize) + Clone + 'static,
     {
+        let accessible = self.accessible();
         let Select {
             id,
             label,
             options,
             selected,
+            width,
             on_select,
         } = self;
         let paint = style::paint(hosted.theme());
@@ -57,7 +87,7 @@ impl<F> Select<F> {
         let field = paint
             .tokens
             .field(Density::Default, States::NONE.expanded(open));
-        let width = hosted.theme().text.px(180.0);
+        let width = hosted.theme().text.px(width);
         let trigger_key = format!("{id}-trigger");
         let value = selected
             .and_then(|index| options.get(index))
@@ -68,10 +98,7 @@ impl<F> Select<F> {
         let press_len = options.len();
         let key_len = options.len();
         let chosen = selected;
-        let mut trigger = row()
-            .key(trigger_key.clone())
-            .role("combobox")
-            .label(label.clone())
+        let trigger = apply(row().key(trigger_key.clone()), &accessible)
             .expanded(open)
             .focusable(true)
             .focus_ring(
@@ -122,45 +149,42 @@ impl<F> Select<F> {
                     .color(ink(field.icon))
                     .a11y_hidden(),
             );
-        if let Some(index) = selected.and_then(|index| options.get(index)) {
-            trigger = trigger.a11y_value(index.clone());
-        }
         if !open || options.is_empty() {
             return trigger;
         }
         let menu = paint.tokens.menu();
-        let mut list = col()
-            .key(format!("{id}-list"))
-            .role("listbox")
-            .label(label)
-            .focusable(true)
-            .w(width)
-            .padding(menu.geometry.padding_y)
-            .on_key({
-                let id = id.clone();
-                let options = options.clone();
-                let on_select = on_select.clone();
-                move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| match list_action(
-                    hosted
-                        .ui
-                        .select(&id)
-                        .map(|slot| slot.highlight)
-                        .unwrap_or(0),
-                    &options,
-                    ev,
-                    tx.key_repeat(),
-                ) {
-                    None => false,
-                    Some(Action::Move(index)) => {
-                        hosted.ui.select_mut(&id).highlight = index;
-                        true
-                    }
-                    Some(Action::Choose(index)) => {
-                        choose(hosted, &id, index, &on_select);
-                        true
-                    }
+        let mut list = apply(
+            col().key(format!("{id}-list")),
+            &Accessible::new(Role::Listbox, label),
+        )
+        .focusable(true)
+        .w(width)
+        .padding(menu.geometry.padding_y)
+        .on_key({
+            let id = id.clone();
+            let options = options.clone();
+            let on_select = on_select.clone();
+            move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| match list_action(
+                hosted
+                    .ui
+                    .select(&id)
+                    .map(|slot| slot.highlight)
+                    .unwrap_or(0),
+                &options,
+                ev,
+                tx.key_repeat(),
+            ) {
+                None => false,
+                Some(Action::Move(index)) => {
+                    hosted.ui.select_mut(&id).highlight = index;
+                    true
                 }
-            });
+                Some(Action::Choose(index)) => {
+                    choose(hosted, &id, index, &on_select);
+                    true
+                }
+            }
+        });
         for (index, option) in options.iter().enumerate() {
             let item = paint.tokens.select_item(
                 Density::Default,
@@ -171,25 +195,25 @@ impl<F> Select<F> {
             let id = id.clone();
             let on_select = on_select.clone();
             list = list.child(
-                row()
-                    .key(format!("{id}-{index}"))
-                    .role("option")
-                    .label(option.clone())
-                    .position_in_set(index + 1, options.len())
-                    .h(item.geometry.height)
-                    .px(item.geometry.padding_x)
-                    .center_y()
-                    .radius(item.geometry.radius)
-                    .fill(ink(item.current.background))
-                    .on_press(move |hosted: &mut Hosted<T>| {
-                        choose(hosted, &id, index, &on_select);
-                    })
-                    .child(
-                        text(option.clone())
-                            .font(text_style(paint.body))
-                            .color(ink(item.current.foreground))
-                            .a11y_hidden(),
-                    ),
+                apply(
+                    row().key(format!("{id}-{index}")),
+                    &Accessible::new(Role::Option, option.clone()),
+                )
+                .position_in_set(index + 1, options.len())
+                .h(item.geometry.height)
+                .px(item.geometry.padding_x)
+                .center_y()
+                .radius(item.geometry.radius)
+                .fill(ink(item.current.background))
+                .on_press(move |hosted: &mut Hosted<T>| {
+                    choose(hosted, &id, index, &on_select);
+                })
+                .child(
+                    text(option.clone())
+                        .font(text_style(paint.body))
+                        .color(ink(item.current.foreground))
+                        .a11y_hidden(),
+                ),
             );
         }
         // Escape is left for the modal, which closes the list and returns focus to the trigger.
@@ -208,7 +232,7 @@ impl<F> Select<F> {
                     }
                 })
                 .child(list)
-                .anchored(trigger_key, Side::Bottom, Align::Start, 4.0),
+                .anchored(trigger_key, Side::Bottom, Align::Start, LIST_GAP),
         );
         trigger
     }

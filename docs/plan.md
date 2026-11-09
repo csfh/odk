@@ -43,7 +43,7 @@ The ODK crates are a second track and can start after step 0: the Luau host and 
 ADR 0089 is the decision. This is only the order of that port. The tree stays on GPUI until the last step.
 
 1. **Host.** A window, colours, text size and reduced motion from `odkd`, the named font as bytes before the window opens, and a root layer list for a popup. Tests run on Rune's headless runtime.
-2. **`Button`, `Input` and `Select`.** Checked against `docs/spec/odk-interaction.md`. `Input` writes the primary selection, and a middle-click pastes it. The other text fields wait.
+2. **`Button`, `Input` and `Select`.** Checked against `docs/spec/odk-interaction.md`. `Input` writes the primary selection, and a middle-click pastes it. The other text fields wait. Done on 2026-11-08: each describes itself with `Describe` and draws that description (`odk-view`'s `describe::apply`), takes its variant, density and width from the component layer or a named constant, and `crates/odk-view/tests/source.rs` keeps literals, palette reads and role strings out of `odk-view`. A component of step 3 starts from that.
 3. **The remaining components,** including `DataTable`, `Resizable` and `Chart`. `Stack`, `Row` and `Grid` keep their names and jobs.
 4. **`oma-consent` on Rune,** still not depending on ODK, still only reporting an answer.
 5. **The screen-reader grant.** The session bus stays refused. A sandboxed window is readable by the screen reader, and the check is written into `docs/checks.md`.

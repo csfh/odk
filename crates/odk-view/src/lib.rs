@@ -5,6 +5,7 @@
 //! [`Store`]: an open list, a caret and a held key.
 
 mod button;
+mod describe;
 mod face;
 mod host;
 mod ink;

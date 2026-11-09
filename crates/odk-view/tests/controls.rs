@@ -73,6 +73,7 @@ fn page(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
         .child(
             Input::new(
                 "name",
+                "Name",
                 |app: &mut App, text| app.name = text,
                 |app: &mut App| app.submits += 1,
             )
@@ -81,6 +82,7 @@ fn page(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
         .child(
             Input::new(
                 "other",
+                "Other",
                 |app: &mut App, text| app.other = text,
                 |_: &mut App| {},
             )
@@ -336,4 +338,85 @@ fn a_programmatic_selection_does_not_write_the_primary_selection() {
     runtime.button_up(x, y, PointerButton::Middle);
     settle(&mut runtime);
     assert_eq!(runtime.state.app.other, "Ada");
+}
+
+/// The accessibility tree's node for `key`, searched depth first.
+fn node(tree: &serde_json::Value, key: &str) -> Option<serde_json::Value> {
+    if tree["key"] == key {
+        return Some(tree.clone());
+    }
+    tree["children"]
+        .as_array()?
+        .iter()
+        .find_map(|child| node(child, key))
+}
+
+fn has_state(node: &serde_json::Value, state: &str) -> bool {
+    node["states"]
+        .as_array()
+        .is_some_and(|states| states.iter().any(|s| s == state))
+}
+
+#[test]
+fn each_control_is_in_the_tree_with_the_role_and_name_it_describes() {
+    let runtime = open(App::ready());
+    let tree = runtime.accessibility_json();
+    for (key, role, name) in [
+        ("save", "button", "Save"),
+        ("fruit-trigger", "combo-box", "Fruit"),
+        ("name", "text-input", "Name"),
+        ("other", "text-input", "Other"),
+    ] {
+        let found = node(&tree, key).unwrap_or_else(|| panic!("no node {key}"));
+        assert_eq!(found["role"], role, "{key}");
+        assert_eq!(found["name"], name, "{key}");
+    }
+}
+
+#[test]
+fn a_disabled_button_is_dimmed_in_the_tree() {
+    let mut runtime = open(App::ready());
+    assert!(!has_state(
+        &node(&runtime.accessibility_json(), "save").unwrap(),
+        "disabled"
+    ));
+    runtime.state.app.enabled = false;
+    runtime.invalidate();
+    settle(&mut runtime);
+    let save = node(&runtime.accessibility_json(), "save").unwrap();
+    assert!(has_state(&save, "disabled"), "{save}");
+}
+
+#[test]
+fn an_open_list_describes_a_listbox_of_options() {
+    let mut runtime = open(App::ready());
+    tap(&mut runtime, "fruit-trigger");
+    let tree = runtime.accessibility_json();
+    let list = node(&tree, "fruit-list").expect("the open list");
+    assert_eq!(list["role"], "list-box");
+    assert_eq!(list["name"], "Fruit");
+    let banana = node(&tree, "fruit-1").expect("an option");
+    assert_eq!(banana["role"], "list-box-option");
+    assert_eq!(banana["name"], "Banana");
+}
+
+#[test]
+fn the_controls_describe_themselves_for_the_checklist() {
+    use odk_view::{Accessible, Describe, Role};
+    let button = Button::new("b", "Save", |_: &mut App| {})
+        .disabled(true)
+        .busy(true);
+    assert_eq!(
+        button.accessible(),
+        Accessible::new(Role::Button, "Save")
+            .disabled(true)
+            .busy(true)
+    );
+    let input = Input::new("i", "Name", |_: &mut App, _: String| {}, |_: &mut App| {});
+    assert_eq!(input.accessible(), Accessible::new(Role::TextInput, "Name"));
+    let select = Select::new("s", "Fruit", fruits(), Some(1), |_: &mut App, _: usize| {});
+    assert_eq!(
+        select.accessible(),
+        Accessible::new(Role::Combobox, "Fruit").value("Banana")
+    );
 }
