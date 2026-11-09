@@ -2,7 +2,7 @@
 
 use odk_theme::ThemeSnapshot;
 use rune::text::TextSystem;
-use rune::{App, AppSpec, Cx, El, Env, Runtime, el};
+use rune::{App, AppSpec, Cx, El, Env, Runtime, Tx, el};
 
 use crate::face::Face;
 use crate::ink::ink;
@@ -31,6 +31,16 @@ impl<T> Hosted<T> {
     }
 }
 
+/// What the host does at the start of every frame, on Rune's clock: turn the spinners.
+///
+/// It asks for nothing while no spinner was in the last view built, so a window that shows
+/// none is never woken (checklist item 35). With one, it wakes at the moment the glyph changes,
+/// not at every frame, and says the state changed only when it did, so the view runs again
+/// `FRAMES` times a turn and not 60 times a second.
+fn poll<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool {
+    crate::spinner::turn(hosted, now, tx)
+}
+
 /// The page, then `layers`, on the theme's canvas.
 ///
 /// `odkd`'s reduced motion is applied on every commit, which wins over the motion Rune would
@@ -42,6 +52,8 @@ pub fn frame<T>(
     body: El,
     layers: impl IntoIterator<Item = El>,
 ) -> El {
+    // The page is built, so what it held is what the poll turns, until the next build.
+    hosted.ui.end_build();
     cx.reduced_motion(hosted.theme.reduced_motion);
     el().key("odk-root")
         .w_full()
@@ -68,6 +80,7 @@ pub fn start<T: 'static>(
     let spec = AppSpec {
         fonts: hosted.face.fonts(),
         families: hosted.face.families(),
+        poll: Some(poll::<T>),
         ..AppSpec::new("ODK", size, spec_init::<T>, view)
     };
     App::new(spec)
@@ -85,6 +98,7 @@ pub fn headless<T: 'static>(
 ) -> Runtime<Hosted<T>> {
     let text = TextSystem::new(hosted.face.fonts(), hosted.face.families());
     let mut runtime = Runtime::with_text(hosted, view, size, Env::new(true, 1.0), text);
+    runtime.poll = Some(poll::<T>);
     runtime.frame(0.0);
     runtime
 }
