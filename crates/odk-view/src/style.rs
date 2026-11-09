@@ -69,6 +69,12 @@ pub(crate) fn focus_ring(element: El, ring: &FocusRing) -> El {
     element.focus_ring(ring.width, ring.offset, ink(ring.colour))
 }
 
+/// `element`'s focus ring drawn inside it, for an element a scrolling or clipping parent would
+/// cut the ring of: a tab in a list that scrolls.
+pub(crate) fn inset_focus_ring(element: El, ring: &FocusRing) -> El {
+    element.focus_ring(ring.width, -ring.width, ink(ring.colour))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -122,3 +122,11 @@ path = "rune/radio_group.rs"
 [[bin]]
 name = "rune-toggle_group"
 path = "rune/toggle_group.rs"
+
+[[bin]]
+name = "rune-nav_list"
+path = "rune/nav_list.rs"
+
+[[bin]]
+name = "rune-tabs"
+path = "rune/tabs.rs"
