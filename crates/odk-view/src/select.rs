@@ -2,8 +2,9 @@
 
 use crate::describe::apply;
 use crate::host::Hosted;
+use crate::icon::Icon;
 use crate::ink::ink;
-use crate::style::{self, text_style};
+use crate::style::{self, focus_ring, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 use odk_theme::foundation::Density;
@@ -98,57 +99,52 @@ impl<F> Select<F> {
         let press_len = options.len();
         let key_len = options.len();
         let chosen = selected;
-        let trigger = apply(row().key(trigger_key.clone()), &accessible)
-            .expanded(open)
-            .focusable(true)
-            .focus_ring(
-                field.focus.width,
-                field.focus.offset,
-                ink(field.focus.colour),
-            )
-            .w(width)
-            .h(field.geometry.height)
-            .px(field.geometry.padding_x)
-            .center_y()
-            .radius(field.geometry.radius)
-            .fill(ink(field.colours.default.background))
-            .outline(
-                field.geometry.border_width,
-                0.0,
-                ink(field.colours.default.border),
-            )
-            .on_press(move |hosted: &mut Hosted<T>| {
-                let slot = hosted.ui.select_mut(&open_id);
-                if !slot.open {
-                    reveal(slot, chosen, press_len);
-                }
-            })
-            .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
-                if tx.key_repeat() || !opens(ev) {
-                    return false;
-                }
-                let slot = hosted.ui.select_mut(&key_id);
-                if !slot.open {
-                    reveal(slot, chosen, key_len);
-                }
-                true
-            })
-            .child(
-                text(value)
-                    .font(text_style(paint.body))
-                    .color(ink(if selected.is_some() {
-                        field.colours.default.foreground
-                    } else {
-                        field.placeholder
-                    }))
-                    .a11y_hidden(),
-            )
-            .child(
-                text("▾")
-                    .font(text_style(paint.body))
-                    .color(ink(field.icon))
-                    .a11y_hidden(),
-            );
+        let trigger = focus_ring(
+            apply(row().key(trigger_key.clone()), &accessible),
+            &field.focus,
+        )
+        .expanded(open)
+        .focusable(true)
+        .w(width)
+        .h(field.geometry.height)
+        .px(field.geometry.padding_x)
+        .center_y()
+        .radius(field.geometry.radius)
+        .fill(ink(field.colours.default.background))
+        .outline(
+            field.geometry.border_width,
+            0.0,
+            ink(field.colours.default.border),
+        )
+        .on_press(move |hosted: &mut Hosted<T>| {
+            let slot = hosted.ui.select_mut(&open_id);
+            if !slot.open {
+                reveal(slot, chosen, press_len);
+            }
+        })
+        .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
+            if tx.key_repeat() || !opens(ev) {
+                return false;
+            }
+            let slot = hosted.ui.select_mut(&key_id);
+            if !slot.open {
+                reveal(slot, chosen, key_len);
+            }
+            true
+        })
+        .child(
+            text(value)
+                .truncate()
+                .font(text_style(paint.body))
+                .color(ink(if selected.is_some() {
+                    field.colours.default.foreground
+                } else {
+                    field.placeholder
+                }))
+                .a11y_hidden(),
+        )
+        .child(rune::spacer())
+        .child(Icon::ChevronDown.mark(field.geometry.icon_size, ink(field.icon)));
         if !open || options.is_empty() {
             return trigger;
         }
@@ -211,6 +207,7 @@ impl<F> Select<F> {
                 })
                 .child(
                     text(option.clone())
+                        .truncate()
                         .font(text_style(paint.body))
                         .color(ink(item.current.foreground))
                         .a11y_hidden(),

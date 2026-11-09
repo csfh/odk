@@ -4,7 +4,7 @@ use crate::describe::apply;
 use crate::host::Hosted;
 use crate::ink::ink;
 use crate::store::Activator;
-use crate::style::{self, text_style};
+use crate::style::{self, focus_ring, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonLayout, ButtonVariant, States};
 use odk_theme::foundation::Density;
@@ -91,15 +91,10 @@ impl<F> Button<F> {
         let release = on_press;
         let key_id = id.clone();
         let up_id = id.clone();
-        apply(row().key(id), &accessible)
+        focus_ring(apply(row().key(id), &accessible), &style.focus)
             // A disabled control leaves the Tab order (`docs/spec/odk-interaction.md`, 21). `apply`'s
             // `disabled` already takes it out in Rune; this says the rule where the button is drawn.
             .focusable(!disabled)
-            .focus_ring(
-                style.focus.width,
-                style.focus.offset,
-                ink(style.focus.colour),
-            )
             .h(style.geometry.height)
             .px(style.geometry.padding_x)
             .center()

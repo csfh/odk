@@ -14,6 +14,7 @@ odk = { path = "crates/odk" }
 odk-theme = { path = "crates/odk-theme" }
 odk-a11y = { path = "crates/odk-a11y" }
 odk-ui = { path = "crates/odk-ui" }
+odk-view = { path = "crates/odk-view" }
 odk-db = { path = "crates/odk-db" }
 deps = { path = "crates/deps" }
 # Exact pin, ADR 0029. Bump deliberately and test; GPUI breaks in minor releases.
