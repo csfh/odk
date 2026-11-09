@@ -58,6 +58,20 @@ pub(crate) fn words(
     )
 }
 
+/// `content` in `role` and `colour` on one line at its own width, never cut or wrapped: a tab's
+/// label, which the row of tabs scrolls past rather than squeezes.
+pub(crate) fn plain(
+    paint: &Paint,
+    content: impl Into<String>,
+    role: TypeRole,
+    colour: Color,
+) -> El {
+    text(content.into())
+        .font(text_style(paint.role(role)))
+        .color(ink(colour))
+        .a11y_hidden()
+}
+
 /// `content` in `role` and the style's colour, flowing as `flow`, described as `accessible`.
 fn prose(
     paint: &Paint,
