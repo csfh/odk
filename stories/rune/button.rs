@@ -3,7 +3,7 @@
 
 use odk_theme::component::ButtonVariant;
 use odk_theme::foundation::Density;
-use odk_view::{Button, Hosted, Layout, Space};
+use odk_view::{Button, Hosted, Icon, Layout, Space};
 use rune::{Cx, El};
 
 #[path = "support.rs"]
@@ -55,6 +55,41 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
                 .busy(hosted.app.busy)
                 .show(hosted),
         );
+    let icons =
+        Density::ALL
+            .iter()
+            .enumerate()
+            .fold(layout.stack(Space::Sm), |stack, (n, density)| {
+                stack.child(
+                    layout
+                        .row(Space::Sm)
+                        .child(
+                            Button::new(format!("lead-{n}"), "Apply", press)
+                                .leading_icon(Icon::Check)
+                                .density(*density)
+                                .show(hosted),
+                        )
+                        .child(
+                            Button::new(format!("trail-{n}"), "Continue", press)
+                                .trailing_icon(Icon::ArrowRight)
+                                .variant(ButtonVariant::Outline)
+                                .density(*density)
+                                .show(hosted),
+                        )
+                        .child(
+                            Button::icon(format!("only-{n}"), Icon::Settings, "Settings", press)
+                                .variant(ButtonVariant::Ghost)
+                                .density(*density)
+                                .show(hosted),
+                        )
+                        .child(
+                            Button::icon(format!("char-{n}"), "★", "Star", press)
+                                .variant(ButtonVariant::Secondary)
+                                .density(*density)
+                                .show(hosted),
+                        ),
+                )
+            });
     let worst = layout.row(Space::Sm).child(
         Button::new(
             "long",
@@ -80,6 +115,12 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
                 "Densities",
                 "The application's three control heights.",
                 densities,
+            ),
+            section(
+                hosted,
+                "Icons",
+                "An icon before or after the label, or alone in a square; a character works too.",
+                icons,
             ),
             section(
                 hosted,
