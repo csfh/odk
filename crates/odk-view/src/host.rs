@@ -6,11 +6,7 @@ use rune::{App, AppSpec, Cx, El, Env, Runtime, el};
 
 use crate::face::Face;
 use crate::ink::ink;
-
-/// What a component keeps for itself. An open menu, a held key and a caret land here, keyed by
-/// the id the builder already takes, so the application does not grow a field for each one.
-#[derive(Debug, Default)]
-pub struct Store {}
+use crate::store::Store;
 
 /// The application's model beside the theme and the component store.
 pub struct Hosted<T> {

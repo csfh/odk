@@ -43,13 +43,13 @@ The ODK crates are a second track and can start after step 0: the Luau host and 
 ADR 0089 is the decision. This is only the order of that port. The tree stays on GPUI until the last step.
 
 1. **Host.** A window, colours, text size and reduced motion from `odkd`, the named font as bytes before the window opens, and a root layer list for a popup. Tests run on Rune's headless runtime.
-2. **`Button`, `Input` and `Select`.** Checked against `docs/spec/odk-interaction.md`. The text fields stay unfinished until a selection writes the primary selection and a middle-click pastes it.
+2. **`Button`, `Input` and `Select`.** Checked against `docs/spec/odk-interaction.md`. `Input` writes the primary selection, and a middle-click pastes it. The other text fields wait.
 3. **The remaining components,** including `DataTable`, `Resizable` and `Chart`. `Stack`, `Row` and `Grid` keep their names and jobs.
 4. **`oma-consent` on Rune,** still not depending on ODK, still only reporting an answer.
 5. **The screen-reader grant.** The session bus stays refused. A sandboxed window is readable by the screen reader, and the check is written into `docs/checks.md`.
 6. **GPUI leaves,** with `odk::gpui` and `patches/gpui`, in the same change as the steps above are done.
 
-Step 1 is the crate `odk-view`. `odk` does not depend on it, and GPUI stays the toolkit `odk-ui` draws with until step 6.
+Step 1 is the crate `odk-view`. `odk` does not depend on it, and GPUI stays the toolkit `odk-ui` draws with until step 6. Step 2 puts `Button`, `Input` and `Select` on that host. An open list, a caret and a held key live in the host's store.
 
 ## Design language migration
 
