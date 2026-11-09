@@ -20,7 +20,7 @@ const HOST: &[&str] = &[
 
 /// Files that are not controls: a mark and the layout groups are decoration or structure, so no
 /// `Describe` (item 14), though every other rule here still reads them.
-const NOT_CONTROLS: &[&str] = &["icon.rs", "layout.rs"];
+const NOT_CONTROLS: &[&str] = &["icon.rs", "layout.rs", "tone.rs"];
 
 fn sources() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

@@ -82,3 +82,23 @@ path = "rune/skeleton.rs"
 [[bin]]
 name = "rune-text"
 path = "rune/text.rs"
+
+[[bin]]
+name = "rune-badge"
+path = "rune/badge.rs"
+
+[[bin]]
+name = "rune-empty"
+path = "rune/empty.rs"
+
+[[bin]]
+name = "rune-item"
+path = "rune/item.rs"
+
+[[bin]]
+name = "rune-item_group"
+path = "rune/item_group.rs"
+
+[[bin]]
+name = "rune-status_indicator"
+path = "rune/status_indicator.rs"
