@@ -53,10 +53,53 @@ pub struct Store {
     toggles: HashMap<String, bool>,
     choices: HashMap<String, String>,
     selections: HashMap<String, Vec<String>>,
+    /// Whether the build in progress has a spinner in it.
+    spinner_building: Cell<bool>,
+    /// Whether the last finished build had a spinner in it, so the host's poll has one to turn.
+    spinner_seen: Cell<bool>,
+    /// The glyph of the turn the poll last chose, which every spinner shows.
+    spinner_frame: Cell<usize>,
+    /// The moment the turns count from, so every spinner shows the same glyph at the same time.
+    spinner_epoch: Cell<Option<f64>>,
     primary: RefCell<String>,
 }
 
 impl Store {
+    /// A spinner was built in the view that is being built.
+    pub(crate) fn note_spinner(&self) {
+        self.spinner_building.set(true);
+    }
+
+    /// The view is built: what it had in it is what the poll turns, until the next build.
+    pub(crate) fn end_build(&self) {
+        self.spinner_seen.set(self.spinner_building.replace(false));
+    }
+
+    /// Whether the last build had a spinner: the only time the host asks for a wake.
+    pub(crate) fn spinning(&self) -> bool {
+        self.spinner_seen.get()
+    }
+
+    pub(crate) fn spinner_frame(&self) -> usize {
+        self.spinner_frame.get()
+    }
+
+    /// Keeps `frame` and says whether it differs from the one before.
+    pub(crate) fn set_spinner_frame(&self, frame: usize) -> bool {
+        self.spinner_frame.replace(frame) != frame
+    }
+
+    /// Where the turns count from: the first moment a poll asked.
+    pub(crate) fn spinner_epoch(&self, now: f64) -> f64 {
+        match self.spinner_epoch.get() {
+            Some(epoch) => epoch,
+            None => {
+                self.spinner_epoch.set(Some(now));
+                now
+            }
+        }
+    }
+
     /// Whether the uncontrolled toggle `id` is on: what a press last made it, else `default`.
     pub(crate) fn toggle_value(&self, id: &str, default: bool) -> bool {
         self.toggles.get(id).copied().unwrap_or(default)

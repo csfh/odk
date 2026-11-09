@@ -130,3 +130,11 @@ path = "rune/nav_list.rs"
 [[bin]]
 name = "rune-tabs"
 path = "rune/tabs.rs"
+
+[[bin]]
+name = "rune-progress"
+path = "rune/progress.rs"
+
+[[bin]]
+name = "rune-spinner"
+path = "rune/spinner.rs"
