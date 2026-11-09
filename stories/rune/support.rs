@@ -15,10 +15,33 @@ use rune::{Cx, El};
 /// A story's window width and height in points.
 const WINDOW: (f32, f32) = (900.0, 700.0);
 
+/// Omarchy's font, which fontconfig names as the monospace one, as bytes; Rune's own Inter when it
+/// cannot be read. Rune has no font fallback, so a glyph the font lacks (the spinner's braille) is
+/// drawn as a missing-glyph box.
+fn face() -> Face {
+    let ask = |format: &str| {
+        let output = std::process::Command::new("fc-match")
+            .args(["-f", format, "monospace"])
+            .output()
+            .ok()?;
+        output
+            .status
+            .success()
+            .then(|| String::from_utf8(output.stdout).ok())
+            .flatten()
+    };
+    let font = ask("%{file}").and_then(|path| std::fs::read(path.trim()).ok());
+    let family = ask("%{family[0]}");
+    match (font, family) {
+        (Some(bytes), Some(family)) => Face::leak(bytes, family.trim().to_string()),
+        _ => Face::bundled(),
+    }
+}
+
 /// Open the story's window on the user's theme, and return when it closes.
 pub fn run<T: 'static>(app: T, view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El) {
     let theme = ThemeManager::current().snapshot();
-    let hosted = Hosted::new(app, (*theme).clone(), Face::bundled());
+    let hosted = Hosted::new(app, (*theme).clone(), face());
     if let Err(error) = start(hosted, view, WINDOW) {
         eprintln!("odk-view: {error}");
         std::process::exit(1);
