@@ -102,3 +102,11 @@ path = "rune/item_group.rs"
 [[bin]]
 name = "rune-status_indicator"
 path = "rune/status_indicator.rs"
+
+[[bin]]
+name = "rune-checkbox"
+path = "rune/checkbox.rs"
+
+[[bin]]
+name = "rune-switch"
+path = "rune/switch.rs"
