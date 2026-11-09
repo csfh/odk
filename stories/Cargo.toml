@@ -10,6 +10,10 @@ autobins = false
 [dependencies]
 deps.workspace = true
 odk.workspace = true
+# The Rune stories (ADR 0089): `stories/rune/`, run with `tools/story rune-NAME`.
+odk-theme.workspace = true
+odk-view.workspace = true
+rune.workspace = true
 
 # The helpers every story uses (`section`, `row`, `narrow`).
 [lib]
@@ -38,3 +42,23 @@ path = "switch.rs"
 [[bin]]
 name = "toggle_group"
 path = "toggle_group.rs"
+
+[[bin]]
+name = "rune-button"
+path = "rune/button.rs"
+
+[[bin]]
+name = "rune-icon"
+path = "rune/icon.rs"
+
+[[bin]]
+name = "rune-input"
+path = "rune/input.rs"
+
+[[bin]]
+name = "rune-layout"
+path = "rune/layout.rs"
+
+[[bin]]
+name = "rune-select"
+path = "rune/select.rs"

@@ -2,6 +2,7 @@
 # Runs a story in watch mode: rebuilds and reopens its window whenever it or ODK changes.
 #
 #   tools/story NAME        (runs stories/NAME.rs, e.g. tools/story button)
+#   tools/story rune-NAME   (runs stories/rune/NAME.rs, a story on Rune, ADR 0089)
 #
 # This opens a window on the display it is run from, so run it yourself, in your own terminal.
 # Anything that drives a session without the owner (CLAUDE.md, "Windows: headless only") uses
@@ -11,14 +12,17 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 name=${1:-}
-[[ -n $name && -f stories/$name.rs ]] || {
-    sed -n 4p "$0" >&2
-    echo "stories: $(cd stories && ls ./*.rs 2>/dev/null | sed 's|^\./||; s|\.rs$||' | tr '\n' ' ')" >&2
+# A story on Rune is stories/rune/NAME.rs, run as rune-NAME so it cannot take a GPUI story's name.
+file=stories/$name.rs
+[[ $name == rune-* ]] && file=stories/rune/${name#rune-}.rs
+[[ -n $name && -f $file ]] || {
+    sed -n 4,5p "$0" >&2
+    echo "stories: $(cd stories && ls ./*.rs 2>/dev/null | sed 's|^\./||; s|\.rs$||' | tr '\n' ' ')$(cd stories/rune && ls ./*.rs 2>/dev/null | grep -v support | sed 's|^\./|rune-|; s|\.rs$||' | tr '\n' ' ')" >&2
     exit 2
 }
 [[ $name =~ ^[a-z0-9_-]+$ ]] || { echo "stories: $name is not a story name" >&2; exit 2; }
 grep -q "^name = \"$name\"" stories/Cargo.toml || {
-    printf 'stories/%s.rs has no [[bin]] in stories/Cargo.toml; add:\n\n[[bin]]\nname = "%s"\npath = "%s.rs"\n' "$name" "$name" "$name" >&2
+    printf '%s has no [[bin]] in stories/Cargo.toml; add:\n\n[[bin]]\nname = "%s"\npath = "%s"\n' "$file" "$name" "${file#stories/}" >&2
     exit 2
 }
 command -v watchexec >/dev/null || { echo "watchexec is not installed (pacman -S watchexec)" >&2; exit 1; }
@@ -29,5 +33,5 @@ export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-8}
 # restart ends it.
 exec watchexec --restart --shell=bash --exts rs,toml,svg \
     --watch stories \
-    --watch crates/odk --watch crates/odk-ui --watch crates/odk-theme --watch crates/odk-a11y \
+    --watch crates/odk --watch crates/odk-ui --watch crates/odk-view --watch crates/odk-theme --watch crates/odk-a11y \
     -- "cargo build -p stories --bin $name && exec ./target/debug/$name"
