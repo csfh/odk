@@ -2,12 +2,13 @@
 
 use std::sync::Arc;
 
-use odk_theme::ThemeSnapshot;
 use odk_theme::component::ComponentTokens;
 use odk_theme::foundation::{FoundationConfig, FoundationTokens, TypeRole, TypeStyle};
+use odk_theme::{TextScale, ThemeSnapshot};
 use rune::TextStyle;
 
 pub(crate) struct Paint {
+    scale: TextScale,
     pub tokens: ComponentTokens,
     pub button: TypeStyle,
     pub body: TypeStyle,
@@ -22,6 +23,7 @@ pub(crate) fn paint(theme: &ThemeSnapshot) -> Paint {
     let button = foundation.typography.style(TypeRole::Button);
     let body = foundation.typography.style(TypeRole::Body);
     Paint {
+        scale: theme.text,
         tokens: ComponentTokens::new(
             Arc::new(foundation),
             theme.semantic.clone(),
@@ -29,6 +31,14 @@ pub(crate) fn paint(theme: &ThemeSnapshot) -> Paint {
         ),
         button,
         body,
+    }
+}
+
+impl Paint {
+    /// `points` at the base text size, scaled by the user's text size, as a control's own width
+    /// is. A component reads the theme here and nowhere else.
+    pub fn px(&self, points: f32) -> f32 {
+        self.scale.px(points)
     }
 }
 

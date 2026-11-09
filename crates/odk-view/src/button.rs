@@ -1,9 +1,11 @@
 //! A button on the Rune host. Enter and Space activate on release, once per hold.
 
+use crate::describe::apply;
 use crate::host::Hosted;
 use crate::ink::ink;
 use crate::store::Activator;
 use crate::style::{self, text_style};
+use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonLayout, ButtonVariant, States};
 use odk_theme::foundation::Density;
 use rune::{El, Key, KeyEvent, Tx, row, text};
@@ -14,6 +16,8 @@ pub struct Button<F> {
     label: String,
     disabled: bool,
     busy: bool,
+    variant: ButtonVariant,
+    density: Density,
     on_press: F,
 }
 
@@ -24,8 +28,21 @@ impl<F> Button<F> {
             label: label.into(),
             disabled: false,
             busy: false,
+            variant: ButtonVariant::Primary,
+            density: Density::Default,
             on_press,
         }
+    }
+
+    /// The variant the component layer styles: primary unless asked.
+    pub fn variant(mut self, variant: ButtonVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    pub fn density(mut self, density: Density) -> Self {
+        self.density = density;
+        self
     }
 
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -40,37 +57,44 @@ impl<F> Button<F> {
     }
 }
 
+impl<F> Describe for Button<F> {
+    fn accessible(&self) -> Accessible {
+        Accessible::new(Role::Button, self.label.clone())
+            .busy(self.busy)
+            .disabled(self.disabled)
+    }
+}
+
 impl<F> Button<F> {
     pub fn show<T>(self, hosted: &Hosted<T>) -> El
     where
         T: 'static,
         F: Fn(&mut T) + Clone + 'static,
     {
+        let accessible = self.accessible();
         let Button {
             id,
             label,
             disabled,
             busy,
+            variant,
+            density,
             on_press,
         } = self;
         let paint = style::paint(hosted.theme());
         let states = States::NONE.disabled(disabled).loading(busy);
-        let style = paint.tokens.button(
-            ButtonVariant::Primary,
-            Density::Default,
-            ButtonLayout::Text,
-            states,
-        );
+        let style = paint
+            .tokens
+            .button(variant, density, ButtonLayout::Text, states);
         let responds = style.responds;
         let press = on_press.clone();
         let release = on_press;
         let key_id = id.clone();
         let up_id = id.clone();
-        row()
-            .key(id)
-            .role("button")
-            .label(label.clone())
-            .focusable(true)
+        apply(row().key(id), &accessible)
+            // A disabled control leaves the Tab order (`docs/spec/odk-interaction.md`, 21). `apply`'s
+            // `disabled` already takes it out in Rune; this says the rule where the button is drawn.
+            .focusable(!disabled)
             .focus_ring(
                 style.focus.width,
                 style.focus.offset,
