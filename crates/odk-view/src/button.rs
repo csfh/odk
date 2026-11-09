@@ -92,7 +92,9 @@ impl<F> Button<F> {
         let key_id = id.clone();
         let up_id = id.clone();
         apply(row().key(id), &accessible)
-            .focusable(true)
+            // A disabled control leaves the Tab order (`docs/spec/odk-interaction.md`, 21). `apply`'s
+            // `disabled` already takes it out in Rune; this says the rule where the button is drawn.
+            .focusable(!disabled)
             .focus_ring(
                 style.focus.width,
                 style.focus.offset,

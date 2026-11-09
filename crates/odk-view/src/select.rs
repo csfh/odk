@@ -87,7 +87,7 @@ impl<F> Select<F> {
         let field = paint
             .tokens
             .field(Density::Default, States::NONE.expanded(open));
-        let width = hosted.theme().text.px(width);
+        let width = paint.px(width);
         let trigger_key = format!("{id}-trigger");
         let value = selected
             .and_then(|index| options.get(index))
@@ -197,7 +197,8 @@ impl<F> Select<F> {
             list = list.child(
                 apply(
                     row().key(format!("{id}-{index}")),
-                    &Accessible::new(Role::Option, option.clone()),
+                    &Accessible::new(Role::Option, option.clone())
+                        .selected(selected == Some(index)),
                 )
                 .position_in_set(index + 1, options.len())
                 .h(item.geometry.height)

@@ -59,6 +59,12 @@ fn has_checked_state(role: Role) -> bool {
     )
 }
 
+/// Whether `role` is an item of a set that is chosen, which Rune calls selected. Rune takes it
+/// through `focus_selected`, which also says which item Tab visits in a roving group.
+fn has_selected_state(role: Role) -> bool {
+    matches!(role, Role::Tab | Role::Option | Role::Row | Role::Cell)
+}
+
 /// `element` with `accessible`'s role, name and state. A text input's own text is Rune's to
 /// report, so its value is not repeated.
 pub(crate) fn apply(element: El, accessible: &Accessible) -> El {
@@ -72,6 +78,14 @@ pub(crate) fn apply(element: El, accessible: &Accessible) -> El {
         && has_checked_state(accessible.role)
     {
         element = element.checked(on);
+    }
+    if let Some(on) = accessible.selected
+        && has_selected_state(accessible.role)
+    {
+        element = element.focus_selected(on);
+    }
+    if let Some(level) = accessible.level {
+        element = element.level(u32::from(level));
     }
     if accessible.mixed {
         element = element.checked_mixed();

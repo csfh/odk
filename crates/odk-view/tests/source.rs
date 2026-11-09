@@ -103,9 +103,12 @@ fn no_colour_literals() {
         "hsl(",
         "hsla(",
         "\"#",
-        "Color::new(",
-        "Color::rgb",
-        "Color::hex",
+        // Rune's own colour constructors (`rune::color`, `rune::Color`).
+        "hex(",
+        "oklch(",
+        "oklcha(",
+        "from_oklab(",
+        "Color {",
         "Color::BLACK",
         "Color::WHITE",
         "Color::TRANSPARENT",
@@ -151,18 +154,25 @@ fn the_number_check_finds_what_it_should() {
 #[test]
 fn components_draw_only_component_tokens() {
     let forbidden = [
+        "theme_snapshot()",
         "palette",
         "Palette",
         ".accent",
         ".semantic",
         "with_alpha(",
+        ".alpha(",
         ".mix(",
         ".over(",
         "oklch",
         "contrast(",
     ];
     for (file, text) in components() {
-        let code = code(&text);
+        // The one read of the theme: `style::paint` turns it into tokens and a text scale.
+        let code = code(&text).replace("style::paint(hosted.theme())", "");
+        assert!(
+            !code.contains(".theme()"),
+            "{file}: reads the theme outside `style::paint`"
+        );
         for pattern in forbidden {
             assert!(
                 !code.contains(pattern),

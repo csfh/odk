@@ -74,7 +74,7 @@ impl<C, S> Input<C, S> {
         let edit = hosted.ui.input_edit_clone(&id);
         let paint = style::paint(hosted.theme());
         let field = paint.tokens.field(Density::Default, States::NONE);
-        let width = hosted.theme().text.px(width);
+        let width = paint.px(width);
         let edit_id = id.clone();
         let change_id = id.clone();
         let arm_id = id.clone();

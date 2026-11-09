@@ -189,8 +189,13 @@ fn a_disabled_or_busy_button_does_not_activate() {
     settle(&mut runtime);
     tap(&mut runtime, "save");
     press(&mut runtime, Key::Tab);
+    // A disabled control leaves the Tab order: the first stop is the next control.
+    assert_eq!(focused(&runtime), Some("fruit-trigger".into()));
     runtime.key(KeyEvent::from(Key::Enter));
     runtime.key_up(KeyEvent::from(Key::Enter));
+    settle(&mut runtime);
+    runtime.key(KeyEvent::from(Key::Escape));
+    runtime.key_up(KeyEvent::from(Key::Escape));
     settle(&mut runtime);
     assert_eq!(runtime.state.app.presses, 0, "disabled");
 
@@ -398,6 +403,21 @@ fn an_open_list_describes_a_listbox_of_options() {
     let banana = node(&tree, "fruit-1").expect("an option");
     assert_eq!(banana["role"], "list-box-option");
     assert_eq!(banana["name"], "Banana");
+}
+
+#[test]
+fn the_chosen_option_is_the_select_s_value_and_the_selected_option() {
+    let mut runtime = open(App::ready());
+    tap(&mut runtime, "fruit-trigger");
+    tap(&mut runtime, "fruit-1");
+    assert_eq!(runtime.state.app.chosen, Some(1));
+    let trigger = node(&runtime.accessibility_json(), "fruit-trigger").unwrap();
+    assert_eq!(trigger["value"], "Banana", "{trigger}");
+
+    tap(&mut runtime, "fruit-trigger");
+    let tree = runtime.accessibility_json();
+    assert!(has_state(&node(&tree, "fruit-1").unwrap(), "selected"));
+    assert!(!has_state(&node(&tree, "fruit-0").unwrap(), "selected"));
 }
 
 #[test]
