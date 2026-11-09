@@ -506,7 +506,7 @@ pub fn dev(
         let _ = fs::remove_file(layout.grants_file(&app));
         let _ = fs::remove_dir_all(aside);
     }
-    list(layout, &app, manifest, None);
+    list_file(layout, &root_id, &app, &image);
 
     let foreign_daemon = declared
         .zip(runtime_dir)
@@ -841,7 +841,7 @@ pub fn install_file(
         &target,
         &authorized,
     )?;
-    list(layout, app, image.manifest(), None);
+    list_file(layout, root_id, app, &image);
     Ok(target)
 }
 
@@ -1357,10 +1357,16 @@ pub fn register(layout: &Layout, now: i64, fetch: Fetch, systemctl: Systemctl) -
     done
 }
 
+/// One installed Bundle file, and the icon path its launcher entry names (ADR 0090).
+struct InstalledFile {
+    app: Identifier,
+    root: KeyId,
+    manifest: crate::fmt::Manifest,
+    icon: Option<PathBuf>,
+}
+
 /// Every installed Bundle file's app id, root and Manifest, read from its verified image.
-fn installed_apps(
-    layout: &Layout,
-) -> Result<Vec<(Identifier, KeyId, crate::fmt::Manifest)>, Error> {
+fn installed_apps(layout: &Layout) -> Result<Vec<InstalledFile>, Error> {
     let mut apps = Vec::new();
     for (app, pair) in grants::pairs(layout)?
         .into_iter()
@@ -1371,8 +1377,18 @@ fn installed_apps(
         };
         let sealed = Sealed::memfd(&path)?;
         let checked = trust::check(&sealed)?;
-        let manifest = Image::read(&checked)?.manifest().clone();
-        apps.push((app, pair.root.key_id(), manifest));
+        let image = Image::read(&checked)?;
+        let root = pair.root.key_id();
+        let icon = file_icon(layout, &root, &app, &image).map_err(|source| install::Error::Io {
+            path: layout.pair_dir(&root, &app),
+            source,
+        })?;
+        apps.push(InstalledFile {
+            app,
+            root,
+            manifest: image.manifest().clone(),
+            icon,
+        });
     }
     Ok(apps)
 }
@@ -1382,14 +1398,19 @@ fn installed_apps(
 /// changed since the last run is asked of `systemctl`, from the record of what it enabled.
 fn inbox_watches(
     layout: &Layout,
-    apps: &[(Identifier, KeyId, crate::fmt::Manifest)],
+    apps: &[InstalledFile],
     systemctl: Systemctl,
 ) -> Result<(), Error> {
     use std::collections::BTreeSet;
     let wanted: BTreeSet<String> = apps
         .iter()
-        .filter(|(_, _, manifest)| manifest.permissions.updates)
-        .map(|(app, root, _)| format!("oma-inbox@{}.path", unit_escape(&format!("{root}/{app}"))))
+        .filter(|file| file.manifest.permissions.updates)
+        .map(|file| {
+            format!(
+                "oma-inbox@{}.path",
+                unit_escape(&format!("{}/{}", file.root, file.app))
+            )
+        })
         .collect();
     let record = layout.inbox_watches_file();
     let had: BTreeSet<String> = fs::read_to_string(&record)
@@ -1437,20 +1458,22 @@ fn unit_escape(text: &str) -> String {
 
 /// Writes the launcher entry of every installed application, Bundle files and directory Bundles,
 /// and removes the entries `odk-oma` wrote for any that is gone (ADR 0014). A Bundle file's icon
-/// is in its image, so its entry has none.
-fn desktop_entries(
-    layout: &Layout,
-    apps: &[(Identifier, KeyId, crate::fmt::Manifest)],
-) -> Result<(), Error> {
+/// is the copy [`file_icon`] wrote (ADR 0090).
+fn desktop_entries(layout: &Layout, apps: &[InstalledFile]) -> Result<(), Error> {
     let odk = desktop::facade();
     let io = |source| install::Error::Io {
         path: layout.desktop_entries(),
         source,
     };
     let mut keep = Vec::new();
-    for (app, _, manifest) in apps {
-        desktop::write(layout, app, &desktop::text(app, manifest, None, &odk)).map_err(io)?;
-        keep.push(app.clone());
+    for file in apps {
+        desktop::write(
+            layout,
+            &file.app,
+            &desktop::text(&file.app, &file.manifest, file.icon.as_deref(), &odk),
+        )
+        .map_err(io)?;
+        keep.push(file.app.clone());
     }
     for bundle in install::installed(layout) {
         let manifest = bundle.manifest();
@@ -1462,6 +1485,64 @@ fn desktop_entries(
     }
     desktop::remove_others(layout, &keep).map_err(io)?;
     Ok(())
+}
+
+/// Copies a Bundle file's icon out of its verified image and returns the path the launcher
+/// names (ADR 0090). `None` when the manifest names none, and then any icon written before is
+/// removed. The other of `icon.png` and `icon.svg` is removed so a change of format leaves one.
+fn file_icon(
+    layout: &Layout,
+    root: &KeyId,
+    app: &Identifier,
+    image: &Image<'_>,
+) -> std::io::Result<Option<PathBuf>> {
+    let dir = layout.pair_dir(root, app);
+    let Some(relative) = image.manifest().icon.clone() else {
+        clear_written_icon(&dir)?;
+        return Ok(None);
+    };
+    let extension = Path::new(&relative)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|ext| ext == "png" || ext == "svg")
+        .ok_or_else(|| std::io::Error::other(format!("{relative} is not a PNG or SVG file")))?;
+    let target = dir.join(format!("icon.{extension}"));
+    image.write_regular(&relative, &target, 0o644)?;
+    for other in ["png", "svg"] {
+        if other == extension {
+            continue;
+        }
+        let path = dir.join(format!("icon.{other}"));
+        if path.is_file() {
+            fs::remove_file(path)?;
+        }
+    }
+    Ok(Some(target))
+}
+
+fn clear_written_icon(dir: &Path) -> std::io::Result<()> {
+    for name in ["icon.png", "icon.svg"] {
+        let path = dir.join(name);
+        if path.is_file() {
+            fs::remove_file(path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Writes the launcher entry of one Bundle file, including its icon when the manifest names one.
+/// A failure to copy the icon is told, and the entry is still written, without an `Icon` line:
+/// the application is installed either way.
+fn list_file(layout: &Layout, root: &KeyId, app: &Identifier, image: &Image<'_>) {
+    let icon = match file_icon(layout, root, app, image) {
+        Ok(icon) => icon,
+        Err(e) => {
+            eprintln!("odk oma: the icon of {app} was not written: {e}");
+            None
+        }
+    };
+    list(layout, app, image.manifest(), icon.as_deref());
 }
 
 /// Writes the launcher entry of the directory Bundle installed at `root`. A failure is told and
@@ -1730,7 +1811,7 @@ pub fn run_file(
             _ => return Err(Error::Cancelled),
         }
     }
-    list(layout, app, image.manifest(), None);
+    list_file(layout, &signed.root_key_id, app, &image);
     Ok(launch::run_file(
         layout,
         &image,
@@ -3933,17 +4014,61 @@ mod signed_tests {
 
         register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         let entry = entries.join(format!("{APP}.desktop"));
+        let icon = layout
+            .pair_dir(&root(1).public_key().key_id(), &APP.parse().unwrap())
+            .join("icon.png");
         assert_eq!(
             std::fs::read_to_string(&entry).unwrap(),
             format!(
-                "[Desktop Entry]\nType=Application\nName=Notes\nExec=odk oma run {APP}\nX-Oma-Identifier={APP}\n"
+                "[Desktop Entry]\nType=Application\nName=Notes\nExec=odk oma run {APP}\nIcon={}\nX-Oma-Identifier={APP}\n",
+                icon.display()
             )
         );
+        assert_eq!(std::fs::read(&icon).unwrap(), b"\x89PNG");
 
         std::fs::remove_file(&target).unwrap();
         register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
         assert!(!entry.exists());
         assert!(foreign.exists());
+    }
+
+    #[test]
+    fn a_bundle_files_icon_is_copied_out_for_the_launcher_and_removed_when_it_is_dropped() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+
+        let app: Identifier = APP.parse().unwrap();
+        let root_id = root(1).public_key().key_id();
+        let icon = layout.pair_dir(&root_id, &app).join("icon.png");
+        let entry = layout.desktop_entries().join(format!("{APP}.desktop"));
+        let written = std::fs::read_to_string(&entry).unwrap();
+        assert!(
+            written.contains(&format!("Icon={}\n", icon.display())),
+            "{written}"
+        );
+        assert_eq!(std::fs::read(&icon).unwrap(), b"\x89PNG");
+        assert_eq!(
+            std::fs::metadata(&icon).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+        // A previous SVG is not left beside the PNG.
+        let svg = icon.with_file_name("icon.svg");
+        std::fs::write(&svg, b"<svg/>").unwrap();
+        register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        assert!(!svg.exists());
+        assert_eq!(std::fs::read(&icon).unwrap(), b"\x89PNG");
+
+        let without = |text: String| text.replace("icon = \"share/icon.png\"\n", "");
+        let v8 = bundle_file(&dir, without, |m| m.version = 8);
+        install_with(&layout, &v8, false, soon(), &Dialog::answering(&[]), &site).unwrap();
+        let written = std::fs::read_to_string(&entry).unwrap();
+        assert!(!written.contains("Icon="), "{written}");
+        assert!(!icon.exists());
     }
 
     #[test]

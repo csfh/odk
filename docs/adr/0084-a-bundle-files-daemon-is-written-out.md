@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0090
 ---
 
 # A Bundle file's daemon is written out
@@ -8,12 +8,12 @@ A Manifest's `[daemon]` is a program of the Bundle's that runs outside the sandb
 
 ## Decision
 
-- **What is written.** When an installed Bundle file is launched and declares a daemon, `odk-oma` writes that daemon's program, the Manifest's `daemon.executable`, from the verified image. It goes to `apps/<root key id>/<app id>/daemon/<file name>` in the state directory, mode `0755`, in a directory only the user can enter (`0700`). The unit is started from there. It is the one file of a Bundle's image that is written to the host.
+- **What is written.** When an installed Bundle file is launched and declares a daemon, `odk-oma` writes that daemon's program, the Manifest's `daemon.executable`, from the verified image. It goes to `apps/<root key id>/<app id>/daemon/<file name>` in the state directory, mode `0755`, in a directory only the user can enter (`0700`). The unit is started from there. The icon is written out as well (ADR 0090).
 - **When.** At the launch, before the daemon is started and before the sandbox is planned. That is the one moment `odk-oma` has just verified the file it runs. Installing, upgrading, `rollback` and `--register` therefore need no step of their own. The file is replaced in one step, and only when its bytes differ. A daemon already running keeps the program it started from.
 - **Run once.** It still does not run a daemon, since the daemon would outlive the launch (ADR 0050).
 - **Purge.** `odk oma purge` removes it with the rest of the pair's directory.
 
 ## Consequences
 
-- ADR 0067's "nothing reaches a host filesystem" now has this one exception: a daemon's program, which ADR 0050 already runs outside the sandbox.
-- A daemon gets only its own program. Any other file of the Bundle stays inside the image. A daemon that needs more is not supported.
+- ADR 0067's "nothing reaches a host filesystem" now has this exception: a daemon's program, which ADR 0050 already runs outside the sandbox. The icon is a second exception (ADR 0090).
+- A daemon gets only its own program. Any other file of the Bundle stays inside the image, apart from the icon (ADR 0090). A daemon that needs more is not supported.
