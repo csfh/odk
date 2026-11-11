@@ -96,6 +96,8 @@ pub struct Store {
     inputs: HashMap<String, InputSlot>,
     /// Each command palette's open state and highlight.
     commands: RefCell<HashMap<String, CommandSlot>>,
+    /// The text a field starts with, until it has a slot of its own.
+    seeds: RefCell<HashMap<String, String>>,
     toggles: HashMap<String, bool>,
     choices: HashMap<String, String>,
     selections: HashMap<String, Vec<String>>,
@@ -283,7 +285,32 @@ impl Store {
         all.entry(id.to_string()).or_default().highlight = Some((index, query.to_string()));
     }
 
+    /// Gives a field that has not been edited its starting text, from a view.
+    pub(crate) fn seed_input(&self, id: &str, text: String) {
+        if !self.inputs.contains_key(id) {
+            self.seeds
+                .borrow_mut()
+                .entry(id.to_string())
+                .or_insert(text);
+        }
+    }
+
+    fn seed_of(&self, id: &str) -> Option<String> {
+        self.seeds.borrow().get(id).cloned()
+    }
+
     pub(crate) fn input_edit(&mut self, id: &str) -> &mut TextEdit {
+        if !self.inputs.contains_key(id)
+            && let Some(seed) = self.seeds.get_mut().remove(id)
+        {
+            self.inputs.insert(
+                id.to_string(),
+                InputSlot {
+                    edit: TextEdit::new(&seed),
+                    ..InputSlot::default()
+                },
+            );
+        }
         let slot = self.inputs.entry(id.to_string()).or_default();
         if slot.reset.take() {
             slot.edit = TextEdit::new("");
@@ -296,7 +323,7 @@ impl Store {
             .get(id)
             .filter(|slot| !slot.reset.get())
             .map(|slot| slot.edit.clone())
-            .unwrap_or_else(|| TextEdit::new(""))
+            .unwrap_or_else(|| TextEdit::new(self.seed_of(id).as_deref().unwrap_or("")))
     }
 
     /// Empties the field before it is next drawn or edited, from a view.
@@ -322,6 +349,7 @@ impl Store {
             .get(id)
             .filter(|slot| !slot.reset.get())
             .map(|slot| slot.edit.text.clone())
+            .or_else(|| self.seed_of(id).filter(|_| !self.inputs.contains_key(id)))
             .unwrap_or_default()
     }
 

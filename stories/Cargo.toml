@@ -152,6 +152,14 @@ name = "rune-toggle_group"
 path = "rune/toggle_group.rs"
 
 [[bin]]
+name = "rune-search_input"
+path = "rune/search_input.rs"
+
+[[bin]]
+name = "rune-password_input"
+path = "rune/password_input.rs"
+
+[[bin]]
 name = "rune-menu"
 path = "rune/menu.rs"
 

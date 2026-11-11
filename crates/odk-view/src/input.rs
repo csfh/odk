@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use crate::describe::apply;
 use crate::host::Hosted;
-use crate::icon::Icon;
+use crate::icon::{Glyph, Icon};
 use crate::ink::ink;
 use crate::style::{self, text_style};
 use odk_a11y::{Accessible, Describe, Role};
@@ -29,6 +29,12 @@ pub struct Input<C, S> {
     description: Option<String>,
     full_width: bool,
     placeholder: Option<String>,
+    leading: Option<Glyph>,
+    trailing: Vec<El>,
+    default_value: Option<String>,
+    /// A masked field: `Some(revealed)`. It shows dots, or its text while revealed, and it
+    /// never writes the clipboard or the primary selection.
+    secure: Option<bool>,
     on_change: C,
     on_submit: S,
 }
@@ -51,6 +57,10 @@ impl<C, S> Input<C, S> {
             description: None,
             full_width: false,
             placeholder: None,
+            leading: None,
+            trailing: Vec::new(),
+            default_value: None,
+            secure: None,
             on_change,
             on_submit,
         }
@@ -118,6 +128,31 @@ impl<C, S> Input<C, S> {
         self
     }
 
+    /// The text the field starts with, until the person edits it.
+    pub fn default_value(mut self, value: impl Into<String>) -> Self {
+        self.default_value = Some(value.into());
+        self
+    }
+
+    /// An icon before the text, such as a search field's.
+    pub(crate) fn leading_icon(mut self, glyph: impl Into<Glyph>) -> Self {
+        self.leading = Some(glyph.into());
+        self
+    }
+
+    /// Something after the text, inside the box: a field action.
+    pub(crate) fn trailing(mut self, element: El) -> Self {
+        self.trailing.push(element);
+        self
+    }
+
+    /// Masks the text, unless `revealed`, and keeps it out of the clipboard and the primary
+    /// selection.
+    pub(crate) fn secure(mut self, revealed: bool) -> Self {
+        self.secure = Some(revealed);
+        self
+    }
+
     /// As wide as its column, for a field inside a panel.
     pub(crate) fn full_width(mut self) -> Self {
         self.full_width = true;
@@ -145,13 +180,22 @@ impl<C, S> Input<C, S> {
             width,
             full_width,
             placeholder,
+            leading,
+            trailing,
+            default_value,
+            secure,
             invalid,
             disabled,
             on_change,
             on_submit,
             ..
         } = self;
-        hosted.ui.note_input_selection(&id);
+        if let Some(value) = default_value {
+            hosted.ui.seed_input(&id, value);
+        }
+        if secure.is_none() {
+            hosted.ui.note_input_selection(&id);
+        }
         let edit = hosted.ui.input_edit_clone(&id);
         let paint = style::paint(hosted.theme());
         let field = paint.tokens.field(
@@ -177,6 +221,10 @@ impl<C, S> Input<C, S> {
         .color(ink(field.colours.default.foreground))
         .caret(ink(field.caret), ink(field.selection.background))
         .pointer_buttons([PointerButton::Middle]);
+        let editor = match secure {
+            Some(revealed) => editor.secure().revealed(revealed),
+            None => editor,
+        };
         let editor = match placeholder {
             Some(text) => editor.placeholder(text, ink(field.placeholder)),
             None => editor,
@@ -254,6 +302,12 @@ impl<C, S> Input<C, S> {
                 0.0,
                 ink(field.colours.default.border),
             )
+            .children(leading.map(|glyph| {
+                // A leading icon sits `gap` before the text.
+                row()
+                    .pr(field.geometry.gap)
+                    .child(glyph.slot(field.geometry.icon_size, ink(field.icon)))
+            }))
             .child(editor)
             .children(field.invalid_mark.map(|colour| {
                 // A trailing icon sits `gap` from the text.
@@ -261,6 +315,7 @@ impl<C, S> Input<C, S> {
                     .pl(field.geometry.gap)
                     .child(Icon::Warning.mark(field.geometry.icon_size, ink(colour)))
             }))
+            .children(trailing)
     }
 }
 
