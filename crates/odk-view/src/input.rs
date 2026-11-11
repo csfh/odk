@@ -3,6 +3,8 @@
 //! A non-empty selection the person makes writes the primary selection. A selection set through
 //! [`crate::Store::set_input_selection`] does not. Middle-click pastes that primary selection.
 
+use std::rc::Rc;
+
 use crate::describe::apply;
 use crate::host::Hosted;
 use crate::icon::Icon;
@@ -25,6 +27,8 @@ pub struct Input<C, S> {
     required: bool,
     disabled: bool,
     description: Option<String>,
+    full_width: bool,
+    placeholder: Option<String>,
     on_change: C,
     on_submit: S,
 }
@@ -45,6 +49,8 @@ impl<C, S> Input<C, S> {
             required: false,
             disabled: false,
             description: None,
+            full_width: false,
+            placeholder: None,
             on_change,
             on_submit,
         }
@@ -101,8 +107,33 @@ impl<C, S> Describe for Input<C, S> {
     }
 }
 
+/// A key the owner of a field takes before the field does: `true` when it did. The last
+/// argument is whether the key is going up.
+pub(crate) type KeyHook<T> = Rc<dyn Fn(&mut Hosted<T>, &KeyEvent, &mut Tx, bool) -> bool>;
+
 impl<C, S> Input<C, S> {
+    /// Text shown while the field is empty, in the placeholder colour. It is not the field's name.
+    pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
+        self.placeholder = Some(placeholder.into());
+        self
+    }
+
+    /// As wide as its column, for a field inside a panel.
+    pub(crate) fn full_width(mut self) -> Self {
+        self.full_width = true;
+        self
+    }
+
     pub fn show<T>(self, hosted: &Hosted<T>) -> El
+    where
+        T: 'static,
+        C: Fn(&mut T, String) + Clone + 'static,
+        S: Fn(&mut T) + Clone + 'static,
+    {
+        self.show_with(hosted, None)
+    }
+
+    pub(crate) fn show_with<T>(self, hosted: &Hosted<T>, hook: Option<KeyHook<T>>) -> El
     where
         T: 'static,
         C: Fn(&mut T, String) + Clone + 'static,
@@ -112,6 +143,8 @@ impl<C, S> Input<C, S> {
         let Input {
             id,
             width,
+            full_width,
+            placeholder,
             invalid,
             disabled,
             on_change,
@@ -133,6 +166,8 @@ impl<C, S> Input<C, S> {
         let paste_id = id.clone();
         let on_paste = on_change.clone();
         let on_type = on_change;
+        let press_hook = hook.clone();
+        let release_hook = hook;
         let editor = apply(
             text_input(&edit, text_style(paint.body)).key(id.clone()),
             &accessible,
@@ -142,6 +177,10 @@ impl<C, S> Input<C, S> {
         .color(ink(field.colours.default.foreground))
         .caret(ink(field.caret), ink(field.selection.background))
         .pointer_buttons([PointerButton::Middle]);
+        let editor = match placeholder {
+            Some(text) => editor.placeholder(text, ink(field.placeholder)),
+            None => editor,
+        };
         // Rune keeps an editor that is bound to its text focusable, disabled or not, so a
         // disabled field leaves it unbound: it shows its text and takes no focus or edit.
         let editor = if disabled {
@@ -156,6 +195,11 @@ impl<C, S> Input<C, S> {
                     on_type(&mut hosted.app, text);
                 })
                 .on_input_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
+                    if let Some(hook) = &press_hook
+                        && hook(hosted, ev, tx, false)
+                    {
+                        return true;
+                    }
                     if !plain_enter(ev) {
                         return false;
                     }
@@ -165,7 +209,12 @@ impl<C, S> Input<C, S> {
                     }
                     true
                 })
-                .on_key_up(move |hosted: &mut Hosted<T>, ev: &KeyEvent, _: &mut Tx| {
+                .on_key_up(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
+                    if let Some(hook) = &release_hook
+                        && hook(hosted, ev, tx, true)
+                    {
+                        return true;
+                    }
                     if !plain_enter(ev) || !hosted.ui.take_input_submit(&up_id) {
                         return false;
                     }
@@ -188,9 +237,13 @@ impl<C, S> Input<C, S> {
                     on_paste(&mut hosted.app, text);
                 })
         };
-        row()
-            .key(format!("{id}-box"))
-            .w(width)
+        let boxed = row().key(format!("{id}-box"));
+        let boxed = if full_width {
+            boxed.w_full()
+        } else {
+            boxed.w(width)
+        };
+        boxed
             .h(field.geometry.height)
             .px(field.geometry.padding_x)
             .center_y()

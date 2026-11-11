@@ -156,6 +156,10 @@ name = "rune-menu"
 path = "rune/menu.rs"
 
 [[bin]]
+name = "rune-command"
+path = "rune/command.rs"
+
+[[bin]]
 name = "rune-context_menu"
 path = "rune/context_menu.rs"
 

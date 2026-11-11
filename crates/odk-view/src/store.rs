@@ -35,6 +35,15 @@ pub(crate) struct SelectSlot {
     pub highlight: usize,
 }
 
+/// What a command palette keeps: whether it was open when last drawn, and the item the keyboard
+/// or the pointer put the highlight on, with the query it was put under, so typing moves it back
+/// to the first match.
+#[derive(Default)]
+struct CommandSlot {
+    open: bool,
+    highlight: Option<(usize, String)>,
+}
+
 pub(crate) struct InputSlot {
     pub edit: TextEdit,
     /// Enter is down. Its release submits once.
@@ -44,6 +53,9 @@ pub(crate) struct InputSlot {
     seen: Cell<Option<(usize, usize)>>,
     /// A selection set by [`Store::set_input_selection`]. It is not a user selection.
     programmatic: Cell<Option<(usize, usize)>>,
+    /// The text is to be cleared the next time something reaches for the edit, which a view that
+    /// only holds `&Store` cannot do itself. Until then the text reads as empty.
+    reset: Cell<bool>,
 }
 
 impl Default for InputSlot {
@@ -53,6 +65,7 @@ impl Default for InputSlot {
             submit_armed: false,
             seen: Cell::new(None),
             programmatic: Cell::new(None),
+            reset: Cell::new(false),
         }
     }
 }
@@ -81,6 +94,8 @@ pub struct Store {
     resizes: HashMap<String, ResizeSlot>,
     menu_at: HashMap<String, (f32, f32)>,
     inputs: HashMap<String, InputSlot>,
+    /// Each command palette's open state and highlight.
+    commands: RefCell<HashMap<String, CommandSlot>>,
     toggles: HashMap<String, bool>,
     choices: HashMap<String, String>,
     selections: HashMap<String, Vec<String>>,
@@ -243,15 +258,52 @@ impl Store {
         self.selects.entry(id.to_string()).or_default()
     }
 
+    /// Notes whether the palette `id` is open in this build, and says whether it has just opened,
+    /// when it starts empty with the first item highlighted.
+    pub(crate) fn command_opened(&self, id: &str, open: bool) -> bool {
+        let mut all = self.commands.borrow_mut();
+        let slot = all.entry(id.to_string()).or_default();
+        let opened = open && !slot.open;
+        if opened {
+            slot.highlight = None;
+        }
+        slot.open = open;
+        opened
+    }
+
+    /// The item highlighted under `query`, if one was put there under it.
+    pub(crate) fn command_highlight(&self, id: &str, query: &str) -> Option<usize> {
+        let all = self.commands.borrow();
+        let (index, under) = all.get(id)?.highlight.as_ref()?;
+        (under == query).then_some(*index)
+    }
+
+    pub(crate) fn set_command_highlight(&self, id: &str, index: usize, query: &str) {
+        let mut all = self.commands.borrow_mut();
+        all.entry(id.to_string()).or_default().highlight = Some((index, query.to_string()));
+    }
+
     pub(crate) fn input_edit(&mut self, id: &str) -> &mut TextEdit {
-        &mut self.inputs.entry(id.to_string()).or_default().edit
+        let slot = self.inputs.entry(id.to_string()).or_default();
+        if slot.reset.take() {
+            slot.edit = TextEdit::new("");
+        }
+        &mut slot.edit
     }
 
     pub(crate) fn input_edit_clone(&self, id: &str) -> TextEdit {
         self.inputs
             .get(id)
+            .filter(|slot| !slot.reset.get())
             .map(|slot| slot.edit.clone())
             .unwrap_or_else(|| TextEdit::new(""))
+    }
+
+    /// Empties the field before it is next drawn or edited, from a view.
+    pub(crate) fn reset_input(&self, id: &str) {
+        if let Some(slot) = self.inputs.get(id) {
+            slot.reset.set(true);
+        }
     }
 
     pub(crate) fn arm_input_submit(&mut self, id: &str) {
@@ -268,6 +320,7 @@ impl Store {
     pub(crate) fn input_text(&self, id: &str) -> String {
         self.inputs
             .get(id)
+            .filter(|slot| !slot.reset.get())
             .map(|slot| slot.edit.text.clone())
             .unwrap_or_default()
     }
