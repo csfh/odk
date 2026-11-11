@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "crates/odk-view", "stories"]
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odk-plugin", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "crates/odk-view", "stories"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -16,6 +16,9 @@ odk-a11y = { path = "crates/odk-a11y" }
 odk-ui = { path = "crates/odk-ui" }
 odk-view = { path = "crates/odk-view" }
 odk-db = { path = "crates/odk-db" }
+odk-plugin = { path = "crates/odk-plugin" }
+# Luau through `mlua` (ADR 0091). The one Luau binding, in `odk-plugin` only.
+mlua = { version = "0.12.2", features = ["luau"] }
 deps = { path = "crates/deps" }
 # Exact pin, ADR 0029. Bump deliberately and test; GPUI breaks in minor releases.
 gpui = "=0.2.2"

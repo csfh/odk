@@ -18,7 +18,7 @@ One Cargo workspace, two groups of crates that never depend on each other.
 | `odk` | ODK | The facade applications depend on (ADR 0028): re-exports `odk-ui` as `ui`, `odk-theme` as `theme` and the pinned GPUI as `gpui`. |
 | `odk-theme` | ODK | Omarchy theme to tokens, with change notification (ADR 0019). No GPUI. |
 | `odk-ui` | ODK | The components, on GPUI and `odk-theme` (ADR 0027). |
-| `odk-plugin` | ODK | Luau host and Plugin loader (ADR 0003, 0020), later. Reached as `odk::plugin`. |
+| `odk-plugin` | ODK | Luau host and Plugin loader (ADR 0003, 0020, 0091, 0092). Reached as `odk::plugin`, behind the `plugin` feature. First slice built on 2026-11-11 (`docs/spec/plugin-api.md`): `ui` and `network` are not. |
 
 ## Order of work
 

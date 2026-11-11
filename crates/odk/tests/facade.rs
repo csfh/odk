@@ -32,3 +32,43 @@ fn the_facade_exposes_the_database() {
     assert_eq!(values![1, "a"].len(), 2);
     let _: Option<odk::db::rusqlite::Error> = None;
 }
+
+/// The `plugin` feature is off by default; the workspace's checks build this crate with
+/// `--all-features`.
+#[cfg(feature = "plugin")]
+#[test]
+fn the_facade_exposes_the_plugin_host() {
+    use odk::plugin::{Capability, Data, Grants, Host, Limits};
+
+    let dir = std::env::temp_dir().join(format!("odk-facade-plugin-{}", std::process::id()));
+    let plugin = dir.join("plugins/adder");
+    std::fs::create_dir_all(&plugin).unwrap();
+    std::fs::write(
+        plugin.join("plugin.toml"),
+        "plugin_manifest_version = 1\nid = \"com.example.adder\"\nname = \"Adder\"\nversion = \"1.0.0\"\nentry = \"main.luau\"\ncapabilities = []\n",
+    )
+    .unwrap();
+    std::fs::write(
+        plugin.join("main.luau"),
+        "function add(a, b) return a + b end",
+    )
+    .unwrap();
+
+    let mut host = Host::new(
+        &dir,
+        Grants::of([Capability::Storage]),
+        Limits::default(),
+        |_| {},
+    );
+    let loaded = host.load_dir(&host.plugins_dir());
+    assert!(loaded[0].1.is_ok(), "{loaded:?}");
+    assert_eq!(
+        host.call(
+            "com.example.adder",
+            "add",
+            &[Data::Number(1.0), Data::Number(2.0)]
+        ),
+        Ok(Data::Number(3.0))
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}

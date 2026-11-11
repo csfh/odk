@@ -1,0 +1,18 @@
+[package]
+name = "odk-plugin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "The Luau Plugin host of ODK applications (ADR 0003, ADR 0020, ADR 0091, ADR 0092)"
+
+[dependencies]
+deps.workspace = true
+mlua.workspace = true
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+toml = "0.9"
+
+[dev-dependencies]
+tempfile = "3"

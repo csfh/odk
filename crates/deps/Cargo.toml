@@ -113,6 +113,9 @@ tinystr = { version = "0.8", default-features = false, features = ["alloc", "zer
 zerotrie = { version = "0.2", default-features = false, features = ["alloc", "yoke", "zerofrom"] }
 icu_locale_core = { version = "2.3", default-features = false, features = ["alloc", "zerovec"] }
 icu_provider = { version = "2.3", default-features = false, features = ["alloc", "baked"] }
+# `mlua` (ADR 0091) turns on `arc_lock` for a workspace build; the other selections must too.
+lock_api = { version = "0.4", features = ["arc_lock", "atomic_usize", "default"] }
+parking_lot = { version = "0.12", features = ["arc_lock", "default"] }
 
 [build-dependencies]
 # A member with no proc macros of its own, such as odk-a11y, otherwise builds these for its build
@@ -127,6 +130,10 @@ serde = { version = "1", features = ["default", "derive", "rc", "std"] }
 zvariant = { version = "5", features = ["default", "enumflags2", "gvariant"] }
 zvariant_utils = { version = "4", features = ["default", "gvariant"] }
 indexmap = { version = "2", features = ["default", "serde", "std"] }
+# `mlua-sys` builds Luau with `cc`, which reaches `libc` through `jobserver` in a build script (ADR 0091).
+libc = { version = "0.2", features = ["default", "extra_traits", "std"] }
+# And `cc` with `parallel`, which `mlua-sys` asks for and `ring` does not.
+cc = { version = "1", features = ["parallel"] }
 
 # The dependencies above exist so the workspace resolves one feature set. This crate's
 # Rust code does not name them, so cargo-machete would report each one. Add a new
@@ -219,6 +226,9 @@ ignored = [
     "zeroize",
     "zerotrie",
     "zerovec",
+    "cc",
+    "lock_api",
+    "parking_lot",
     "zvariant",
     "zvariant_derive",
     "zvariant_utils",

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Each Plugin has its own Luau state and a small API the host grants
@@ -25,7 +25,7 @@ ADR 0003 makes Luau the Plugin layer, with `Lua::sandbox()` as the only boundary
 
 6. **Limits are ODK's, named, and a Plugin that breaks one is unloaded.** Each state has a memory limit (`set_memory_limit`) and each call into it has a time budget (`set_interrupt`), both of which `docs/checks.md` found to work. Their values are named constants of `odk-plugin`, set from measurement of the first implementation and not here. A Plugin that exceeds either is unloaded for the rest of the session and reported, not resumed: `mlua` keeps the state usable after a memory error, but a script that was stopped half-way may have left what it was doing inconsistent, and a Plugin that is restarted by itself is a way round the limit. The interrupt cannot stop a long call into C library code (`docs/checks.md`), so the host exposes no function that takes long: `network` is asynchronous, and `storage` is bounded by its cap.
 
-7. **A Plugin's failure never stops the host or another Plugin.** Every call into a Plugin returns a `Result` at the boundary, and a Plugin error is reported to the host as a value: the Plugin's `id`, the phase (`load` or `call`), the kind (`syntax`, `runtime`, `memory`, `timeout`, `refused`) and the message, through a callback the application supplies. ODK writes no log of its own. What the application does with it, such as a line in its interface, is the application's.
+7. **A Plugin's failure never stops the host or another Plugin.** (`manifest` was added to the kinds on 2026-11-11, when `odk-plugin` was written: a `plugin.toml` that cannot be read, or an id that is already loaded, is a failure with no state to blame.) Every call into a Plugin returns a `Result` at the boundary, and a Plugin error is reported to the host as a value: the Plugin's `id`, the phase (`load` or `call`), the kind (`manifest`, `refused`, `syntax`, `runtime`, `memory`, `timeout`) and the message, through a callback the application supplies. ODK writes no log of its own. What the application does with it, such as a line in its interface, is the application's.
 
 ## Why one state each
 
