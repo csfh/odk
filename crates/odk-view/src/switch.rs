@@ -25,6 +25,7 @@ pub struct Switch<T> {
     checked: Option<bool>,
     default_checked: bool,
     disabled: bool,
+    description: Option<String>,
     density: Option<Density>,
     on_change: Option<Change<T>>,
 }
@@ -37,9 +38,16 @@ impl<T: 'static> Switch<T> {
             checked: None,
             default_checked: false,
             disabled: false,
+            description: None,
             density: None,
             on_change: None,
         }
+    }
+
+    /// The text a form field gives its control, which the control reports as its description.
+    pub(crate) fn described(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self
     }
 
     /// Whether it is on, making the switch controlled.
@@ -143,9 +151,13 @@ impl<T: 'static> Switch<T> {
 impl<T> Switch<T> {
     /// How it describes itself while it is `on`.
     fn accessible_at(&self, on: bool) -> Accessible {
-        Accessible::new(Role::Switch, self.label.clone())
+        let accessible = Accessible::new(Role::Switch, self.label.clone())
             .selected(on)
-            .disabled(self.disabled)
+            .disabled(self.disabled);
+        match &self.description {
+            Some(description) => accessible.description(description.clone()),
+            None => accessible,
+        }
     }
 }
 

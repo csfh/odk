@@ -24,6 +24,10 @@ pub struct Select<F> {
     options: Vec<String>,
     selected: Option<usize>,
     width: f32,
+    invalid: bool,
+    required: bool,
+    disabled: bool,
+    description: Option<String>,
     on_select: F,
 }
 
@@ -41,6 +45,10 @@ impl<F> Select<F> {
             options,
             selected,
             width: DEFAULT_WIDTH,
+            invalid: false,
+            required: false,
+            disabled: false,
+            description: None,
             on_select,
         }
     }
@@ -51,11 +59,43 @@ impl<F> Select<F> {
         self.width = width;
         self
     }
+
+    /// Marks the value as wrong: the danger edge and a mark at the end, so it never shows by
+    /// colour alone. Say what is wrong in a form field's error.
+    pub fn invalid(mut self, invalid: bool) -> Self {
+        self.invalid = invalid;
+        self
+    }
+
+    /// Reports that the field must be filled in.
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    /// Takes the field out of the Tab order and draws it disabled.
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// The text a form field gives its control, which the control reports as its description.
+    pub(crate) fn described(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self
+    }
 }
 
 impl<F> Describe for Select<F> {
     fn accessible(&self) -> Accessible {
-        let accessible = Accessible::new(Role::Combobox, self.label.clone());
+        let accessible = Accessible::new(Role::Combobox, self.label.clone())
+            .invalid(self.invalid)
+            .required(self.required)
+            .disabled(self.disabled);
+        let accessible = match &self.description {
+            Some(description) => accessible.description(description.clone()),
+            None => accessible,
+        };
         match self.selected.and_then(|index| self.options.get(index)) {
             Some(option) => accessible.value(option.clone()),
             None => accessible,
@@ -76,18 +116,25 @@ impl<F> Select<F> {
             options,
             selected,
             width,
+            invalid,
+            disabled,
             on_select,
+            ..
         } = self;
         let paint = style::paint(hosted.theme());
-        let open = hosted.ui.select(&id).is_some_and(|slot| slot.open);
+        let open = !disabled && hosted.ui.select(&id).is_some_and(|slot| slot.open);
         let highlight = hosted
             .ui
             .select(&id)
             .map(|slot| slot.highlight)
             .unwrap_or(0);
-        let field = paint
-            .tokens
-            .field(Density::Default, States::NONE.expanded(open));
+        let field = paint.tokens.field(
+            Density::Default,
+            States::NONE
+                .expanded(open)
+                .disabled(disabled)
+                .invalid(invalid),
+        );
         let width = paint.px(width);
         let trigger_key = format!("{id}-trigger");
         let value = selected
@@ -104,7 +151,7 @@ impl<F> Select<F> {
             &field.focus,
         )
         .expanded(open)
-        .focusable(true)
+        .focusable(!disabled)
         .w(width)
         .h(field.geometry.height)
         .px(field.geometry.padding_x)
@@ -117,13 +164,16 @@ impl<F> Select<F> {
             ink(field.colours.default.border),
         )
         .on_press(move |hosted: &mut Hosted<T>| {
+            if disabled {
+                return;
+            }
             let slot = hosted.ui.select_mut(&open_id);
             if !slot.open {
                 reveal(slot, chosen, press_len);
             }
         })
         .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
-            if tx.key_repeat() || !opens(ev) {
+            if disabled || tx.key_repeat() || !opens(ev) {
                 return false;
             }
             let slot = hosted.ui.select_mut(&key_id);
@@ -144,7 +194,19 @@ impl<F> Select<F> {
                 .a11y_hidden(),
         )
         .child(rune::spacer())
-        .child(Icon::ChevronDown.mark(field.geometry.icon_size, ink(field.icon)));
+        // The icons at the end sit `gap` from the text and from each other.
+        .child(
+            row()
+                .center_y()
+                .gap(field.geometry.gap)
+                .pl(field.geometry.gap)
+                .children(
+                    field
+                        .invalid_mark
+                        .map(|colour| Icon::Warning.mark(field.geometry.icon_size, ink(colour))),
+                )
+                .child(Icon::ChevronDown.mark(field.geometry.icon_size, ink(field.icon))),
+        );
         if !open || options.is_empty() {
             return trigger;
         }

@@ -33,6 +33,7 @@ pub struct Checkbox<T> {
     disabled: bool,
     invalid: bool,
     required: bool,
+    description: Option<String>,
     density: Option<Density>,
     on_change: Option<Change<T>>,
 }
@@ -48,9 +49,16 @@ impl<T: 'static> Checkbox<T> {
             disabled: false,
             invalid: false,
             required: false,
+            description: None,
             density: None,
             on_change: None,
         }
+    }
+
+    /// The text a form field gives its control, which the control reports as its description.
+    pub(crate) fn described(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self
     }
 
     /// Whether it is checked, making the checkbox controlled.
@@ -178,12 +186,16 @@ impl<T: 'static> Checkbox<T> {
 impl<T> Checkbox<T> {
     /// How it describes itself while it is `on`.
     fn accessible_at(&self, on: bool) -> Accessible {
-        Accessible::new(Role::Checkbox, self.label.clone())
+        let accessible = Accessible::new(Role::Checkbox, self.label.clone())
             .selected(on && !self.indeterminate)
             .mixed(self.indeterminate)
             .disabled(self.disabled)
             .invalid(self.invalid)
-            .required(self.required)
+            .required(self.required);
+        match &self.description {
+            Some(description) => accessible.description(description.clone()),
+            None => accessible,
+        }
     }
 }
 
