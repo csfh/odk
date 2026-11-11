@@ -1,5 +1,5 @@
 //! Best effort: Hyprland tiles a new window to fill the screen unless a rule says otherwise,
-//! and GPUI 0.2.2 cannot ask a Wayland compositor for a floating dialog. When running under
+//! and Rune has no dialog hint for a Wayland window (ADR 0089). When running under
 //! Hyprland the dialog asks it, through `hyprctl`, to float, size and centre the window.
 //! Anything that fails is ignored: the dialog still works, tiled.
 //!
