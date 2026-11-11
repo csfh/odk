@@ -56,6 +56,22 @@ impl Default for InputSlot {
     }
 }
 
+/// Which part of a hover overlay the pointer is on.
+#[derive(Clone, Copy)]
+pub(crate) enum Part {
+    Trigger,
+    Panel,
+}
+
+/// A tooltip's or a hover card's pointer: on its trigger, on its panel, and whether Escape closed it
+/// until the pointer has left both.
+#[derive(Default, Clone, Copy)]
+struct Hovering {
+    trigger: bool,
+    panel: bool,
+    dismissed: bool,
+}
+
 /// What a component keeps for itself, keyed by the id the builder takes.
 #[derive(Default)]
 pub struct Store {
@@ -66,6 +82,10 @@ pub struct Store {
     toggles: HashMap<String, bool>,
     choices: HashMap<String, String>,
     selections: HashMap<String, Vec<String>>,
+    /// Which overlays are open: a hover card, a tooltip or an uncontrolled popover.
+    open: HashMap<String, bool>,
+    /// The pointer of each tooltip and hover card.
+    hovers: HashMap<String, Hovering>,
     /// Whether the build in progress has a spinner in it.
     spinner_building: Cell<bool>,
     /// Whether the last finished build had a spinner in it, so the host's poll has one to turn.
@@ -120,6 +140,41 @@ impl Store {
     /// Whether the uncontrolled toggle `id` is on: what a press last made it, else `default`.
     pub(crate) fn toggle_value(&self, id: &str, default: bool) -> bool {
         self.toggles.get(id).copied().unwrap_or(default)
+    }
+
+    /// Whether the hover overlay `id` is shown: the pointer is on its trigger or its panel, and
+    /// Escape has not closed it since.
+    pub(crate) fn hover_open(&self, id: &str) -> bool {
+        self.hovers
+            .get(id)
+            .is_some_and(|h| (h.trigger || h.panel) && !h.dismissed)
+    }
+
+    /// The pointer entered or left `part` of the hover overlay `id`. Once it has left both, an
+    /// overlay that Escape closed may open again.
+    pub(crate) fn hover_set(&mut self, id: &str, part: Part, inside: bool) {
+        let slot = self.hovers.entry(id.to_string()).or_default();
+        match part {
+            Part::Trigger => slot.trigger = inside,
+            Part::Panel => slot.panel = inside,
+        }
+        if !slot.trigger && !slot.panel {
+            slot.dismissed = false;
+        }
+    }
+
+    /// Escape: closed until the pointer has left.
+    pub(crate) fn hover_dismiss(&mut self, id: &str) {
+        self.hovers.entry(id.to_string()).or_default().dismissed = true;
+    }
+
+    /// Whether the overlay `id` is open: what was last set, else `default`.
+    pub(crate) fn is_open(&self, id: &str, default: bool) -> bool {
+        self.open.get(id).copied().unwrap_or(default)
+    }
+
+    pub(crate) fn set_open(&mut self, id: &str, open: bool) {
+        self.open.insert(id.to_string(), open);
     }
 
     /// The option an uncontrolled group `id` last chose, if one was.

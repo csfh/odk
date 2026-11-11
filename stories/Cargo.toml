@@ -154,3 +154,15 @@ path = "rune/progress.rs"
 [[bin]]
 name = "rune-spinner"
 path = "rune/spinner.rs"
+
+[[bin]]
+name = "rune-tooltip"
+path = "rune/tooltip.rs"
+
+[[bin]]
+name = "rune-hover_card"
+path = "rune/hover_card.rs"
+
+[[bin]]
+name = "rune-popover"
+path = "rune/popover.rs"
