@@ -19,10 +19,12 @@ const HOST: &[&str] = &[
 ];
 
 /// Files that are not controls: a mark, the layout groups, the row a checkbox and a switch
-/// share, the decoded images a window holds and the rules of a number field are decoration,
+/// share, the decoded images a window holds, the rules of a number field and the thread that
+/// follows the theme are decoration,
 /// structure, state or logic, so no
 /// `Describe` (item 14), though every other rule here still reads them.
 const NOT_CONTROLS: &[&str] = &[
+    "follow.rs",
     "hover.rs",
     "icon.rs",
     "images.rs",
