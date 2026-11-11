@@ -1,11 +1,12 @@
 //! The entry the kernel uses for a `.oma` file (ADR 0060, section 1; ADR 0056): `binfmt_misc`
 //! runs the private program with the Bundle's path as its one argument.
 //!
-//! A `.oma` file is inert: the program never executes bytes from it. Until the phases that check
-//! its publisher and ask for consent exist (issues #13 and #14), the entry seals a copy, checks
-//! the envelope against itself (`trust::check`, issue #10), reads its image (`image`, issue
-//! #12), and refuses the file whatever those say (issue #11). A directory Bundle, and every
-//! subcommand, go the way they always did.
+//! A `.oma` file is inert: the program never executes bytes from it. The entry seals a copy,
+//! checks the envelope against itself (`trust::check`, issue #10), reads its image (`image`,
+//! issue #12), and refuses the file whatever those say (issue #11). The flows that check a
+//! publisher and ask for consent (issues #13 and #14) are built and run from `odk oma install`,
+//! `run` and `open`; this entry refuses all the same, since nothing installs the `binfmt_misc`
+//! line (ADR 0087). A directory Bundle, and every subcommand, go the way they always did.
 
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;

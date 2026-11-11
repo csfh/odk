@@ -86,7 +86,7 @@ pub enum Error {
     )]
     KeyIdCollision(KeyId),
     #[error(
-        "{app} asks for more than its publisher's pin allows; asking for more under a pinned root is not built yet (issue #14)"
+        "{app} asks for more than its publisher's pin allows; `odk oma install` asks about more, and nothing else does"
     )]
     MoreThanAllowed { app: Identifier },
     #[error(transparent)]
@@ -107,9 +107,7 @@ pub enum Error {
         key: KeyId,
         at: Timestamp,
     },
-    #[error(
-        "this {app} is not the installed one; install it with `odk oma install` (opening a Bundle file that is not installed is not built yet, issue #14)"
-    )]
+    #[error("this {app} is not the installed one; install it with `odk oma install`")]
     NotInstalledFile { app: Identifier },
     #[error(
         "{app} {version} is not newer than the installed {marked}, or is that version with other contents; it is not installed"
@@ -1000,7 +998,8 @@ fn commit(
 /// it and runs the installed copy. Run once runs it with a private data directory and stores
 /// nothing, no pin, no key set and no denial. Cancel stores a denial, and a later launch does not
 /// ask again. The installed version itself runs as installed. A newer version of an installed
-/// application is not run by opening it: the upgrade dialog is not built (issue #14).
+/// application is not run by opening it, and opening it offers no upgrade: `install` does
+/// (issue #14).
 pub fn open_file(
     layout: &Layout,
     host: &HostEnv,
@@ -1303,8 +1302,8 @@ pub enum Registered {
 /// `held/<root>/<app>.oma`, and not launched. A newer version under the pin, dropped there or
 /// staged in its application's inbox, is applied when its key set authorizes it, and takes
 /// effect even when it asks for more, which its next launch asks about (ADR 0015). Directory
-/// Bundles, and anything that is not a regular `*.oma` file, are not touched. `.desktop` entries
-/// and inbox watches are not built yet.
+/// Bundles, and anything that is not a regular `*.oma` file, are not touched. It also writes the
+/// `.desktop` entries and the inbox watches.
 pub fn register(layout: &Layout, now: i64, fetch: Fetch, systemctl: Systemctl) -> Vec<Registered> {
     // The path unit watches `~/Applications`, which has to be there to be watched (ADR 0053).
     let _ = fs::create_dir_all(layout.applications());
@@ -1750,8 +1749,8 @@ fn take_from_inbox(
 /// accepted: its pin is there, and its version and payload digest are the mark's. That ties the
 /// launch to bytes whose release key was authorized then, with no key set fetched and no
 /// network. Past its signature window it says so in one line and runs. A file that is not
-/// installed, or another version of one that is, is not run yet: opening one is the
-/// first-install or upgrade flow, which is not built (issue #14).
+/// installed, or another version of one that is, is not run by this: opening one is
+/// `open_file`'s, and `install` upgrades.
 pub fn run_file(
     layout: &Layout,
     host: &HostEnv,

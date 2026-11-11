@@ -113,7 +113,7 @@ ADR 0056's facade, the drop-in, the desktop handler and the refusing entry are o
 
 **Acceptance.** An unverified object never reaches the EROFS reader. The tree at `/app` is the verified object's. The phase does not claim the consent dialog can list permissions.
 
-**Built** (issue #12). `oma::image` reads the image of a `trust::Checked` file, which only `trust::check` makes, in the layouts [`docs/spec/oma-image.md`](spec/oma-image.md) lists, and holds `manifest.toml` to the signed manifest. `sandbox::mounts::unpack_image` makes the tmpfs at `/app`. The `binfmt_misc` entry reads the image after the envelope and still refuses. A launch does not call `unpack_image` yet: `run` of a single file is phase 5's.
+**Built** (issue #12). `oma::image` reads the image of a `trust::Checked` file, which only `trust::check` makes, in the layouts [`docs/spec/oma-image.md`](spec/oma-image.md) lists, and holds `manifest.toml` to the signed manifest. `sandbox::mounts::unpack_image` makes the tmpfs at `/app`. The `binfmt_misc` entry reads the image after the envelope and still refuses. A launch of a single file calls it (`run`, phase 5).
 
 ### 4. Consent and pair-scoped state
 
@@ -148,7 +148,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
   2. It refuses an expired signature, a taken name or a key set that does not authorize the release key, before the dialog.
   3. It asks Install or Cancel, listing the image's permissions.
   4. It pins the root, places the sealed bytes in `~/Applications` and writes the mark.
-- `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon is refused for now.
+- `odk oma run` of an installed Bundle file, by path or by app id: it seals, checks and reads it again, and runs only the file whose version and payload digest are the pin's mark, with no key set fetched. Its tree is unpacked into the read-only tmpfs at `/app` (`Op::Image`), and its data is the pair's. A file with a daemon runs it from its program written out of the verified image (ADR 0084).
 - Revocation, as section 3 states it: the release keys a root revoked are kept in `grants/<root>/revoked` (`grants::keep_revocation`, `trust::revocation::Revocation`). Such a key authorizes no new install or upgrade, through `install`, opening, `--register` or an inbox, and a later `oma-keys` that omits it or lists it again does not bring it back. A file it signed that is installed still runs. The document that revokes has no schema (question 2), so nothing records a revocation yet: the tests take one as already verified, as issue #14 says.
 - A Bundle file's launcher entry names its icon, copied out of the verified image to `apps/<root>/<app>/icon.png` or `icon.svg` (ADR 0090). The consent dialog still does not read it.
 - Installs under a pinned root:
