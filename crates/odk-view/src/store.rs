@@ -62,6 +62,8 @@ pub struct Store {
     /// The moment the turns count from, so every spinner shows the same glyph at the same time.
     spinner_epoch: Cell<Option<f64>>,
     primary: RefCell<String>,
+    /// The decoded images of the window's `Image`s.
+    pub(crate) images: crate::images::Images,
 }
 
 impl Store {

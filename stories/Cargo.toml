@@ -96,6 +96,10 @@ name = "rune-empty"
 path = "rune/empty.rs"
 
 [[bin]]
+name = "rune-image"
+path = "rune/image.rs"
+
+[[bin]]
 name = "rune-item"
 path = "rune/item.rs"
 
