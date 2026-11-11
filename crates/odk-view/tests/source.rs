@@ -21,7 +21,15 @@ const HOST: &[&str] = &[
 /// Files that are not controls: a mark, the layout groups, the row a checkbox and a switch
 /// share, and the decoded images a window holds are decoration, structure or state, so no
 /// `Describe` (item 14), though every other rule here still reads them.
-const NOT_CONTROLS: &[&str] = &["icon.rs", "images.rs", "layout.rs", "toggle.rs", "tone.rs"];
+const NOT_CONTROLS: &[&str] = &[
+    "hover.rs",
+    "icon.rs",
+    "images.rs",
+    "layout.rs",
+    "placement.rs",
+    "toggle.rs",
+    "tone.rs",
+];
 
 /// The files whose component draws its description through `toggle::labelled`.
 const VIA_TOGGLE: &[&str] = &["checkbox.rs", "switch.rs"];
