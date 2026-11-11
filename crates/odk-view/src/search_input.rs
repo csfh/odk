@@ -9,6 +9,7 @@ use crate::icon::Icon;
 use crate::input::{Input, KeyHook};
 use crate::kbd::Kbd;
 use crate::spinner::Spinner;
+use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::ButtonVariant;
 use rune::{El, Key, KeyEvent, TextEdit, Tx};
 
@@ -149,5 +150,12 @@ impl<C, S> SearchInput<C, S> {
             input = input.trailing(Kbd::new(&chord).show(hosted));
         }
         input.show_with(hosted, Some(hook))
+    }
+}
+
+/// What the field reports; the `Input` inside draws it.
+impl<C, S> Describe for SearchInput<C, S> {
+    fn accessible(&self) -> Accessible {
+        Accessible::new(Role::TextInput, self.name.clone()).disabled(self.disabled)
     }
 }

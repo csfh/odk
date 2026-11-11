@@ -7,6 +7,7 @@ use crate::button::Button;
 use crate::host::Hosted;
 use crate::icon::Icon;
 use crate::input::Input;
+use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::ButtonVariant;
 use rune::El;
 
@@ -129,5 +130,16 @@ impl<C, S> PasswordInput<C, S> {
             );
         }
         input.show(hosted)
+    }
+}
+
+/// What the field reports: a text input with no value, since it is masked (the `Input` inside
+/// draws it, and Rune withholds the value from a secure field).
+impl<C, S> Describe for PasswordInput<C, S> {
+    fn accessible(&self) -> Accessible {
+        Accessible::new(Role::TextInput, self.name.clone())
+            .invalid(self.invalid)
+            .required(self.required)
+            .disabled(self.disabled)
     }
 }

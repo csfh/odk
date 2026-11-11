@@ -38,6 +38,9 @@ const VIA_TOGGLE: &[&str] = &["checkbox.rs", "switch.rs"];
 /// the field's state (`FieldControl::in_field`).
 const VIA_CONTROL: &[&str] = &["form_field.rs"];
 
+/// Fields that are an `Input` with parts: the `Input` inside draws the description.
+const VIA_INPUT: &[&str] = &["search_input.rs", "password_input.rs"];
+
 fn sources() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found: Vec<(String, String)> = fs::read_dir(&dir)
@@ -217,8 +220,10 @@ fn every_component_implements_describe_and_draws_it() {
         let via_toggle = VIA_TOGGLE.contains(&file.as_str()) && text.contains("labelled(");
         // A form field's control draws its description, with the field's state applied.
         let via_control = VIA_CONTROL.contains(&file.as_str()) && text.contains("in_field(");
+        // A search or password field is built on `Input`, which draws the same description.
+        let via_input = VIA_INPUT.contains(&file.as_str()) && text.contains("Input::new(");
         assert!(
-            text.contains("apply(") || via_toggle || via_control,
+            text.contains("apply(") || via_toggle || via_control || via_input,
             "{file} does not draw its description with describe::apply"
         );
         let code = code(&text);
