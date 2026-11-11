@@ -35,6 +35,16 @@ pub(crate) struct SelectSlot {
     pub highlight: usize,
 }
 
+/// What a data table keeps: the sort a press on a header chose, the selected row's key when the
+/// application does not hold it, how tall the rows' viewport is, and the row whose menu is open.
+#[derive(Default)]
+pub(crate) struct TableSlot {
+    pub sort: Option<(String, crate::data_table::SortDirection)>,
+    pub selected: Option<String>,
+    pub viewport: f32,
+    pub menu_row: Option<String>,
+}
+
 /// What a command palette keeps: whether it was open when last drawn, and the item the keyboard
 /// or the pointer put the highlight on, with the query it was put under, so typing moves it back
 /// to the first match.
@@ -96,6 +106,7 @@ pub struct Store {
     inputs: HashMap<String, InputSlot>,
     /// Each command palette's open state and highlight.
     commands: RefCell<HashMap<String, CommandSlot>>,
+    tables: HashMap<String, TableSlot>,
     /// The text a field starts with, until it has a slot of its own.
     seeds: RefCell<HashMap<String, String>>,
     toggles: HashMap<String, bool>,
@@ -305,6 +316,14 @@ impl Store {
         let focused = edit.focused;
         *edit = TextEdit::new(text);
         edit.focused = focused;
+    }
+
+    pub(crate) fn table(&self, id: &str) -> Option<&TableSlot> {
+        self.tables.get(id)
+    }
+
+    pub(crate) fn table_mut(&mut self, id: &str) -> &mut TableSlot {
+        self.tables.entry(id.to_string()).or_default()
     }
 
     pub(crate) fn input_edit(&mut self, id: &str) -> &mut TextEdit {
