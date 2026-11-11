@@ -7,6 +7,7 @@
 mod alert;
 mod badge;
 mod button;
+mod chart;
 mod checkbox;
 mod describe;
 mod empty;
@@ -43,6 +44,7 @@ mod tone;
 pub use alert::Alert;
 pub use badge::Badge;
 pub use button::Button;
+pub use chart::{Chart, ChartHeight, ChartPath, Ink, Scene, StrokeWidth, TextAnchor, TextBaseline};
 pub use checkbox::Checkbox;
 pub use empty::Empty;
 pub use face::Face;

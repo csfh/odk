@@ -19,7 +19,7 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 | OMA steps 0 to 5, trust phases, `odkd`, packaging text | Built. `flow.rs` still carries "not built yet (issue #14)" markers to re-check. |
 | Design-language migration (steps 1 to 10, Phase 12) | Done. Provisional values remain (Track C). |
 | Rune port, step 1 (host) and step 2 (Button, Input, Select) | Done. |
-| Rune port, step 3 | In progress. In `main`: the leaf components, forms, the roving-focus groups, NavList, Tabs, Progress, Spinner, `FormField`, `Image` and `Resizable` (2026-11-11). In a worktree, uncommitted: Popover, HoverCard and Tooltip. Not built: the menus, Breadcrumb, Dialog, Sheet, Toast, Command, the other text fields, `DataTable`, and `Chart` (which waits on a decision, below). |
+| Rune port, step 3 | In progress. In `main`: the leaf components, forms, the roving-focus groups, NavList, Tabs, Progress, Spinner, `FormField`, `Image`, `Resizable` and `Chart` (2026-11-11). In a worktree, uncommitted: Popover, HoverCard and Tooltip. Not built: the menus, Breadcrumb, Dialog, Sheet, Toast, Command, the other text fields, and `DataTable`. |
 | Rune port, step 4 (`oma-consent`) | Done, 2026-11-11, headless; a real click and the `hyprctl` float were not checked. |
 | Rune port, steps 5 and 6 (screen-reader grant, GPUI leaves) | Not started. |
 | `odk-plugin` (Luau host and Plugin loader) | First slice built. In v1 (the owner, 2026-11-11). ADR 0091 (vets `mlua`) and ADR 0092 (one state each, the API's shape, limits, errors) were accepted by the owner on 2026-11-11. `odk-plugin`'s first slice is built (`ui` and `network` are not). |
@@ -30,7 +30,7 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 1. **Overlay layer on Rune.** `Popover`, `HoverCard`, `Tooltip` and `Placement` (in flight on `feat/rune-overlay`), then `Dialog`, `Sheet` and `Toast`, with the host's root layer list.
 2. **Menus.** `DropdownMenu`, `ContextMenu` and `Breadcrumb`, on the overlay layer and the shared menu list.
 3. **Primary selection, then the text fields.** `Textarea`, `InputGroup`, `SearchInput`, `PasswordInput`, `NumberInput` and `Command`'s field wait on it (ADR 0089).
-4. **The rest of step 3.** `Command`'s panel, `DataTable` and `Chart`. (`FormField`, `Image` and `Resizable` are done.)
+4. **The rest of step 3.** `Command`'s panel and `DataTable`. (`Chart` is done.) (`FormField`, `Image` and `Resizable` are done.)
 5. **Rune-port gaps.** ToggleGroup's single mode is radios, a NavList's current page has a state, manual-activation Tabs are tabs (`docs/checks.md`); Arabic labels in `Checkbox`, `Switch` and `ToggleGroup` (checklist item 23); a `Checkbox`'s label wraps at about 150 px in a stretched column, in `rune-checkbox` too (seen 2026-11-11).
 6. **`oma-consent` on Rune** (plan step 4): done. The icon and the upgrade screen it lacks (`docs/checks.md`) remain.
 7. **The screen-reader grant** (plan step 5): how a sandboxed window reaches the screen reader while the session bus stays refused, written into `docs/checks.md`.
@@ -39,7 +39,7 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 **What Rune allows the remaining components (checked 2026-11-11 in the pinned revision):**
 
 - **`Resizable`** maps onto `El::on_drag`, whose `Drag` carries the element-local position, the travel since the press and `cancelled()` (for Escape), and `El::cursor(Cursor::ResizeColumn | ResizeRow)`. Nothing else is missing, so it can be ported as designed (ADR 0069).
-- **`Chart` cannot be ported as ADR 0071 and ADR 0075 describe it.** Rune's `canvas(Shape)` is declarative: there is no paint closure, so a `Chart` cannot be handed its box's width and height at paint time (`Scene::width`, `Scene::height`); a `Shape` has polylines, fills and `view_box`, but no text and no arcs or curves, so `ChartPath::arc` and `curve_to` have to be flattened to points and `Scene::text` has to be positioned text elements beside the canvas. Either an ADR amends the contract (for example: the Chart measures its box from the previous frame, or the application states the size), or `Chart` waits for Rune to gain a paint-time callback. This is the owner's call.
+- **`Chart`** was settled by the owner on 2026-11-11 (ADR 0093): the box is measured from the last layout, and arcs and text are built from Rune shapes and text elements. Built; see `docs/checks.md`.
 - **`DataTable`** (ADR 0070, virtualised rows) was not checked yet.
 
 Each component brings its `stories/rune/<name>.rs` in the same pull request (the owner, 2026-11-08), which clears the 36 "no story" rows in the checklist as it goes.

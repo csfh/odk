@@ -120,6 +120,10 @@ name = "rune-alert"
 path = "rune/alert.rs"
 
 [[bin]]
+name = "rune-chart"
+path = "rune/chart.rs"
+
+[[bin]]
 name = "rune-checkbox"
 path = "rune/checkbox.rs"
 
