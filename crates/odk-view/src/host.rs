@@ -42,7 +42,8 @@ fn poll<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool {
     // Both run, so a turn of the spinners never hides an image that has settled.
     let turned = crate::spinner::turn(hosted, now, tx);
     let settled = hosted.ui.images.settled();
-    turned | settled
+    let charted = crate::chart::advance(hosted, now, tx);
+    turned | settled | charted
 }
 
 /// Gives the window's images the waker that Rune supplies, so a finished decode wakes it.

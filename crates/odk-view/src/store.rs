@@ -77,6 +77,8 @@ pub struct Store {
     primary: RefCell<String>,
     /// The decoded images of the window's `Image`s.
     pub(crate) images: crate::images::Images,
+    /// The boxes, transitions and drags of the window's `Chart`s.
+    pub(crate) charts: crate::chart::Charts,
 }
 
 impl Store {
