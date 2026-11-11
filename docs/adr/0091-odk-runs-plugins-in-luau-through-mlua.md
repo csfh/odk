@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # ODK runs Plugins in Luau through mlua
