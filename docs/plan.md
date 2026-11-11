@@ -1,6 +1,6 @@
 # Implementation plan
 
-Not normative. This is the order in which to build what the ADRs and specs describe. It decides nothing: if building reveals that a decision is wrong, write a new ADR. Crate names are proposals. Nothing here starts until the user says the design phase is over.
+Not normative. This is the order in which to build what the ADRs and specs describe. It decides nothing: if building reveals that a decision is wrong, write a new ADR. Crate names are proposals. The design phase is over (the user, 2026-10-20), and `docs/roadmap.md` is the way from here to v1.
 
 ## Before anything
 

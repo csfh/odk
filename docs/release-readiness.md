@@ -4,6 +4,8 @@ Where ODK stands for a first release, as of 2026-10-25. The Phase 12 audit was m
 
 **2026-10-31:** the example applications and the gallery were removed (`stories/` is the showcase now). Rows below that name the gallery, `examples/` or `tools/visual-scenarios`, and their counts and timings, record what was measured on their dates.
 
+**2026-11-11:** `docs/roadmap.md` is the way to v1. Stale below: every mention of CI, `.github/workflows` and the required status checks (there is no CI since 2026-10-29; checks run locally, see `CLAUDE.md`); the "Medium" row that says the OMA file design is not implemented and the "Deferred" row on registration, upgrades, `rollback`, `purge` and path units (built; `CLAUDE.md` lists what is); the hand run of `Todo.oma` (the example is gone); and the High row's resolution (ADR 0089 moves ODK to Rune, which has an accessibility tree). `TODO.md` is named below and is not in the tree.
+
 **Verdict: conditionally ready for a first pre-1.0 release; not production-ready.** Nothing found is a blocker. One High item is open, and it is not ODK's to close (GPUI 0.2.2 has no accessibility tree). ADR 0046 is superseded by ADR 0048, and ADR 0047, ADR 0048 and ADR 0049 are accepted (0049 with `odk::db` behind the `db` feature, off by default). Hand checks and provisional values still wait on the user (below). By the criteria in this document, a High item open means "production-ready" cannot be said, so it is not said.
 
 ## Criteria and evidence
