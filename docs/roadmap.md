@@ -19,9 +19,10 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 | OMA steps 0 to 5, trust phases, `odkd`, packaging text | Built. `flow.rs` still carries "not built yet (issue #14)" markers to re-check. |
 | Design-language migration (steps 1 to 10, Phase 12) | Done. Provisional values remain (Track C). |
 | Rune port, step 1 (host) and step 2 (Button, Input, Select) | Done. |
-| Rune port, step 3 | In progress: leaf components, forms, the roving-focus groups, NavList, Tabs, Progress and Spinner are in; Popover, HoverCard and Tooltip are in a worktree. Menus, Breadcrumb, Dialog, Sheet, Toast, Command, FormField, the other text fields, DataTable, Resizable, Chart and Image are not. |
-| Rune port, steps 4 to 6 (`oma-consent`, screen-reader grant, GPUI leaves) | Not started. |
-| `odk-plugin` (Luau host and Plugin loader) | Not started; "later" in `docs/plan.md`. In v1 (the owner, 2026-11-11). No Luau crate in the tree; `spikes/mlua-limits` holds the findings. |
+| Rune port, step 3 | In progress. In `main`: the leaf components, forms, the roving-focus groups, NavList, Tabs, Progress, Spinner, `FormField`, `Image` and `Resizable` (2026-11-11). In a worktree, uncommitted: Popover, HoverCard and Tooltip. Not built: the menus, Breadcrumb, Dialog, Sheet, Toast, Command, the other text fields, `DataTable`, and `Chart` (which waits on a decision, below). |
+| Rune port, step 4 (`oma-consent`) | Done, 2026-11-11, headless; a real click and the `hyprctl` float were not checked. |
+| Rune port, steps 5 and 6 (screen-reader grant, GPUI leaves) | Not started. |
+| `odk-plugin` (Luau host and Plugin loader) | Not started. In v1 (the owner, 2026-11-11). ADR 0091 (vets `mlua`) and ADR 0092 (one state each, the API's shape, limits, errors) are in `main` as `proposed`, waiting for the owner. No Luau crate in the tree. |
 | Motion (ADR 0059) | Accepted, not built. |
 
 ## Track A: finish the Rune port (the critical path)
@@ -29,9 +30,9 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 1. **Overlay layer on Rune.** `Popover`, `HoverCard`, `Tooltip` and `Placement` (in flight on `feat/rune-overlay`), then `Dialog`, `Sheet` and `Toast`, with the host's root layer list.
 2. **Menus.** `DropdownMenu`, `ContextMenu` and `Breadcrumb`, on the overlay layer and the shared menu list.
 3. **Primary selection, then the text fields.** `Textarea`, `InputGroup`, `SearchInput`, `PasswordInput`, `NumberInput` and `Command`'s field wait on it (ADR 0089).
-4. **The rest of step 3.** `FormField`, `Command`'s panel, `Image`, `DataTable`, `Resizable` and `Chart`.
+4. **The rest of step 3.** `Command`'s panel, `DataTable` and `Chart`. (`FormField`, `Image` and `Resizable` are done.)
 5. **Rune-port gaps.** ToggleGroup's single mode is radios, a NavList's current page has a state, manual-activation Tabs are tabs (`docs/checks.md`); Arabic labels in `Checkbox`, `Switch` and `ToggleGroup` (checklist item 23); a `Checkbox`'s label wraps at about 150 px in a stretched column, in `rune-checkbox` too (seen 2026-11-11).
-6. **`oma-consent` on Rune** (plan step 4), with the icon and the upgrade screen it lacks (`docs/checks.md`).
+6. **`oma-consent` on Rune** (plan step 4): done. The icon and the upgrade screen it lacks (`docs/checks.md`) remain.
 7. **The screen-reader grant** (plan step 5): how a sandboxed window reaches the screen reader while the session bus stays refused, written into `docs/checks.md`.
 8. **GPUI leaves** (plan step 6): `odk::gpui`, `patches/gpui` and the GPUI stories go, the `odk` facade turns to `odk-view`, and `cargo machete` and `tools/check-deps` are clean.
 
@@ -47,7 +48,7 @@ Each component brings its `stories/rune/<name>.rs` in the same pull request (the
 
 ## Track B: OMA to a real release (parallel with A)
 
-1. **The unbuilt trust-plan parts:** the pinned-root upgrade, opening a Bundle that is not installed, running a newer version, the inbox watches, the pinned-host lookup, lockfile use (`docs/oma-trust-plan.md`, `crates/oma/src/flow.rs`), and `mkfs.erofs`'s label in ADR 0065. Re-check each marker first; some are stale.
+1. **The unbuilt trust-plan parts.** Re-checked on 2026-11-11 against the code: the pinned-root upgrade by `install`, opening a Bundle that is not installed, the inbox watches, `.desktop` entries and the daemon are built, and their stale "not built" wording is fixed. Still open: the revocation document has no schema (`docs/oma-trust-plan.md`, question 2); opening a newer version is refused on purpose and `install` upgrades; and the trust plan and `CLAUDE.md` disagree about whether `bundle` calls the image writer (the code at `crates/oma/src/bundle.rs:172` does).
 2. **The owner's root key compiled in** (ADR 0086), then a real release signed with `odk oma sign-release`.
 3. **A first real release** on `odk.csfh.dev`, then `install.sh` and `odk oma self-upgrade` run against it on a second machine, which clears the install rows of `docs/checks.md`.
 4. **Registration.** The `binfmt_misc` line and the desktop handler are text in `packaging/`, and ADR 0087 forbids root. Decide, in an ADR, how v1 registers them or that it does not.
@@ -62,15 +63,15 @@ Each component brings its `stories/rune/<name>.rs` in the same pull request (the
 2. The provisional values in `docs/plan.md`'s "Open questions": `Size` as a density step, the keyboard-only focus ring, `motion.cycle`, the status dot and progress bar sizes, focus offset, thumb gap. Settle each, or keep it knowingly.
 3. Visual regression with `tools/headless-shot` baselines, since it is by eye now.
 4. The figures "not measured": memory, overlay opening and theme-watch latency; `cargo bench` and `tools/idle-cpu` against the story budgets on the Rune stories.
-5. `cargo deny` and `cargo udeps`, never run.
+5. `cargo audit` was run by hand on 2026-11-11 (0 vulnerabilities; the one yanked crate is fixed; the warnings are in `docs/checks.md`). `cargo deny` and `cargo udeps` are not installed here and have never been run.
 6. Rename `Alert::variant` and `Toast::variant` (they take a `Tone`) while a breaking change is still free.
 
 ## Track E: Plugins (in v1, the owner, 2026-11-11; parallel with A)
 
 The design is ADR 0003 (Luau through `mlua`, `Lua::sandbox()`, in the application's process), ADR 0020 (a Plugin declares capabilities and the host grants them), ADR 0028 (`odk::plugin` behind a feature) and `docs/spec/plugin-manifest.md` (version 1; four capabilities: `app.state`, `ui`, `network`, `storage`). Nothing is built.
 
-1. **Vet `mlua` as `ureq` was (ADR 0066)**, with `tools/check-deps` and `crates/deps/Cargo.toml`, and pin a version (the spike used 0.12.2 with `luau`). This is a new dependency, and nothing beyond a stock Omarchy may be needed.
-2. **Settle what the spec leaves open**, in an ADR and the spec: the API functions of each capability, isolation between Plugins (a Lua state each, or removing `getfenv` and `setfenv`), memory and time limits (`docs/checks.md` has `mlua`'s findings: limits and interrupts work, an interrupt cannot stop a long C call, `require` is left in place, globals are shared across chunks), and error reporting.
+1. **Vet `mlua` as `ureq` was (ADR 0066)**: written as ADR 0091 (`proposed`). Adding the crate, with `tools/check-deps` and `crates/deps/Cargo.toml`, waits for its acceptance.
+2. **Settle what the spec leaves open**: written as ADR 0092 (`proposed`), with `docs/spec/plugin-api.md` to come with the first implementation. The open items are: the API functions of each capability, isolation between Plugins (a Lua state each, or removing `getfenv` and `setfenv`), memory and time limits (`docs/checks.md` has `mlua`'s findings: limits and interrupts work, an interrupt cannot stop a long C call, `require` is left in place, globals are shared across chunks), and error reporting.
 3. **`odk-plugin`:** the manifest reader (unknown keys are an error; an invalid manifest means not loaded), the loader from `~/.local/share/oma/data/<identifier>/plugins/`, the capability grant (a refused capability means the Plugin is not loaded, and the host is told which), the sandboxed state, `require` replaced, and `odk::plugin` behind a feature of the `odk` facade.
 4. **The four capabilities' APIs** on the Rune UI where `ui` touches it. Plugins get no database (ADR 0049) and drive no motion (`docs/spec/odk-motion.md`).
 5. **Tests and a story** for each: hostile Plugins (a loop that never ends, memory growth, a global that leaks, a path that escapes), headless like the rest. Run a Plugin under `odk oma run` for real only with the owner's agreement.
