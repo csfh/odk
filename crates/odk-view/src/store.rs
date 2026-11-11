@@ -79,6 +79,7 @@ pub struct Store {
     buttons: HashMap<String, ButtonSlot>,
     selects: HashMap<String, SelectSlot>,
     resizes: HashMap<String, ResizeSlot>,
+    menu_at: HashMap<String, (f32, f32)>,
     inputs: HashMap<String, InputSlot>,
     toggles: HashMap<String, bool>,
     choices: HashMap<String, String>,
@@ -189,6 +190,15 @@ impl Store {
 
     pub(crate) fn set_open(&mut self, id: &str, open: bool) {
         self.open.insert(id.to_string(), open);
+    }
+
+    /// Where a context menu was asked for, in window points.
+    pub(crate) fn menu_at(&self, id: &str) -> Option<(f32, f32)> {
+        self.menu_at.get(id).copied()
+    }
+
+    pub(crate) fn set_menu_at(&mut self, id: &str, at: (f32, f32)) {
+        self.menu_at.insert(id.to_string(), at);
     }
 
     /// The option an uncontrolled group `id` last chose, if one was.

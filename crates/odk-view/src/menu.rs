@@ -15,12 +15,12 @@ use crate::host::Hosted;
 use crate::icon::{Glyph, Icon};
 use crate::ink::ink;
 use crate::placement::{Align, Placement};
-use crate::style::{self, inset_focus_ring};
+use crate::style::{self, focus_ring, inset_focus_ring};
 use crate::text::{Flow, words};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonVariant, States};
 use odk_theme::foundation::Density;
-use rune::{El, Key, KeyEvent, Tx, col, row, spacer};
+use rune::{El, Key, KeyEvent, PointerPress, Tx, col, row, spacer};
 
 /// The narrowest a menu is, in points at the base text size. ODK's own.
 const MENU_MIN_WIDTH: f32 = 192.0;
@@ -29,6 +29,9 @@ type Select<T> = Rc<dyn Fn(&mut T)>;
 
 /// Asks for the menu to be open (`true`) or closed (`false`).
 type OpenChange<T> = Rc<dyn Fn(&mut T, bool)>;
+
+/// The same at the host's level, for a menu that keeps its own open state in the store.
+type HostedChange<T> = Rc<dyn Fn(&mut Hosted<T>, bool)>;
 
 /// One choice in a menu: a label, and what choosing it does.
 pub struct MenuItem<T> {
@@ -252,7 +255,23 @@ impl<T: 'static> DropdownMenu<T> {
             && !self.disabled
             && let Some(menu) = self.menu
         {
-            layers.push(panel(hosted, &self.id, &self.label, menu, &ask));
+            let gap = style::paint(hosted.theme()).tokens.foundation().spacing.s1;
+            let hosted_ask: HostedChange<T> =
+                Rc::new(move |h: &mut Hosted<T>, open| ask(&mut h.app, open));
+            layers.push(
+                surface(hosted, &self.id, &self.label, menu, &hosted_ask)
+                    .modal(true, {
+                        let close = hosted_ask.clone();
+                        move |h: &mut Hosted<T>| close(h, false)
+                    })
+                    .focus_return(self.id.clone())
+                    .anchored(
+                        self.id.clone(),
+                        Placement::Bottom.side(),
+                        Align::Start.rune(),
+                        gap,
+                    ),
+            );
         }
         wrapper
     }
@@ -265,18 +284,18 @@ impl<T> Describe for DropdownMenu<T> {
     }
 }
 
-/// The open menu: a surface of items, anchored below the button.
-fn panel<T: 'static>(
+/// The surface of an open menu: its items in a focus group, as the keys walk them. The caller
+/// makes it modal and puts it where it goes.
+fn surface<T: 'static>(
     hosted: &Hosted<T>,
     id: &str,
     name: &str,
     menu: Menu<T>,
-    ask: &OpenChange<T>,
+    ask: &HostedChange<T>,
 ) -> El {
     let paint = style::paint(hosted.theme());
     let s = paint.tokens.menu();
     let g = s.geometry;
-    let gap = paint.tokens.foundation().spacing.s1;
     let accessible = Accessible::new(Role::Menu, name);
     let mut list = apply(col().key(format!("{id}-menu")), &accessible)
         .focus_group()
@@ -307,18 +326,7 @@ fn panel<T: 'static>(
             Entry::Item(item) => item_row(&paint, id, index, item, ask),
         });
     }
-    let close = {
-        let ask = ask.clone();
-        move |hosted: &mut Hosted<T>| ask(&mut hosted.app, false)
-    };
-    list.modal(true, close)
-        .focus_return(id.to_string())
-        .anchored(
-            id.to_string(),
-            Placement::Bottom.side(),
-            Align::Start.rune(),
-            gap,
-        )
+    list
 }
 
 fn item_row<T: 'static>(
@@ -326,7 +334,7 @@ fn item_row<T: 'static>(
     id: &str,
     index: usize,
     item: MenuItem<T>,
-    ask: &OpenChange<T>,
+    ask: &HostedChange<T>,
 ) -> El {
     let accessible = item_accessible(&item);
     let states = States::NONE.disabled(item.disabled);
@@ -381,6 +389,116 @@ fn item_row<T: 'static>(
         if let Some(select) = &select {
             select(&mut hosted.app);
         }
-        close_ask(&mut hosted.app, false);
+        close_ask(hosted, false);
     })
+}
+
+/// A menu that opens at the pointer when its trigger is right-clicked, and below the trigger with
+/// the Menu key or Shift+F10 while it has focus. Rune sends both to one handler, so the keys are
+/// not ours to bind. It keeps its own open state: an application that wants to know what was
+/// chosen hears the items' `on_select`.
+pub struct ContextMenu<T> {
+    id: String,
+    name: String,
+    trigger: El,
+    menu: Option<Menu<T>>,
+    focusable: bool,
+}
+
+impl<T: 'static> ContextMenu<T> {
+    /// A menu named `name` for assistive technology, such as "Row actions", for `trigger`; the
+    /// name is required because the menu has no visible label of its own.
+    pub fn new(id: impl Into<String>, name: impl Into<String>, trigger: El) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            trigger,
+            menu: None,
+            focusable: true,
+        }
+    }
+
+    pub fn menu(mut self, menu: Menu<T>) -> Self {
+        self.menu = Some(menu);
+        self
+    }
+
+    /// Whether the trigger is a tab stop, so the keyboard can ask for the menu. True by default;
+    /// off for a trigger that holds a control of its own.
+    pub fn focusable(mut self, focusable: bool) -> Self {
+        self.focusable = focusable;
+        self
+    }
+
+    /// The trigger, with the open menu drawn into `layers`.
+    pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) -> El {
+        let paint = style::paint(hosted.theme());
+        let open = hosted.ui.is_open(&self.id, false);
+        let id = self.id.clone();
+        let ring = paint.tokens.trigger_focus();
+        let trigger = focus_ring(
+            apply(row().key(self.id.clone()), &self.accessible()).child(self.trigger),
+            &ring,
+        )
+        .focusable(self.focusable)
+        .on_secondary_press(
+            move |hosted: &mut Hosted<T>, at: PointerPress, _: &mut Tx| {
+                hosted.ui.set_menu_at(&id, (at.x, at.y));
+                hosted.ui.set_open(&id, true);
+            },
+        );
+        if open
+            && let Some(menu) = self.menu
+            && let Some((x, y)) = hosted.ui.menu_at(&self.id)
+        {
+            let id = self.id.clone();
+            let ask: HostedChange<T> =
+                Rc::new(move |h: &mut Hosted<T>, open| h.ui.set_open(&id, open));
+            let close = ask.clone();
+            layers.push(
+                surface(hosted, &self.id, &self.name, menu, &ask)
+                    .modal(true, move |h: &mut Hosted<T>| close(h, false))
+                    .focus_return(self.id.clone())
+                    // At the pointer, in window points.
+                    .pin(Some(x), Some(y), None, None),
+            );
+        }
+        trigger
+    }
+}
+
+impl<T> Describe for ContextMenu<T> {
+    fn accessible(&self) -> Accessible {
+        Accessible::new(Role::Group, self.name.clone())
+    }
+}
+
+/// Opens `menu` below the element keyed `id` while the store says it is open, closing it the same
+/// way: for a trigger that keeps no state of its own, such as a breadcrumb's folded `…`. Escape or
+/// a press outside closes it and focus goes back to the trigger.
+pub(crate) fn below_trigger<T: 'static>(
+    hosted: &Hosted<T>,
+    id: &str,
+    name: &str,
+    menu: Menu<T>,
+    layers: &mut Vec<El>,
+) {
+    if !hosted.ui.is_open(id, false) {
+        return;
+    }
+    let gap = style::paint(hosted.theme()).tokens.foundation().spacing.s1;
+    let key = id.to_string();
+    let ask: HostedChange<T> = Rc::new(move |h: &mut Hosted<T>, open| h.ui.set_open(&key, open));
+    let close = ask.clone();
+    layers.push(
+        surface(hosted, id, name, menu, &ask)
+            .modal(true, move |h: &mut Hosted<T>| close(h, false))
+            .focus_return(id.to_string())
+            .anchored(
+                id.to_string(),
+                Placement::Bottom.side(),
+                Align::Start.rune(),
+                gap,
+            ),
+    );
 }

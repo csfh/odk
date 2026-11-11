@@ -6,6 +6,7 @@
 
 mod alert;
 mod badge;
+mod breadcrumb;
 mod button;
 mod chart;
 mod checkbox;
@@ -52,6 +53,7 @@ mod tooltip;
 
 pub use alert::Alert;
 pub use badge::Badge;
+pub use breadcrumb::Breadcrumb;
 pub use button::Button;
 pub use chart::{Chart, ChartHeight, ChartPath, Ink, Scene, StrokeWidth, TextAnchor, TextBaseline};
 pub use checkbox::Checkbox;
@@ -69,7 +71,7 @@ pub use item::Item;
 pub use item_group::ItemGroup;
 pub use kbd::Kbd;
 pub use layout::{Layout, Space};
-pub use menu::{DropdownMenu, Menu, MenuItem};
+pub use menu::{ContextMenu, DropdownMenu, Menu, MenuItem};
 pub use nav_list::NavList;
 pub use odk_a11y::{Accessible, Describe, Role};
 pub use placement::{Align, Placement};
