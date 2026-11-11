@@ -144,6 +144,10 @@ name = "rune-radio_group"
 path = "rune/radio_group.rs"
 
 [[bin]]
+name = "rune-toast"
+path = "rune/toast.rs"
+
+[[bin]]
 name = "rune-toggle_group"
 path = "rune/toggle_group.rs"
 
