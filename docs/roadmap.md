@@ -35,6 +35,12 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 7. **The screen-reader grant** (plan step 5): how a sandboxed window reaches the screen reader while the session bus stays refused, written into `docs/checks.md`.
 8. **GPUI leaves** (plan step 6): `odk::gpui`, `patches/gpui` and the GPUI stories go, the `odk` facade turns to `odk-view`, and `cargo machete` and `tools/check-deps` are clean.
 
+**What Rune allows the remaining components (checked 2026-11-11 in the pinned revision):**
+
+- **`Resizable`** maps onto `El::on_drag`, whose `Drag` carries the element-local position, the travel since the press and `cancelled()` (for Escape), and `El::cursor(Cursor::ResizeColumn | ResizeRow)`. Nothing else is missing, so it can be ported as designed (ADR 0069).
+- **`Chart` cannot be ported as ADR 0071 and ADR 0075 describe it.** Rune's `canvas(Shape)` is declarative: there is no paint closure, so a `Chart` cannot be handed its box's width and height at paint time (`Scene::width`, `Scene::height`); a `Shape` has polylines, fills and `view_box`, but no text and no arcs or curves, so `ChartPath::arc` and `curve_to` have to be flattened to points and `Scene::text` has to be positioned text elements beside the canvas. Either an ADR amends the contract (for example: the Chart measures its box from the previous frame, or the application states the size), or `Chart` waits for Rune to gain a paint-time callback. This is the owner's call.
+- **`DataTable`** (ADR 0070, virtualised rows) was not checked yet.
+
 Each component brings its `stories/rune/<name>.rs` in the same pull request (the owner, 2026-11-08), which clears the 36 "no story" rows in the checklist as it goes.
 
 **Exit:** the workspace builds with no GPUI; a headless test reads an accessibility tree; the checklist has no Known gaps.
