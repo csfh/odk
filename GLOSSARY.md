@@ -42,7 +42,11 @@ Called `omalaunch` in ADRs 0001 to 0024.
 _Avoid_: the launcher (ambiguous with Omarchy's own application launcher), OMA runtime, omalaunch
 
 **Plugin**:
-A Luau extension loaded by an ODK application to add or change behaviour, without changing the application's Rust code.
+A Luau extension loaded by an ODK application to add or change behaviour, without changing the application's Rust code. Each Plugin runs in a Luau state of its own, holding only the capabilities the host granted it (ADR 0092).
+
+**Capability**:
+A part of the ODK Plugin API that a Plugin lists in its `plugin.toml` and the host application grants or refuses: `app.state`, `ui`, `network` or `storage`. A state holds the table of each capability granted and no other (ADR 0020, ADR 0092).
+_Avoid_: permission (a Bundle's permissions are oma's, a different layer)
 
 **oma-consent**:
 The small helper program that shows the consent dialog for oma and reports the user's answer. It decides nothing and holds no state. Called `omagate` in ADR 0026 and `omalaunch-consent` in the first draft of ADR 0025. `odk oma consent <target>` runs it.

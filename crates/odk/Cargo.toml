@@ -12,10 +12,14 @@ test-support = ["odk-ui/test-support"]
 # `odk::db` (ADR 0049). Off by default, so an application that does not keep a database does not
 # build the bundled SQLite.
 db = ["dep:odk-db"]
+# `odk::plugin` (ADR 0091, ADR 0092). Off by default, so an application without Plugins does not
+# build Luau.
+plugin = ["dep:odk-plugin"]
 
 [dependencies]
 deps.workspace = true
 odk-a11y.workspace = true
 odk-db = { workspace = true, optional = true }
+odk-plugin = { workspace = true, optional = true }
 odk-theme.workspace = true
 odk-ui.workspace = true
