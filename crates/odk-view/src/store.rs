@@ -2,6 +2,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use rune::TextEdit;
 
@@ -99,9 +100,22 @@ pub struct Store {
     pub(crate) images: crate::images::Images,
     /// The boxes, transitions and drags of the window's `Chart`s.
     pub(crate) charts: crate::chart::Charts,
+    /// The window's toasts, which the host's poll steps.
+    toasts: RefCell<Option<Rc<dyn crate::toast::Clock>>>,
 }
 
 impl Store {
+    /// Remembers the toasts' clock, for the host's poll.
+    pub(crate) fn attach_clock(&self, clock: Rc<dyn crate::toast::Clock>) {
+        *self.toasts.borrow_mut() = Some(clock);
+    }
+
+    /// Steps the toasts' clocks to `now`; says whether a toast went.
+    pub(crate) fn step_toasts(&self, now: f64, tx: &mut rune::Tx) -> bool {
+        let clock = self.toasts.borrow().clone();
+        clock.is_some_and(|clock| clock.advance(now, tx))
+    }
+
     /// A spinner was built in the view that is being built.
     pub(crate) fn note_spinner(&self) {
         self.spinner_building.set(true);
