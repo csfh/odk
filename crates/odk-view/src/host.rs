@@ -2,7 +2,7 @@
 
 use odk_theme::ThemeSnapshot;
 use rune::text::TextSystem;
-use rune::{App, AppSpec, Cx, El, Env, Runtime, Tx, el};
+use rune::{App, AppSpec, Cx, El, Env, Runtime, Tx, Waker, el};
 
 use crate::face::Face;
 use crate::ink::ink;
@@ -31,14 +31,23 @@ impl<T> Hosted<T> {
     }
 }
 
-/// What the host does at the start of every frame, on Rune's clock: turn the spinners.
+/// What the host does at the start of every frame, on Rune's clock: turn the spinners, and run the
+/// view again when an image it was waiting for has settled.
 ///
 /// It asks for nothing while no spinner was in the last view built, so a window that shows
 /// none is never woken (checklist item 35). With one, it wakes at the moment the glyph changes,
 /// not at every frame, and says the state changed only when it did, so the view runs again
 /// `FRAMES` times a turn and not 60 times a second.
 fn poll<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool {
-    crate::spinner::turn(hosted, now, tx)
+    // Both run, so a turn of the spinners never hides an image that has settled.
+    let turned = crate::spinner::turn(hosted, now, tx);
+    let settled = hosted.ui.images.settled();
+    turned | settled
+}
+
+/// Gives the window's images the waker that Rune supplies, so a finished decode wakes it.
+fn setup<T>(hosted: &mut Hosted<T>, waker: Waker) {
+    hosted.ui.images.connect(waker);
 }
 
 /// The page, then `layers`, on the theme's canvas.
@@ -81,6 +90,7 @@ pub fn start<T: 'static>(
         fonts: hosted.face.fonts(),
         families: hosted.face.families(),
         poll: Some(poll::<T>),
+        setup: Some(setup::<T>),
         ..AppSpec::new("ODK", size, spec_init::<T>, view)
     };
     App::new(spec)
