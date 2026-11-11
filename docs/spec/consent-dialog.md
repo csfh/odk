@@ -96,7 +96,7 @@ notes = ["Desktop: you have no such folder, so this will not be available"]
 ## Behaviour
 
 - No button is the default: Enter grants nothing. Escape and closing the window are Cancel.
-- The window is small and fixed in size, with the application id `oma-consent`. GPUI 0.2.2 cannot ask a Wayland compositor for a floating dialog, so under Hyprland the helper asks `hyprctl` to float, size and centre it, and ignores any failure; on another compositor it may be tiled.
+- The window is small and fixed in size, with the application id `oma-consent`. Rune has no dialog hint for a Wayland window (it can ask sway, Hyprland, niri and i3 to float with `App::float_on_open`, which the helper does not use, since that is unchecked here), so under Hyprland the helper asks `hyprctl` to float, size and centre it, and ignores any failure; on another compositor it may be tiled.
 - The helper follows the Omarchy theme by reading `colors.toml` itself, with fallback colours; it does not depend on ODK.
 - **The upgrade screen** is sent for a Bundle file whose launch asks for more than was allowed: `situation = "upgrade"`, the new permissions as lines, "already allowed" as one note, and Allow, Keep previous version (when there is one) and Cancel. Directory Bundles do not get it. The icon stays out of the dialog (ADR 0060): the identity lines are the signed fields, and the image is not mounted to fill them.
 
