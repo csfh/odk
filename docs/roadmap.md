@@ -19,7 +19,7 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 | OMA steps 0 to 5, trust phases, `odkd`, packaging text | Built. `flow.rs` still carries "not built yet (issue #14)" markers to re-check. |
 | Design-language migration (steps 1 to 10, Phase 12) | Done. Provisional values remain (Track C). |
 | Rune port, step 1 (host) and step 2 (Button, Input, Select) | Done. |
-| Rune port, step 3 | In progress. In `main`: the leaf components, forms, the roving-focus groups, NavList, Tabs, Progress, Spinner, `FormField`, `Image`, `Resizable` and `Chart`, `Dialog`, `Sheet`, `Toast` and `Menu` with `DropdownMenu` (2026-11-11). Popover, HoverCard and Tooltip are in `main` too. `ContextMenu` and Breadcrumb are built (open PR). Not built: Command, the other text fields, and `DataTable`. |
+| Rune port, step 3 | In progress. In `main`: the leaf components, forms, the roving-focus groups, NavList, Tabs, Progress, Spinner, `FormField`, `Image`, `Resizable` and `Chart`, `Dialog`, `Sheet`, `Toast` and `Menu` with `DropdownMenu` (2026-11-11). Popover, HoverCard and Tooltip are in `main` too. `ContextMenu`, Breadcrumb and `Command` are built (`Command` in an open PR). Not built: the other text fields, and `DataTable`. |
 | Rune port, step 4 (`oma-consent`) | Done, 2026-11-11, headless; a real click and the `hyprctl` float were not checked. |
 | Rune port, steps 5 and 6 (screen-reader grant, GPUI leaves) | Not started. |
 | `odk-plugin` (Luau host and Plugin loader) | First slice built. In v1 (the owner, 2026-11-11). ADR 0091 (vets `mlua`) and ADR 0092 (one state each, the API's shape, limits, errors) were accepted by the owner on 2026-11-11. `odk-plugin`'s first slice is built (`ui` and `network` are not). |
@@ -30,7 +30,7 @@ v1 is a release the owner can call production-ready, which `docs/release-readine
 1. **Overlay layer on Rune.** `Popover`, `HoverCard`, `Tooltip` and `Placement` (in flight on `feat/rune-overlay`), then `Dialog`, `Sheet` and `Toast`, with the host's root layer list.
 2. **Menus.** `DropdownMenu`, `ContextMenu` and `Breadcrumb`, on the overlay layer and the shared menu list.
 3. **Primary selection, then the text fields.** `Textarea`, `InputGroup`, `SearchInput`, `PasswordInput`, `NumberInput` and `Command`'s field wait on it (ADR 0089).
-4. **The rest of step 3.** `Command`'s panel and `DataTable`. (`Chart` is done.) (`FormField`, `Image` and `Resizable` are done.)
+4. **The rest of step 3.** `DataTable`. (`Chart` and `Command` are done.) (`FormField`, `Image` and `Resizable` are done.)
 5. **Rune-port gaps.** ToggleGroup's single mode is radios, a NavList's current page has a state, manual-activation Tabs are tabs (`docs/checks.md`); Arabic labels in `Checkbox`, `Switch` and `ToggleGroup` (checklist item 23); a `Checkbox`'s label wraps at about 150 px in a stretched column, in `rune-checkbox` too (seen 2026-11-11).
 6. **`oma-consent` on Rune** (plan step 4): done. The icon and the upgrade screen it lacks (`docs/checks.md`) remain.
 7. **The screen-reader grant** (plan step 5): how a sandboxed window reaches the screen reader while the session bus stays refused, written into `docs/checks.md`.
