@@ -26,6 +26,10 @@ const NOT_CONTROLS: &[&str] = &["icon.rs", "layout.rs", "toggle.rs", "tone.rs"];
 /// The files whose component draws its description through `toggle::labelled`.
 const VIA_TOGGLE: &[&str] = &["checkbox.rs", "switch.rs"];
 
+/// The files whose component hands its description to the control it holds, which draws it with
+/// the field's state (`FieldControl::in_field`).
+const VIA_CONTROL: &[&str] = &["form_field.rs"];
+
 fn sources() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found: Vec<(String, String)> = fs::read_dir(&dir)
@@ -203,8 +207,10 @@ fn every_component_implements_describe_and_draws_it() {
         );
         // A checkbox and a switch hand their description to `toggle::labelled`, which applies it.
         let via_toggle = VIA_TOGGLE.contains(&file.as_str()) && text.contains("labelled(");
+        // A form field's control draws its description, with the field's state applied.
+        let via_control = VIA_CONTROL.contains(&file.as_str()) && text.contains("in_field(");
         assert!(
-            text.contains("apply(") || via_toggle,
+            text.contains("apply(") || via_toggle || via_control,
             "{file} does not draw its description with describe::apply"
         );
         let code = code(&text);

@@ -44,6 +44,7 @@ pub struct RadioGroup<T> {
     disabled: bool,
     invalid: bool,
     required: bool,
+    description: Option<String>,
     horizontal: bool,
     density: Option<Density>,
     on_change: Option<Chosen<T>>,
@@ -62,10 +63,17 @@ impl<T: 'static> RadioGroup<T> {
             disabled: false,
             invalid: false,
             required: false,
+            description: None,
             horizontal: false,
             density: None,
             on_change: None,
         }
+    }
+
+    /// The text a form field gives its control, which the control reports as its description.
+    pub(crate) fn described(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self
     }
 
     /// Adds an option: `value` is what `on_change` reports and `label` what the user reads.
@@ -263,9 +271,13 @@ impl<T: 'static> RadioGroup<T> {
 
 impl<T> Describe for RadioGroup<T> {
     fn accessible(&self) -> Accessible {
-        Accessible::new(Role::RadioGroup, self.name.clone())
+        let accessible = Accessible::new(Role::RadioGroup, self.name.clone())
             .disabled(self.disabled)
             .invalid(self.invalid)
-            .required(self.required)
+            .required(self.required);
+        match &self.description {
+            Some(description) => accessible.description(description.clone()),
+            None => accessible,
+        }
     }
 }

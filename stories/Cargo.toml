@@ -64,6 +64,10 @@ name = "rune-select"
 path = "rune/select.rs"
 
 [[bin]]
+name = "rune-form_field"
+path = "rune/form_field.rs"
+
+[[bin]]
 name = "rune-heading"
 path = "rune/heading.rs"
 

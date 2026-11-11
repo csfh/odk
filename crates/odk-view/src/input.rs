@@ -5,6 +5,7 @@
 
 use crate::describe::apply;
 use crate::host::Hosted;
+use crate::icon::Icon;
 use crate::ink::ink;
 use crate::style::{self, text_style};
 use odk_a11y::{Accessible, Describe, Role};
@@ -20,6 +21,10 @@ pub struct Input<C, S> {
     id: String,
     label: String,
     width: f32,
+    invalid: bool,
+    required: bool,
+    disabled: bool,
+    description: Option<String>,
     on_change: C,
     on_submit: S,
 }
@@ -36,9 +41,18 @@ impl<C, S> Input<C, S> {
             id: id.into(),
             label: label.into(),
             width: DEFAULT_WIDTH,
+            invalid: false,
+            required: false,
+            disabled: false,
+            description: None,
             on_change,
             on_submit,
         }
+    }
+
+    /// The field's key, which a form field's label focuses.
+    pub(crate) fn id(&self) -> &str {
+        &self.id
     }
 
     /// The box's width in points at the base text size; the user's text size scales it.
@@ -46,12 +60,44 @@ impl<C, S> Input<C, S> {
         self.width = width;
         self
     }
+
+    /// Marks the value as wrong: the danger edge and a mark at the end, so it never shows by
+    /// colour alone. Say what is wrong in a form field's error.
+    pub fn invalid(mut self, invalid: bool) -> Self {
+        self.invalid = invalid;
+        self
+    }
+
+    /// Reports that the field must be filled in.
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    /// Takes the field out of the Tab order and draws it disabled.
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// The text a form field gives its control, which the control reports as its description.
+    pub(crate) fn described(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self
+    }
 }
 
 /// Rune reports the editor's text itself, so the value is not part of this description.
 impl<C, S> Describe for Input<C, S> {
     fn accessible(&self) -> Accessible {
-        Accessible::new(Role::TextInput, self.label.clone())
+        let accessible = Accessible::new(Role::TextInput, self.label.clone())
+            .invalid(self.invalid)
+            .required(self.required)
+            .disabled(self.disabled);
+        match &self.description {
+            Some(description) => accessible.description(description.clone()),
+            None => accessible,
+        }
     }
 }
 
@@ -66,6 +112,8 @@ impl<C, S> Input<C, S> {
         let Input {
             id,
             width,
+            invalid,
+            disabled,
             on_change,
             on_submit,
             ..
@@ -73,7 +121,10 @@ impl<C, S> Input<C, S> {
         hosted.ui.note_input_selection(&id);
         let edit = hosted.ui.input_edit_clone(&id);
         let paint = style::paint(hosted.theme());
-        let field = paint.tokens.field(Density::Default, States::NONE);
+        let field = paint.tokens.field(
+            Density::Default,
+            States::NONE.disabled(disabled).invalid(invalid),
+        );
         let width = paint.px(width);
         let edit_id = id.clone();
         let change_id = id.clone();
@@ -82,29 +133,21 @@ impl<C, S> Input<C, S> {
         let paste_id = id.clone();
         let on_paste = on_change.clone();
         let on_type = on_change;
-        row()
-            .key(format!("{id}-box"))
-            .w(width)
-            .h(field.geometry.height)
-            .px(field.geometry.padding_x)
-            .center_y()
-            .radius(field.geometry.radius)
-            .fill(ink(field.colours.default.background))
-            .outline(
-                field.geometry.border_width,
-                0.0,
-                ink(field.colours.default.border),
-            )
-            .child(
-                apply(
-                    text_input(&edit, text_style(paint.body)).key(id.clone()),
-                    &accessible,
-                )
-                .single_line()
-                .grow(1.0)
-                .color(ink(field.colours.default.foreground))
-                .caret(ink(field.caret), ink(field.selection.background))
-                .pointer_buttons([PointerButton::Middle])
+        let editor = apply(
+            text_input(&edit, text_style(paint.body)).key(id.clone()),
+            &accessible,
+        )
+        .single_line()
+        .grow(1.0)
+        .color(ink(field.colours.default.foreground))
+        .caret(ink(field.caret), ink(field.selection.background))
+        .pointer_buttons([PointerButton::Middle]);
+        // Rune keeps an editor that is bound to its text focusable, disabled or not, so a
+        // disabled field leaves it unbound: it shows its text and takes no focus or edit.
+        let editor = if disabled {
+            editor
+        } else {
+            editor
                 .on_edit(edit_access(move |hosted: &mut Hosted<T>| {
                     hosted.ui.input_edit(&edit_id)
                 }))
@@ -143,8 +186,28 @@ impl<C, S> Input<C, S> {
                         edit.text.clone()
                     };
                     on_paste(&mut hosted.app, text);
-                }),
+                })
+        };
+        row()
+            .key(format!("{id}-box"))
+            .w(width)
+            .h(field.geometry.height)
+            .px(field.geometry.padding_x)
+            .center_y()
+            .radius(field.geometry.radius)
+            .fill(ink(field.colours.default.background))
+            .outline(
+                field.geometry.border_width,
+                0.0,
+                ink(field.colours.default.border),
             )
+            .child(editor)
+            .children(field.invalid_mark.map(|colour| {
+                // A trailing icon sits `gap` from the text.
+                row()
+                    .pl(field.geometry.gap)
+                    .child(Icon::Warning.mark(field.geometry.icon_size, ink(colour)))
+            }))
     }
 }
 
