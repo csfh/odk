@@ -60,6 +60,10 @@ name = "rune-layout"
 path = "rune/layout.rs"
 
 [[bin]]
+name = "rune-resizable"
+path = "rune/resizable.rs"
+
+[[bin]]
 name = "rune-select"
 path = "rune/select.rs"
 

@@ -17,6 +17,18 @@ pub(crate) struct ButtonSlot {
 }
 
 #[derive(Default)]
+pub(crate) struct ResizeSlot {
+    /// Each panel's fraction of the group, once it has been changed.
+    pub sizes: Vec<f32>,
+    /// The handle being dragged and the sizes the drag began from, which Escape puts back.
+    pub start: Option<(usize, Vec<f32>)>,
+    /// The handle under the pointer.
+    pub hovered: Option<usize>,
+    /// How long the group was laid out along its axis, in points.
+    pub length: f32,
+}
+
+#[derive(Default)]
 pub(crate) struct SelectSlot {
     pub open: bool,
     pub highlight: usize,
@@ -49,6 +61,7 @@ impl Default for InputSlot {
 pub struct Store {
     buttons: HashMap<String, ButtonSlot>,
     selects: HashMap<String, SelectSlot>,
+    resizes: HashMap<String, ResizeSlot>,
     inputs: HashMap<String, InputSlot>,
     toggles: HashMap<String, bool>,
     choices: HashMap<String, String>,
@@ -131,6 +144,14 @@ impl Store {
 
     pub(crate) fn button_mut(&mut self, id: &str) -> &mut ButtonSlot {
         self.buttons.entry(id.to_string()).or_default()
+    }
+
+    pub(crate) fn resize(&self, id: &str) -> Option<&ResizeSlot> {
+        self.resizes.get(id)
+    }
+
+    pub(crate) fn resize_mut(&mut self, id: &str) -> &mut ResizeSlot {
+        self.resizes.entry(id.to_string()).or_default()
     }
 
     pub(crate) fn select(&self, id: &str) -> Option<&SelectSlot> {
