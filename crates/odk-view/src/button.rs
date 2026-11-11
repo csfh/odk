@@ -10,6 +10,10 @@ use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonLayout, ButtonVariant, States};
 use odk_theme::foundation::Density;
 use rune::{El, Key, KeyEvent, Tx, row, text};
+use std::rc::Rc;
+
+/// What a press does, with the host: a field's own buttons reach the store through it.
+pub(crate) type Press<T> = Rc<dyn Fn(&mut Hosted<T>)>;
 
 /// Pressed on pointer release inside the control, or on Enter or Space's release.
 pub struct Button<F> {
@@ -22,6 +26,11 @@ pub struct Button<F> {
     busy: bool,
     variant: ButtonVariant,
     density: Density,
+    /// A button inside a field's box: sized by the field's action tokens, and a press on it
+    /// leaves focus, caret and selection where they are.
+    in_field: bool,
+    /// Whether Tab reaches it. A field's clear button is not a stop.
+    tab_stop: bool,
     on_press: F,
 }
 
@@ -37,6 +46,8 @@ impl<F> Button<F> {
             busy: false,
             variant: ButtonVariant::Primary,
             density: Density::Default,
+            in_field: false,
+            tab_stop: true,
             on_press,
         }
     }
@@ -95,6 +106,18 @@ impl<F> Button<F> {
         self
     }
 
+    /// Inside a field's box (`field_action`): as high as the field less its edges.
+    pub(crate) fn in_field(mut self) -> Self {
+        self.in_field = true;
+        self
+    }
+
+    /// Whether Tab reaches the button; a pointer still presses it.
+    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.tab_stop = tab_stop;
+        self
+    }
+
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
@@ -123,8 +146,46 @@ impl<F> Button<F> {
     pub fn show<T>(self, hosted: &Hosted<T>) -> El
     where
         T: 'static,
-        F: Fn(&mut T) + Clone + 'static,
+        F: Fn(&mut T) + 'static,
     {
+        let Button {
+            id,
+            label,
+            leading,
+            trailing,
+            name,
+            disabled,
+            busy,
+            variant,
+            density,
+            in_field,
+            tab_stop,
+            on_press,
+        } = self;
+        let rest = Button {
+            id,
+            label,
+            leading,
+            trailing,
+            name,
+            disabled,
+            busy,
+            variant,
+            density,
+            in_field,
+            tab_stop,
+            on_press: (),
+        };
+        rest.show_hosted(
+            hosted,
+            Rc::new(move |hosted: &mut Hosted<T>| on_press(&mut hosted.app)),
+        )
+    }
+}
+
+impl Button<()> {
+    /// As [`Button::show`], for a press that needs the host and not only the application.
+    pub(crate) fn show_hosted<T: 'static>(self, hosted: &Hosted<T>, on_press: Press<T>) -> El {
         let accessible = self.accessible();
         let layout = self.layout();
         let Button {
@@ -137,11 +198,17 @@ impl<F> Button<F> {
             busy,
             variant,
             density,
-            on_press,
+            in_field,
+            tab_stop,
+            on_press: _,
         } = self;
         let paint = style::paint(hosted.theme());
         let states = States::NONE.disabled(disabled).loading(busy);
-        let style = paint.tokens.button(variant, density, layout, states);
+        let style = if in_field {
+            paint.tokens.field_action(variant, density, layout, states)
+        } else {
+            paint.tokens.button(variant, density, layout, states)
+        };
         let responds = style.responds;
         let press = on_press.clone();
         let release = on_press;
@@ -152,7 +219,7 @@ impl<F> Button<F> {
         let mut button = focus_ring(apply(row().key(id), &accessible), &style.focus)
             // A disabled control leaves the Tab order (`docs/spec/odk-interaction.md`, 21). `apply`'s
             // `disabled` already takes it out in Rune; this says the rule where the button is drawn.
-            .focusable(!disabled)
+            .focusable(!disabled && tab_stop)
             .h(geometry.height)
             .px(geometry.padding_x)
             .gap(geometry.gap)
@@ -163,7 +230,7 @@ impl<F> Button<F> {
             .press(ink(style.colours.pressed.background))
             .on_press(move |hosted: &mut Hosted<T>| {
                 if responds {
-                    press(&mut hosted.app);
+                    press(hosted);
                 }
             })
             .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
@@ -189,10 +256,13 @@ impl<F> Button<F> {
                 }
                 slot.armed = None;
                 if responds {
-                    release(&mut hosted.app);
+                    release(hosted);
                 }
                 true
             });
+        if in_field {
+            button = button.preserve_focus_on_press(true);
+        }
         // An icon-only button is a square as wide as it is high.
         if let Some(width) = style.width {
             button = button.w(width);
