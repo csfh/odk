@@ -172,6 +172,10 @@ name = "rune-textarea"
 path = "rune/textarea.rs"
 
 [[bin]]
+name = "rune-data_table"
+path = "rune/data_table.rs"
+
+[[bin]]
 name = "rune-menu"
 path = "rune/menu.rs"
 

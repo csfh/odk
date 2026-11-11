@@ -502,3 +502,28 @@ pub(crate) fn below_trigger<T: 'static>(
             ),
     );
 }
+
+/// Opens `menu` at the point the store holds for `id` while it is open: for a menu that belongs to
+/// a row or an item the caller keeps, such as a table row's. Escape or a press outside closes it,
+/// and focus goes back to the element keyed `focus`.
+pub(crate) fn at_point<T: 'static>(
+    hosted: &Hosted<T>,
+    id: &str,
+    name: &str,
+    focus: &str,
+    menu: Menu<T>,
+    layers: &mut Vec<El>,
+) {
+    let Some((x, y)) = hosted.ui.menu_at(id) else {
+        return;
+    };
+    let key = id.to_string();
+    let ask: HostedChange<T> = Rc::new(move |h: &mut Hosted<T>, open| h.ui.set_open(&key, open));
+    let close = ask.clone();
+    layers.push(
+        surface(hosted, id, name, menu, &ask)
+            .modal(true, move |h: &mut Hosted<T>| close(h, false))
+            .focus_return(focus.to_string())
+            .pin(Some(x), Some(y), None, None),
+    );
+}
