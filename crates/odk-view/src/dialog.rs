@@ -21,7 +21,7 @@ use rune::{El, ScrollSpec, col, row};
 /// The widest a dialog is, in logical pixels. ODK's own (ADR 0035).
 const DIALOG_WIDTH: f32 = 480.0;
 
-type OnClose<T> = Rc<dyn Fn(&mut T)>;
+pub(crate) type OnClose<T> = Rc<dyn Fn(&mut T)>;
 
 /// A modal panel centred over a scrim. Escape, the close button or a press on the scrim asks the
 /// application to close it through `on_close`. [`Dialog::close_on_escape`],
@@ -141,30 +141,15 @@ impl<T: 'static> Dialog<T> {
             Rc::new(move |hosted: &mut Hosted<T>| close_app(&mut hosted.app))
         };
 
-        let mut header = row().items_start().gap(g.gap).child(
-            words(
-                &paint,
-                self.title.clone(),
-                g.title,
-                s.surface.foreground,
-                Flow::Wrap,
-            )
-            .grow(1.0)
-            .shrink(),
+        let header = modal_header(
+            hosted,
+            &paint,
+            &self.id,
+            &self.title,
+            (g, s.surface.foreground),
+            self.close_button,
+            &close_app,
         );
-        if self.close_button {
-            let close_app = close_app.clone();
-            header = header.child(
-                Button::icon(
-                    format!("{}-close", self.id),
-                    Icon::Close,
-                    "Close",
-                    move |app: &mut T| close_app(app),
-                )
-                .variant(ButtonVariant::Ghost)
-                .show(hosted),
-            );
-        }
 
         let mut body = col().gap(g.gap).min_h(0.0);
         if let Some(description) = &self.description {
@@ -254,4 +239,36 @@ impl<T> Describe for Dialog<T> {
             None => accessible,
         }
     }
+}
+
+/// The header of a modal panel: its title, which wraps and takes the room, and a ghost icon
+/// button that closes it. A dialog and a sheet share it.
+pub(crate) fn modal_header<T: 'static>(
+    hosted: &Hosted<T>,
+    paint: &crate::style::Paint,
+    id: &str,
+    title: &str,
+    (g, colour): (odk_theme::component::SurfaceGeometry, odk_theme::Color),
+    close_button: bool,
+    close_app: &OnClose<T>,
+) -> El {
+    let mut header = row().items_start().gap(g.gap).child(
+        words(paint, title.to_owned(), g.title, colour, Flow::Wrap)
+            .grow(1.0)
+            .shrink(),
+    );
+    if close_button {
+        let close_app = close_app.clone();
+        header = header.child(
+            Button::icon(
+                format!("{id}-close"),
+                Icon::Close,
+                "Close",
+                move |app: &mut T| close_app(app),
+            )
+            .variant(ButtonVariant::Ghost)
+            .show(hosted),
+        );
+    }
+    header
 }

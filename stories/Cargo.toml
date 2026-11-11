@@ -84,6 +84,10 @@ name = "rune-separator"
 path = "rune/separator.rs"
 
 [[bin]]
+name = "rune-sheet"
+path = "rune/sheet.rs"
+
+[[bin]]
 name = "rune-skeleton"
 path = "rune/skeleton.rs"
 
