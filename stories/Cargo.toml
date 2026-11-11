@@ -96,6 +96,10 @@ name = "rune-badge"
 path = "rune/badge.rs"
 
 [[bin]]
+name = "rune-dialog"
+path = "rune/dialog.rs"
+
+[[bin]]
 name = "rune-empty"
 path = "rune/empty.rs"
 
