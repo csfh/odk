@@ -1,5 +1,6 @@
 //! The window: one theme, a component store, and a list of layers above the page.
 
+use odk_theme::ThemeManager;
 use odk_theme::ThemeSnapshot;
 use rune::text::TextSystem;
 use rune::{App, AppSpec, Cx, El, Env, Runtime, Tx, Waker, el};
@@ -28,6 +29,12 @@ impl<T> Hosted<T> {
 
     pub fn theme(&self) -> &ThemeSnapshot {
         &self.theme
+    }
+
+    /// Draws with `theme` from the next frame: the user changed the palette, the text size or the
+    /// request for reduced motion.
+    pub fn set_theme(&mut self, theme: ThemeSnapshot) {
+        self.theme = theme;
     }
 }
 
@@ -100,6 +107,37 @@ pub fn start<T: 'static>(
         .init(move || hosted)
         .tab_visits_controls(true)
         .try_run()
+}
+
+/// Open the window on the user's theme and keep it up to date: the palette when the theme changes,
+/// the text size, and `odkd`'s request for reduced motion, each from the next frame. With no
+/// theme it draws the emergency palette (ADR 0041). The font is `face`: Rune loads a family from
+/// bytes before the window opens and not after (`docs/checks.md`).
+pub fn run<T: 'static>(
+    app: T,
+    face: Face,
+    view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El,
+    size: (f32, f32),
+) -> Result<(), String> {
+    let manager = ThemeManager::current();
+    let hosted = Hosted::new(app, (*manager.snapshot()).clone(), face);
+    let spec = AppSpec {
+        fonts: hosted.face.fonts(),
+        families: hosted.face.families(),
+        poll: Some(poll::<T>),
+        setup: Some(setup::<T>),
+        ..AppSpec::new("ODK", size, spec_init::<T>, view)
+    };
+    let app = App::new(spec)
+        .args(None::<String>)
+        .init(move || hosted)
+        .tab_visits_controls(true);
+    let handle = app.handle();
+    // Kept until the window closes.
+    let _follower = crate::follow::follow(manager, move |theme| {
+        handle.update(move |hosted: &mut Hosted<T>, _| hosted.set_theme(theme));
+    });
+    app.try_run()
 }
 
 /// One headless frame of `view`, with `hosted`'s font bytes loaded first.
