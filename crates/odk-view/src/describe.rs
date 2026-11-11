@@ -55,7 +55,12 @@ pub(crate) fn role_name(role: Role) -> &'static str {
 fn has_checked_state(role: Role) -> bool {
     matches!(
         role,
-        Role::Checkbox | Role::Switch | Role::Radio | Role::ToggleButton
+        Role::Checkbox
+            | Role::Switch
+            | Role::Radio
+            | Role::ToggleButton
+            | Role::MenuItemCheckbox
+            | Role::MenuItemRadio
     )
 }
 
