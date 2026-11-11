@@ -160,6 +160,18 @@ name = "rune-password_input"
 path = "rune/password_input.rs"
 
 [[bin]]
+name = "rune-number_input"
+path = "rune/number_input.rs"
+
+[[bin]]
+name = "rune-input_group"
+path = "rune/input_group.rs"
+
+[[bin]]
+name = "rune-textarea"
+path = "rune/textarea.rs"
+
+[[bin]]
 name = "rune-menu"
 path = "rune/menu.rs"
 

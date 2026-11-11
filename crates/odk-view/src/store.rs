@@ -299,6 +299,14 @@ impl Store {
         self.seeds.borrow().get(id).cloned()
     }
 
+    /// Replaces a field's text, keeping which field has focus.
+    pub(crate) fn set_input_text(&mut self, id: &str, text: &str) {
+        let edit = self.input_edit(id);
+        let focused = edit.focused;
+        *edit = TextEdit::new(text);
+        edit.focused = focused;
+    }
+
     pub(crate) fn input_edit(&mut self, id: &str) -> &mut TextEdit {
         if !self.inputs.contains_key(id)
             && let Some(seed) = self.seeds.get_mut().remove(id)

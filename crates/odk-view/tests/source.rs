@@ -19,13 +19,15 @@ const HOST: &[&str] = &[
 ];
 
 /// Files that are not controls: a mark, the layout groups, the row a checkbox and a switch
-/// share, and the decoded images a window holds are decoration, structure or state, so no
+/// share, the decoded images a window holds and the rules of a number field are decoration,
+/// structure, state or logic, so no
 /// `Describe` (item 14), though every other rule here still reads them.
 const NOT_CONTROLS: &[&str] = &[
     "hover.rs",
     "icon.rs",
     "images.rs",
     "layout.rs",
+    "number.rs",
     "placement.rs",
     "toggle.rs",
     "tone.rs",
@@ -39,7 +41,13 @@ const VIA_TOGGLE: &[&str] = &["checkbox.rs", "switch.rs"];
 const VIA_CONTROL: &[&str] = &["form_field.rs"];
 
 /// Fields that are an `Input` with parts: the `Input` inside draws the description.
-const VIA_INPUT: &[&str] = &["search_input.rs", "password_input.rs"];
+const VIA_INPUT: &[&str] = &[
+    "search_input.rs",
+    "password_input.rs",
+    "number_input.rs",
+    "input_group.rs",
+    "textarea.rs",
+];
 
 fn sources() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

@@ -13,7 +13,10 @@ use crate::style::{self, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
 use odk_theme::foundation::Density;
-use rune::{El, Key, KeyEvent, PointerButton, Tx, edit_access, row, text_input};
+use rune::{El, Key, KeyEvent, PointerButton, Tx, auto_grow, col, edit_access, row, text_input};
+
+/// The most rows a field of rows grows to when it is given no limit.
+const MOST_ROWS: usize = 10_000;
 
 /// The box's width in points at the base text size, unless the application sets one (ODK's own).
 const DEFAULT_WIDTH: f32 = 240.0;
@@ -30,11 +33,14 @@ pub struct Input<C, S> {
     full_width: bool,
     placeholder: Option<String>,
     leading: Option<Glyph>,
+    before: Vec<El>,
     trailing: Vec<El>,
     default_value: Option<String>,
     /// A masked field: `Some(revealed)`. It shows dots, or its text while revealed, and it
     /// never writes the clipboard or the primary selection.
     secure: Option<bool>,
+    /// A field of rows: how many it starts with and the most it grows to. Enter ends a line.
+    rows: Option<(usize, Option<usize>)>,
     on_change: C,
     on_submit: S,
 }
@@ -58,9 +64,11 @@ impl<C, S> Input<C, S> {
             full_width: false,
             placeholder: None,
             leading: None,
+            before: Vec::new(),
             trailing: Vec::new(),
             default_value: None,
             secure: None,
+            rows: None,
             on_change,
             on_submit,
         }
@@ -140,6 +148,12 @@ impl<C, S> Input<C, S> {
         self
     }
 
+    /// Something before the text, inside the box: an input group's prefix.
+    pub(crate) fn before(mut self, element: El) -> Self {
+        self.before.push(element);
+        self
+    }
+
     /// Something after the text, inside the box: a field action.
     pub(crate) fn trailing(mut self, element: El) -> Self {
         self.trailing.push(element);
@@ -150,6 +164,12 @@ impl<C, S> Input<C, S> {
     /// selection.
     pub(crate) fn secure(mut self, revealed: bool) -> Self {
         self.secure = Some(revealed);
+        self
+    }
+
+    /// A field of `rows` lines that grows to `max_rows`, and scrolls past that.
+    pub(crate) fn multiline(mut self, rows: usize, max_rows: Option<usize>) -> Self {
+        self.rows = Some((rows.max(1), max_rows.map(|m| m.max(rows.max(1)))));
         self
     }
 
@@ -181,9 +201,11 @@ impl<C, S> Input<C, S> {
             full_width,
             placeholder,
             leading,
+            before,
             trailing,
             default_value,
             secure,
+            rows,
             invalid,
             disabled,
             on_change,
@@ -198,10 +220,12 @@ impl<C, S> Input<C, S> {
         }
         let edit = hosted.ui.input_edit_clone(&id);
         let paint = style::paint(hosted.theme());
-        let field = paint.tokens.field(
-            Density::Default,
-            States::NONE.disabled(disabled).invalid(invalid),
-        );
+        let states = States::NONE.disabled(disabled).invalid(invalid);
+        let field = match rows {
+            Some((rows, _)) => paint.tokens.textarea(Density::Default, rows, states),
+            None => paint.tokens.field(Density::Default, states),
+        };
+        let multiline = rows.is_some();
         let width = paint.px(width);
         let edit_id = id.clone();
         let change_id = id.clone();
@@ -209,6 +233,8 @@ impl<C, S> Input<C, S> {
         let up_id = id.clone();
         let paste_id = id.clone();
         let on_paste = on_change.clone();
+        let on_enter = on_change.clone();
+        let enter_id = id.clone();
         let on_type = on_change;
         let press_hook = hook.clone();
         let release_hook = hook;
@@ -216,11 +242,15 @@ impl<C, S> Input<C, S> {
             text_input(&edit, text_style(paint.body)).key(id.clone()),
             &accessible,
         )
-        .single_line()
         .grow(1.0)
         .color(ink(field.colours.default.foreground))
         .caret(ink(field.caret), ink(field.selection.background))
         .pointer_buttons([PointerButton::Middle]);
+        let editor = if rows.is_some() {
+            editor
+        } else {
+            editor.single_line()
+        };
         let editor = match secure {
             Some(revealed) => editor.secure().revealed(revealed),
             None => editor,
@@ -248,7 +278,17 @@ impl<C, S> Input<C, S> {
                     {
                         return true;
                     }
-                    if !plain_enter(ev) {
+                    // Rune's editor submits on a plain Enter; a field of rows ends a line instead.
+                    if multiline && plain_enter(ev) {
+                        let text = {
+                            let edit = hosted.ui.input_edit(&enter_id);
+                            edit.insert("\n");
+                            edit.text.clone()
+                        };
+                        on_enter(&mut hosted.app, text);
+                        return true;
+                    }
+                    if multiline || !plain_enter(ev) {
                         return false;
                     }
                     // The editor would submit on Enter's press. Hold it for the release.
@@ -263,7 +303,7 @@ impl<C, S> Input<C, S> {
                     {
                         return true;
                     }
-                    if !plain_enter(ev) || !hosted.ui.take_input_submit(&up_id) {
+                    if multiline || !plain_enter(ev) || !hosted.ui.take_input_submit(&up_id) {
                         return false;
                     }
                     on_submit(&mut hosted.app);
@@ -285,16 +325,30 @@ impl<C, S> Input<C, S> {
                     on_paste(&mut hosted.app, text);
                 })
         };
+        // A field of rows is fitted to its text: `rows` lines at least, growing to `max_rows`, then
+        // scrolling inside with the caret kept in view. The editor has its handlers by now.
+        let editor = match rows {
+            // In a column, where the viewport's height is the main axis and grows with its content.
+            Some((rows, max_rows)) => col().grow(1.0).min_w(0.0).child(auto_grow(
+                editor,
+                rows,
+                max_rows.unwrap_or(MOST_ROWS),
+            )),
+            None => editor,
+        };
         let boxed = row().key(format!("{id}-box"));
         let boxed = if full_width {
             boxed.w_full()
         } else {
             boxed.w(width)
         };
+        let boxed = match rows {
+            // The text starts at the top, and the box is as tall as the viewport fitted to it.
+            Some(_) => boxed.items_start().py(field.geometry.padding_y),
+            None => boxed.h(field.geometry.height).center_y(),
+        };
         boxed
-            .h(field.geometry.height)
             .px(field.geometry.padding_x)
-            .center_y()
             .radius(field.geometry.radius)
             .fill(ink(field.colours.default.background))
             .outline(
@@ -302,6 +356,7 @@ impl<C, S> Input<C, S> {
                 0.0,
                 ink(field.colours.default.border),
             )
+            .children(before)
             .children(leading.map(|glyph| {
                 // A leading icon sits `gap` before the text.
                 row()
