@@ -24,6 +24,10 @@ use rune::{El, Key, KeyEvent, PointerPress, Tx, col, row, spacer};
 /// The narrowest a menu is, in points at the base text size. ODK's own.
 const MENU_MIN_WIDTH: f32 = 192.0;
 
+/// The widest a menu is, in points at the base text size: a longer label is cut with `…` inside
+/// its row. ODK's own.
+const MENU_MAX_WIDTH: f32 = 360.0;
+
 type Select<T> = Rc<dyn Fn(&mut T)>;
 
 /// Asks for the menu to be open (`true`) or closed (`false`).
@@ -240,15 +244,17 @@ impl<T: 'static> DropdownMenu<T> {
         let wrapper = {
             let ask = ask.clone();
             let enabled = !self.disabled;
-            row().self_start().child(button).on_key(
-                move |hosted: &mut Hosted<T>, ev: &KeyEvent, _: &mut Tx| {
+            // A row stretches across its column, which is what lets the button inside narrow
+            // and cut its label; one that took its content's width could not.
+            row()
+                .child(button)
+                .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, _: &mut Tx| {
                     if enabled && !open && ev.key == Key::Down {
                         ask(&mut hosted.app, true);
                         return true;
                     }
                     false
-                },
-            )
+                })
         };
         if open
             && !self.disabled
@@ -299,6 +305,7 @@ fn surface<T: 'static>(
     let mut list = apply(col().key(format!("{id}-menu")), &accessible)
         .focus_group()
         .min_w(paint.px(MENU_MIN_WIDTH))
+        .max_w(paint.px(MENU_MAX_WIDTH))
         .py(g.padding_y)
         .fill(ink(s.surface.background))
         .outline(g.border_width, 0.0, ink(s.surface.border))
@@ -345,7 +352,7 @@ fn item_row<T: 'static>(
     );
     let g = s.geometry;
     let colour = s.colours.default.foreground;
-    let mut content = row().center_y().gap(g.gap).grow(1.0);
+    let mut content = row().center_y().gap(g.gap).grow(1.0).shrink().min_w(0.0);
     // The first column: a check mark, a dot, or the item's icon, so labels line up.
     let lead = if item.radio.is_some() {
         chosen.then_some(Glyph::from(Icon::Dot))
@@ -358,8 +365,12 @@ fn item_row<T: 'static>(
         Some(glyph) => glyph.slot(g.icon_size, ink(colour)),
         None => rune::el().size(g.icon_size, g.icon_size),
     });
-    content =
-        content.child(words(paint, item.label.clone(), g.type_role, colour, Flow::End).grow(1.0));
+    content = content.child(
+        words(paint, item.label.clone(), g.type_role, colour, Flow::End)
+            .grow(1.0)
+            .shrink()
+            .min_w(0.0),
+    );
     if let Some(hint) = &item.hint {
         content = content.child(spacer()).child(words(
             paint,
