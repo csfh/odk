@@ -203,7 +203,7 @@ fn scene(hosted: &Hosted<()>, cx: &mut Cx<Hosted<()>>, body: El, layers: Vec<El>
 
 fn alert(h: &Hosted<()>, cx: &mut Cx<Hosted<()>>, t: &str) -> El {
     let body = Alert::new("sample-alert", t)
-        .variant(Tone::Warning)
+        .tone(Tone::Warning)
         .description("Something to know, and what to do about it.")
         .action(Button::new("sample-alert-act", "Retry", nothing).show(h))
         .on_dismiss(nothing)

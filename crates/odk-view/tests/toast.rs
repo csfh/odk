@@ -310,7 +310,7 @@ fn a_toast_is_a_status_named_by_its_title_and_description() {
         &mut runtime,
         Toast::new("Saved")
             .description("Your changes are safe.")
-            .variant(Tone::Success),
+            .tone(Tone::Success),
     );
     fn walk(node: &serde_json::Value, into: &mut Vec<serde_json::Value>) {
         into.push(node.clone());

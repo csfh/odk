@@ -99,7 +99,7 @@ impl<T> Toast<T> {
         }
     }
 
-    pub fn variant(mut self, tone: Tone) -> Self {
+    pub fn tone(mut self, tone: Tone) -> Self {
         self.tone = Some(tone);
         self
     }

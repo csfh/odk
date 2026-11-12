@@ -32,14 +32,14 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
         )
         .child(
             Button::new("success", "Success", |s: &mut Story| {
-                s.toaster.raise(Toast::new("Saved").variant(Tone::Success));
+                s.toaster.raise(Toast::new("Saved").tone(Tone::Success));
             })
             .show(hosted),
         )
         .child(
             Button::new("warning", "Warning", |s: &mut Story| {
                 s.toaster
-                    .raise(Toast::new("Battery is low").variant(Tone::Warning));
+                    .raise(Toast::new("Battery is low").tone(Tone::Warning));
             })
             .show(hosted),
         )
@@ -48,7 +48,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
                 s.toaster.raise(
                     Toast::new("Could not connect")
                         .description("Check the network and try again.")
-                        .variant(Tone::Danger),
+                        .tone(Tone::Danger),
                 );
             })
             .show(hosted),

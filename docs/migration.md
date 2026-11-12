@@ -95,7 +95,7 @@ Badge::new("Failed").tone(Tone::Danger).marked().show(hosted)
 StatusIndicator::new(Status::Active, "Online").show(hosted)
 ```
 
-`Role` here is `odk::theme::semantic::Role` (six colour roles), not `odk::a11y::Role` (what a component is).
+`Role` here is `odk::theme::semantic::Role` (six colour roles), not `odk::a11y::Role` (what a component is). `Alert` and `Toast` take a `Tone` with `.tone(..)`; it was `.variant(..)` on GPUI's, a name `ButtonVariant` owns.
 
 ## Overlays
 
