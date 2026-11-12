@@ -9,6 +9,7 @@ use rune::text::TextSystem;
 use rune::{App, AppSpec, Cx, El, Env, Runtime, Tx, Waker, el};
 
 use crate::face::Face;
+use crate::follow::Update;
 use crate::ink::ink;
 use crate::store::Store;
 
@@ -253,7 +254,7 @@ impl<T> AnyHost for Hosted<T> {
 /// [`end_theme_preview`], as [`Hosted::preview_theme`] does, from anywhere. `Err` when the
 /// application did not start through [`run`].
 pub fn preview_theme(snapshot: ThemeSnapshot) -> Result<(), crate::post::NoWindow> {
-    crate::post::on_any_host(move |host| host.preview(snapshot))
+    crate::post::on_any_host(move |host| host.preview(snapshot.clone()))
 }
 
 /// Draws the followed theme again; see [`Hosted::end_theme_preview`].
@@ -314,56 +315,189 @@ impl WindowConfig {
 /// ([`Face::installed`], ADR 0095), and Rune's bundled one when there is none. Rune loads a family
 /// from bytes before the window opens and not after, so a font changed while the window is open
 /// applies at the next start (`docs/checks.md`).
+///
+/// An application of one window. For more, see [`Windows`].
 pub fn run<T: 'static>(
     app: T,
     config: WindowConfig,
     view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El,
 ) -> Result<(), String> {
-    let WindowConfig {
-        title,
-        size,
-        face,
-        foundation,
-    } = config;
-    // Rune keeps the title for the life of the process, and `run` lasts as long.
-    let title: &'static str = Box::leak(title.into_boxed_str());
-    let manager = ThemeManager::current();
-    let face = face.unwrap_or_else(|| {
-        manager
-            .font_family()
-            .and_then(Face::installed)
-            .unwrap_or(Face::bundled())
-    });
-    let mut hosted = Hosted::new(app, (*manager.snapshot()).clone(), face).with_config(foundation);
+    Windows::new(app, config, view).run()
+}
+
+type Feed = Box<dyn Fn(Update) + Send>;
+
+/// An application of more than one window: the first, which is the application (closing it ends
+/// it), and others that open and close while it runs, each with a state of its own, such as a
+/// settings window beside the main one. Every window draws the same theme, follows it together
+/// and takes a preview of it together; a window's own foundation settings (density, corner
+/// radius) are its own.
+///
+/// ```ignore
+/// let mut windows = Windows::new(App::default(), WindowConfig::new((960.0, 680.0)), view);
+/// let settings = windows.window("settings", Settings::default(), WindowConfig::new((480.0, 360.0)).title("Settings"), settings_view);
+/// // From a handler of the main window: settings.show();
+/// windows.run()
+/// ```
+///
+/// What reaches a window from outside (`configure`, `set_reduced_motion`, [`on_host`], a
+/// [`FileChooser`](crate::FileChooser) answer) names a type of state and reaches the first window
+/// whose state is that type, so two windows with one type of state share the first; give each its
+/// own type. The theme and its preview reach every window.
+pub struct Windows<T: 'static> {
+    app: App<Hosted<T>>,
+    manager: ThemeManager,
+    face: Face,
+    posts: Vec<(std::any::TypeId, crate::post::Post)>,
+    anys: Vec<crate::post::PostAny>,
+    feeds: Vec<Feed>,
+}
+
+/// A window that [`Windows`] made: shown and hidden from anywhere, keeping its state while it is
+/// hidden.
+#[derive(Clone)]
+pub struct Window(rune::WindowHandle);
+
+impl Window {
+    /// Shows it, without asking for focus, or brings it back after it was closed. It keeps what it
+    /// held.
+    pub fn show(&self) {
+        self.0.show();
+    }
+
+    /// Hides it, keeping its state, as closing it does.
+    pub fn hide(&self) {
+        self.0.hide();
+    }
+
+    /// Gives it the keyboard, when it is showing.
+    pub fn focus(&self) {
+        self.0.focus();
+    }
+}
+
+fn hosted_for<T: 'static>(
+    app: T,
+    config: &WindowConfig,
+    manager: &ThemeManager,
+    face: Face,
+) -> Hosted<T> {
+    let mut hosted = Hosted::new(app, (*manager.snapshot()).clone(), face)
+        .with_config(config.foundation.clone());
     hosted.diagnostics = Some(manager.diagnostics());
-    let spec = AppSpec {
-        fonts: hosted.face.fonts(),
-        families: hosted.face.families(),
-        poll: Some(poll::<T>),
-        setup: Some(setup::<T>),
-        ..AppSpec::new(title, size, spec_init::<T>, view)
-    };
-    let app = App::new(spec)
-        .args(None::<String>)
-        .init(move || hosted)
-        .tab_visits_controls(true);
-    let handle = app.handle();
-    // What other threads reach the window's host through: an answer from the file chooser, or a
-    // change of the foundation settings.
-    let feed = handle.clone();
-    crate::post::install(std::sync::Arc::new(move |job| {
-        feed.update(move |hosted: &mut Hosted<T>, _| job(hosted as &mut dyn std::any::Any));
-    }));
-    let feed = handle.clone();
-    crate::post::install_any(std::sync::Arc::new(move |job| {
-        feed.update(move |hosted: &mut Hosted<T>, _| job(hosted as &mut dyn AnyHost));
-    }));
-    // Kept until the window closes.
-    let follower = crate::follow::follow(manager, move |update| {
-        handle.update(move |hosted: &mut Hosted<T>, _| AnyHost::update(hosted, update));
-    });
-    crate::follow::install(follower.commands());
-    app.try_run()
+    hosted
+}
+
+impl<T: 'static> Windows<T> {
+    /// The application's window. Nothing is open until [`Windows::run`].
+    pub fn new(
+        app: T,
+        config: WindowConfig,
+        view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El,
+    ) -> Self {
+        let manager = ThemeManager::current();
+        let face = config.face.unwrap_or_else(|| {
+            manager
+                .font_family()
+                .and_then(Face::installed)
+                .unwrap_or(Face::bundled())
+        });
+        let hosted = hosted_for(app, &config, &manager, face);
+        // Rune keeps the title for the life of the process, and `run` lasts as long.
+        let title: &'static str = Box::leak(config.title.clone().into_boxed_str());
+        let spec = AppSpec {
+            fonts: face.fonts(),
+            families: face.families(),
+            poll: Some(poll::<T>),
+            setup: Some(setup::<T>),
+            ..AppSpec::new(title, config.size, spec_init::<T>, view)
+        };
+        let app = App::new(spec)
+            .args(None::<String>)
+            .init(move || hosted)
+            .tab_visits_controls(true);
+        let mut windows = Self {
+            app,
+            manager,
+            face,
+            posts: Vec::new(),
+            anys: Vec::new(),
+            feeds: Vec::new(),
+        };
+        let handle = windows.app.handle();
+        windows.attach(handle);
+        windows
+    }
+
+    /// Another window, with a state of its own, hidden until [`Window::show`]. `key` names it for
+    /// Rune's tools. It uses the font the application's window uses unless `config` names one.
+    pub fn window<U: 'static>(
+        &mut self,
+        key: impl Into<String>,
+        state: U,
+        config: WindowConfig,
+        view: fn(&Hosted<U>, &mut Cx<Hosted<U>>) -> El,
+    ) -> Window {
+        let face = config.face.unwrap_or(self.face);
+        let hosted = hosted_for(state, &config, &self.manager, face);
+        let title: &'static str = Box::leak(config.title.clone().into_boxed_str());
+        let spec = AppSpec {
+            fonts: face.fonts(),
+            families: face.families(),
+            poll: Some(poll::<U>),
+            setup: Some(setup::<U>),
+            ..AppSpec::new(title, config.size, spec_init::<U>, view)
+        };
+        let app = App::new(spec)
+            .init(move || hosted)
+            .tab_visits_controls(true);
+        let handle = app.handle();
+        let mut spec = rune::WindowSpec::from_app(key, app);
+        spec.options.visible = false;
+        self.attach(handle);
+        let (_, window) = self.app.window(spec);
+        Window(window)
+    }
+
+    /// What reaches a window from other threads: jobs for its state, jobs for its host, and the
+    /// theme as it changes.
+    fn attach<U: 'static>(&mut self, handle: rune::AppHandle<Hosted<U>>) {
+        let feed = handle.clone();
+        self.posts.push((
+            std::any::TypeId::of::<U>(),
+            std::sync::Arc::new(move |job| {
+                feed.update(move |hosted: &mut Hosted<U>, _| job(hosted as &mut dyn std::any::Any));
+            }),
+        ));
+        let feed = handle.clone();
+        self.anys.push(std::sync::Arc::new(move |job| {
+            feed.update(move |hosted: &mut Hosted<U>, _| job(hosted as &mut dyn AnyHost));
+        }));
+        self.feeds.push(Box::new(move |update| {
+            handle.update(move |hosted: &mut Hosted<U>, _| AnyHost::update(hosted, update));
+        }));
+    }
+
+    /// Opens the application's window and runs until it closes.
+    pub fn run(self) -> Result<(), String> {
+        let Self {
+            app,
+            manager,
+            posts,
+            anys,
+            feeds,
+            ..
+        } = self;
+        crate::post::install_all(posts, anys);
+        // Kept until the window closes.
+        let follower = crate::follow::follow(manager, move |update| {
+            for feed in &feeds {
+                feed(update.clone());
+            }
+        });
+        crate::follow::install(follower.commands());
+        app.try_run()
+    }
 }
 
 /// One headless frame of `view`, with `hosted`'s font bytes loaded first.

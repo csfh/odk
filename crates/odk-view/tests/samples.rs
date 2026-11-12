@@ -77,7 +77,12 @@ const IGNORED: &[(&str, &str)] = &[
     ("ToastId", "the id of a toast"),
     ("Tone", "a colour tone a component takes"),
     ("Update", "a theme update, not a component"),
+    ("Window", "a handle to a window `Windows` made"),
     ("WindowConfig", "the window's configuration"),
+    (
+        "Windows",
+        "the builder of an application of more than one window",
+    ),
 ];
 
 /// The names `lib.rs` exports: every capitalised identifier in its `pub use` statements.
