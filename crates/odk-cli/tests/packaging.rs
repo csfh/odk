@@ -48,13 +48,14 @@ fn the_binfmt_line_is_exactly_the_one_the_adr_gives_and_names_the_private_progra
 }
 
 #[test]
-fn the_desktop_handler_runs_odk_oma_run_by_absolute_path_and_through_no_shell() {
+fn the_desktop_handler_is_a_template_that_runs_odk_oma_run_through_no_shell() {
     let desktop = packaging("applications/oma.desktop");
     let exec: Vec<&str> = desktop
         .lines()
         .filter_map(|l| l.strip_prefix("Exec="))
         .collect();
-    assert_eq!(exec, ["/usr/bin/odk oma run %f"], "one Exec, the facade");
+    // `install.sh` fills in the absolute path of the `odk` it installed (ADR 0097).
+    assert_eq!(exec, ["@ODK@ oma run %f"], "one Exec, the facade");
     for shell in ["sh -c", "bash", "/bin/sh", "env "] {
         assert!(!desktop.contains(shell), "{shell}");
     }

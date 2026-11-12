@@ -11,13 +11,14 @@ from the repository except `tools/package-release`.
 | `~/.local/lib/odk/odk-oma`, `oma-consent`, `odkd` | the programs behind it |
 | `~/.config/systemd/user/odkd.socket`, `odkd-files.socket`, `odkd.service` | `systemd/user/` |
 | `~/.local/share/mime/packages/oma.xml` | `mime/oma.xml` |
+| `~/.local/share/applications/odk-oma.desktop`, and a line in `~/.config/mimeapps.list` | `applications/oma.desktop`, a template whose `@ODK@` becomes the quoted path of the installed `odk` (ADR 0097) |
 | `~/.local/share/doc/odk/LICENSE`, `THIRD-PARTY-LICENSES` | the repository's `LICENSE`, and what `tools/third-party-licenses` writes for the four programs (ADR 0081) |
 
 It then enables `odkd.socket` and `odkd-files.socket` for the user's session; the first
 connection to either starts `odkd`, which tells the two apart by their names (`host` and
 `files`, ADR 0068), and an upgrade restarts a running one. A release from before the file
 chooser has no `odkd-files.socket`, and the script then enables `odkd.socket` alone. It runs `update-mime-database` on the user's MIME directory, so a
-file manager knows a `.oma` file as a kind of disk image (ADR 0065). The units follow
+file manager knows a `.oma` file as a kind of disk image (ADR 0065), and it writes the handler and makes it the default for the type, so a double-click runs the file, or asks first when it is not installed (ADR 0097); `--uninstall` takes both away. `binfmt.d/odk.conf` is not installed: `binfmt_misc` is root's (ADR 0087), and the file is text for an administrator. The units follow
 `XDG_CONFIG_HOME` and the type follows `XDG_DATA_HOME`. `odkd.service` names the program with `%h`, so the units hold
 no user name. `sh install.sh --uninstall` removes exactly these files.
 
