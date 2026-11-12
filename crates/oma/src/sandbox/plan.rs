@@ -245,7 +245,41 @@ impl Plan {
         // socket made again is the one the application sees. Without `odkd` there is no
         // directory, and the application draws its defaults.
         let odkd = runtime.join("odk");
+        // While the user's accessibility is on (ADR 0096), `odkd` has published where the AT-SPI
+        // bus is, and the window gets that bus and the stand-in session bus that sits in `odkd`'s
+        // directory, which is already bound. Without the file there is neither, and the window has
+        // no tree for a screen reader.
+        let mut screen_reader = Vec::new();
         if odkd.is_dir() {
+            if let Some(bus) = screen_reader_bus(&odkd, runtime) {
+                let relative = bus
+                    .strip_prefix(runtime)
+                    .expect("under the runtime directory");
+                let dst = run_user.join(relative);
+                let mut at = run_user.clone();
+                if let Some(parent) = relative.parent() {
+                    for part in parent.components() {
+                        at.push(part);
+                        ops.push(Op::Dir(at.clone()));
+                    }
+                }
+                ops.push(Op::Bind {
+                    src: bus,
+                    dst: dst.clone(),
+                    readonly: false,
+                    device: false,
+                });
+                screen_reader = vec![
+                    (
+                        "DBUS_SESSION_BUS_ADDRESS".to_owned(),
+                        format!("unix:path={}", run_user.join("odk/bus").display()),
+                    ),
+                    (
+                        "AT_SPI_BUS_ADDRESS".to_owned(),
+                        format!("unix:path={}", dst.display()),
+                    ),
+                ];
+            }
             ops.push(Op::Bind {
                 src: odkd,
                 dst: run_user.join("odk"),
@@ -395,6 +429,7 @@ impl Plan {
                 env.push(((*name).to_owned(), value));
             }
         }
+        env.extend(screen_reader);
         if p.updates && i.inbox_dir.is_some() {
             env.push(("OMA_INBOX".to_owned(), INBOX.to_owned()));
         }
@@ -410,6 +445,17 @@ impl Plan {
             daemon_socket_missing,
         })
     }
+}
+
+/// The AT-SPI bus's socket, when `odkd` says accessibility is on (ADR 0096): the path in
+/// `odk/a11y`, if it is a socket under the runtime directory (where the session's is), and the
+/// stand-in bus is there to go with it. `None` otherwise.
+fn screen_reader_bus(odkd: &Path, runtime: &Path) -> Option<PathBuf> {
+    use std::os::unix::fs::FileTypeExt;
+    let is_socket = |p: &Path| fs::metadata(p).is_ok_and(|m| m.file_type().is_socket());
+    let line = fs::read_to_string(odkd.join("a11y")).ok()?;
+    let bus = PathBuf::from(line.lines().next()?.trim());
+    (bus.starts_with(runtime) && is_socket(&bus) && is_socket(&odkd.join("bus"))).then_some(bus)
 }
 
 /// The slice of `/sys` that graphics drivers read to identify a GPU: for each node in
@@ -699,6 +745,87 @@ mod tests {
                 .iter()
                 .all(|(s, ..)| !local.starts_with(s) || *s == w.home)
         );
+    }
+
+    /// While accessibility is on (ADR 0096) `odkd` publishes where the AT-SPI bus is, and the window
+    /// gets that socket, the stand-in session bus that is in `odkd`'s directory, and the two
+    /// variables that name them. While it is off, none of that.
+    #[test]
+    fn the_screen_readers_bus_is_bound_only_while_odkd_says_accessibility_is_on() {
+        let w = world();
+        let odkd = w.runtime.join("odk");
+        fs::create_dir_all(&odkd).unwrap();
+        let stand_in = UnixListener::bind(odkd.join("bus")).unwrap();
+        fs::create_dir_all(w.runtime.join("at-spi")).unwrap();
+        let atspi = UnixListener::bind(w.runtime.join("at-spi/bus_0")).unwrap();
+        let var = |p: &Plan, name: &str| {
+            p.env
+                .iter()
+                .find(|(k, _)| k == name)
+                .map(|(_, v)| v.clone())
+        };
+
+        // Off: no file.
+        let p = plan(&w, &Permissions::default()).unwrap();
+        assert!(!has_dst(&p, "/run/user/1000/at-spi/bus_0"));
+        assert_eq!(var(&p, "AT_SPI_BUS_ADDRESS"), None);
+        assert_eq!(var(&p, "DBUS_SESSION_BUS_ADDRESS"), None);
+
+        // On.
+        fs::write(
+            odkd.join("a11y"),
+            format!("{}\n", w.runtime.join("at-spi/bus_0").display()),
+        )
+        .unwrap();
+        let p = plan(&w, &Permissions::default()).unwrap();
+        let (src, dst) = (
+            w.runtime.join("at-spi/bus_0"),
+            Path::new("/run/user/1000/at-spi/bus_0"),
+        );
+        assert!(binds(&p).contains(&(src.as_path(), dst, false)));
+        assert!(p.ops.contains(&Op::Dir("/run/user/1000/at-spi".into())));
+        assert_eq!(
+            var(&p, "AT_SPI_BUS_ADDRESS").as_deref(),
+            Some("unix:path=/run/user/1000/at-spi/bus_0")
+        );
+        assert_eq!(
+            var(&p, "DBUS_SESSION_BUS_ADDRESS").as_deref(),
+            Some("unix:path=/run/user/1000/odk/bus")
+        );
+        // The session's own bus is still not there.
+        assert!(!has_dst(&p, "/run/user/1000/bus"));
+
+        // A file that does not name a socket under the runtime directory grants nothing, and a
+        // socket elsewhere, even a real one, is not the session's.
+        fs::write(w.runtime.join("plain"), "x").unwrap();
+        let elsewhere = w.dir.path().join("elsewhere.sock");
+        let _elsewhere = UnixListener::bind(&elsewhere).unwrap();
+        for bad in [
+            w.runtime.join("plain").display().to_string(),
+            "/etc/passwd".to_owned(),
+            elsewhere.display().to_string(),
+            w.runtime.join("missing").display().to_string(),
+            String::new(),
+        ] {
+            fs::write(odkd.join("a11y"), format!("{bad}\n")).unwrap();
+            let p = plan(&w, &Permissions::default()).unwrap();
+            assert_eq!(var(&p, "AT_SPI_BUS_ADDRESS"), None, "{bad:?}");
+            assert!(
+                !binds(&p).iter().any(|(s, ..)| s.ends_with("plain")),
+                "{bad:?}"
+            );
+        }
+        // And without the stand-in bus there is nothing to start on.
+        drop(stand_in);
+        fs::remove_file(odkd.join("bus")).unwrap();
+        fs::write(
+            odkd.join("a11y"),
+            format!("{}\n", w.runtime.join("at-spi/bus_0").display()),
+        )
+        .unwrap();
+        let p = plan(&w, &Permissions::default()).unwrap();
+        assert_eq!(var(&p, "AT_SPI_BUS_ADDRESS"), None);
+        drop(atspi);
     }
 
     /// Hyprland's socket accepts commands (ADR 0048), so an application that could open it would

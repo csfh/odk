@@ -11,12 +11,14 @@ deps.workspace = true
 # The portal client GPUI already brings, with the same features (ADR 0068), so a build of
 # odkd alone reuses the workspace's; `wayland` is unused here.
 ashpd = { version = "0.11", default-features = false, features = ["async-std", "wayland"] }
+async-channel = "2"
 futures-lite = "2"
 libc = "0.2"
 odk-theme = { path = "../odk-theme" }
 toml = "0.9"
+# The stand-in session bus's service and the real bus's watcher (ADR 0096), on the zbus `ashpd`
+# already brings.
+zbus = { version = "5", default-features = false, features = ["async-io"] }
 
 [dev-dependencies]
 tempfile = "3"
-# The fake portal of `tests/chooser.rs`, on the zbus `ashpd` already brings.
-zbus = { version = "5", default-features = false, features = ["async-io"] }
