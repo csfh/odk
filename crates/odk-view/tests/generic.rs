@@ -473,3 +473,110 @@ fn a_thousand_controls_stay_within_the_ceiling() {
         "a thousand controls took {least:?}"
     );
 }
+
+/// Whether `inner` lies inside `outer`, to a hair.
+fn inside(inner: [f32; 4], outer: [f32; 4]) -> bool {
+    inner[0] >= outer[0] - 0.5
+        && inner[1] >= outer[1] - 0.5
+        && inner[0] + inner[2] <= outer[0] + outer[2] + 0.5
+        && inner[1] + inner[3] <= outer[1] + outer[3] + 0.5
+}
+
+/// Containers that are a stop themselves, and hold others: the panel of a dialog, which has the
+/// focus when it opens, and the toasts' stack, which Tab reaches to pause them.
+const CONTAINER_STOPS: &[(&str, &str, &str)] = &[
+    (
+        "Dialog",
+        "sample-dialog",
+        "the dialog's panel takes focus as it opens",
+    ),
+    (
+        "Toast",
+        "odk-toasts",
+        "the stack pauses the toasts while it has focus",
+    ),
+];
+
+/// Item 9: a control is one Tab stop. Tab from stop to stop of every interactive component: no
+/// press of Tab leaves focus on the part that already has it (unless it is the only stop there
+/// is), and no two stops are one inside the other, which is one control with two.
+#[test]
+fn a_control_is_one_tab_stop() {
+    let mut out = Vec::new();
+    for sample in SAMPLES {
+        if !sample.interactive {
+            continue;
+        }
+        let mut runtime = open(sample, "Save", SIZE, None);
+        let mut stops: Vec<(String, [f32; 4])> = Vec::new();
+        for _ in 0..16 {
+            runtime.key(rune::KeyEvent::from(rune::Key::Tab));
+            settle(&mut runtime);
+            let Some(at) = runtime.elements().into_iter().find(|e| e.focused) else {
+                continue;
+            };
+            let key = at.key.clone().unwrap_or_default();
+            if stops.iter().any(|(k, _)| *k == key) {
+                if stops.last().is_some_and(|(k, _)| *k == key) && stops.len() > 1 {
+                    out.push(format!("{}: Tab stayed on {key}", sample.name));
+                }
+                break;
+            }
+            for (other, rect) in &stops {
+                let container = CONTAINER_STOPS
+                    .iter()
+                    .any(|(c, k, _)| *c == sample.name && (k == other || *k == key));
+                if !container && (inside(at.rect, *rect) || inside(*rect, at.rect)) {
+                    out.push(format!(
+                        "{}: {key} and {other} are two stops for one part",
+                        sample.name
+                    ));
+                }
+            }
+            stops.push((key, at.rect));
+        }
+    }
+    assert!(out.is_empty(), "{}", out.join("\n"));
+}
+
+/// Every colour the last frame drew, fill and border, sorted.
+fn colours(runtime: &rune::Runtime<odk_view::Hosted<()>>) -> Vec<[u32; 4]> {
+    let mut all: Vec<[u32; 4]> = runtime
+        .instances
+        .iter()
+        .flat_map(|i| [i.fill, i.border])
+        .filter(|c| c[3] > 0.0)
+        .map(|c| c.map(|v| (v * 255.0).round() as u32))
+        .collect();
+    all.sort_unstable();
+    all
+}
+
+/// Item 3: a change of theme recolours a component on the next frame, and nothing else changes:
+/// the same elements are in the same places, whatever the palette.
+#[test]
+fn a_theme_change_recolours_every_component_and_moves_nothing() {
+    let mut out = Vec::new();
+    for sample in SAMPLES {
+        let mut runtime = open_with(sample, "Save", SIZE, dark(), None);
+        let (before, laid) = (colours(&runtime), layout(&runtime));
+        runtime.state.set_theme(light());
+        runtime.invalidate();
+        settle(&mut runtime);
+        let (after, moved_to) = (colours(&runtime), layout(&runtime));
+        // Parts with no colour of their own (a skeleton in the surface's tone, a separator) are
+        // still drawn in the new palette's tones, so a drawn page differs for each.
+        if before == after && !before.is_empty() {
+            out.push(format!(
+                "{}: drawn the same in a light palette",
+                sample.name
+            ));
+        }
+        out.extend(
+            moved("", &laid, &moved_to)
+                .into_iter()
+                .map(|l| format!("{}: {l}", sample.name)),
+        );
+    }
+    assert!(out.is_empty(), "{}", out.join("\n"));
+}

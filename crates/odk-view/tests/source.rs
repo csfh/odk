@@ -218,6 +218,40 @@ fn components_draw_only_component_tokens() {
     }
 }
 
+/// Item 40: a colour is never worked out where it is drawn. In no file of the crate, outside the
+/// ones that are the host (`HOST`: the conversion to Rune's colour, the tokens and the store), does
+/// code name the palette, do colour maths (OKLCH, contrast, mixing, alpha) or read the theme's
+/// snapshot (item 34 says the same of the component files; this holds the helpers too: `follow.rs`,
+/// `layout.rs`, `chart.rs`, ...).
+#[test]
+fn colour_is_resolved_in_the_theme_layers_and_nowhere_else() {
+    let forbidden = [
+        "Palette",
+        "palette",
+        "oklch",
+        "Oklch",
+        "Oklab",
+        "contrast(",
+        ".mix(",
+        ".over(",
+        "with_alpha(",
+        "theme_snapshot()",
+    ];
+    for (file, text) in sources() {
+        if HOST.contains(&file.as_str()) {
+            continue;
+        }
+        for (n, line) in code_lines(&text) {
+            for pattern in forbidden {
+                assert!(
+                    !line.contains(pattern),
+                    "{file}:{n}: resolves a colour outside the theme layers (`{pattern}`): {line}"
+                );
+            }
+        }
+    }
+}
+
 /// Item 14: a component describes itself with `Describe` and draws that description.
 #[test]
 fn every_component_implements_describe_and_draws_it() {
