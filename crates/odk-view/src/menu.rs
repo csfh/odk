@@ -19,7 +19,7 @@ use crate::style::{self, focus_ring, inset_focus_ring};
 use crate::text::{Flow, words};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonVariant, States};
-use rune::{El, Key, KeyEvent, PointerPress, Tx, col, row, spacer};
+use rune::{El, Key, KeyEvent, PointerPress, ScrollSpec, Tx, col, el, row, spacer};
 
 /// The narrowest a menu is, in points at the base text size. ODK's own.
 const MENU_MIN_WIDTH: f32 = 192.0;
@@ -270,7 +270,7 @@ impl<T: 'static> DropdownMenu<T> {
                         move |h: &mut Hosted<T>| close(h, false)
                     })
                     .focus_return(self.id.clone())
-                    .anchored(
+                    .anchored_fit(
                         self.id.clone(),
                         Placement::Bottom.side(),
                         Align::Start.rune(),
@@ -304,6 +304,13 @@ fn surface<T: 'static>(
     let accessible = Accessible::new(Role::Menu, name);
     let mut list = apply(col().key(format!("{id}-menu")), &accessible)
         .focus_group()
+        // A menu longer than the room scrolls, and the row the keys are on stays in view: it
+        // shrinks to what `anchored_fit` leaves it.
+        .scroll(ScrollSpec {
+            stick_bottom: false,
+        })
+        .shrink()
+        .min_h(0.0)
         .min_w(paint.px(MENU_MIN_WIDTH))
         .max_w(paint.px(MENU_MAX_WIDTH))
         .py(g.padding_y)
@@ -467,12 +474,14 @@ impl<T: 'static> ContextMenu<T> {
             let ask: HostedChange<T> =
                 Rc::new(move |h: &mut Hosted<T>, open| h.ui.set_open(&id, open));
             let close = ask.clone();
+            let point = format!("{}-point", self.id);
+            layers.push(point_at(&point, x, y));
             layers.push(
                 surface(hosted, &self.id, &self.name, menu, &ask)
                     .modal(true, move |h: &mut Hosted<T>| close(h, false))
                     .focus_return(self.id.clone())
-                    // At the pointer, in window points.
-                    .pin(Some(x), Some(y), None, None),
+                    // At the pointer, in window points, and kept inside the window.
+                    .anchored_fit(point, Placement::Bottom.side(), Align::Start.rune(), 0.0),
             );
         }
         trigger
@@ -506,7 +515,7 @@ pub(crate) fn below_trigger<T: 'static>(
         surface(hosted, id, name, menu, &ask)
             .modal(true, move |h: &mut Hosted<T>| close(h, false))
             .focus_return(id.to_string())
-            .anchored(
+            .anchored_fit(
                 id.to_string(),
                 Placement::Bottom.side(),
                 Align::Start.rune(),
@@ -532,10 +541,24 @@ pub(crate) fn at_point<T: 'static>(
     let key = id.to_string();
     let ask: HostedChange<T> = Rc::new(move |h: &mut Hosted<T>, open| h.ui.set_open(&key, open));
     let close = ask.clone();
+    let point = format!("{id}-point");
+    layers.push(point_at(&point, x, y));
     layers.push(
         surface(hosted, id, name, menu, &ask)
             .modal(true, move |h: &mut Hosted<T>| close(h, false))
             .focus_return(focus.to_string())
-            .pin(Some(x), Some(y), None, None),
+            .anchored_fit(point, Placement::Bottom.side(), Align::Start.rune(), 0.0),
     );
+}
+
+/// An element of no size at `(x, y)` in window points, for a menu that opens at the pointer to be
+/// placed against: `anchored_fit` flips it and keeps it inside the window, which a bare `pin`
+/// does not.
+fn point_at(key: &str, x: f32, y: f32) -> El {
+    crate::describe::pointer_target(el().key(key.to_string()).size(0.0, 0.0).pin(
+        Some(x),
+        Some(y),
+        None,
+        None,
+    ))
 }

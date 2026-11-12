@@ -394,6 +394,9 @@ impl<T: 'static> Command<T> {
         let panel = apply(col().key(self.id.clone()), &accessible)
             .w_full()
             .max_w(paint.px(PANEL_WIDTH))
+            // In a window shorter than the panel its list is what gives way, and scrolls.
+            .shrink()
+            .min_h(0.0)
             .padding(spacing.s2)
             .gap(spacing.s2)
             .fill(ink(o.surface.background))
