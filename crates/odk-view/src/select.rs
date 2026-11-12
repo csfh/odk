@@ -276,23 +276,22 @@ impl<F> Select<F> {
             );
         }
         // Escape is left for the modal, which closes the list and returns focus to the trigger.
-        layers.push(
-            col()
-                .key(format!("{id}-popup"))
-                .focus_return(trigger_key.clone())
-                .min_w(width)
-                .radius(menu.geometry.radius)
-                .fill(ink(menu.surface.background))
-                .outline(menu.geometry.border_width, 0.0, ink(menu.surface.border))
-                .modal(true, {
-                    let id = id.clone();
-                    move |hosted: &mut Hosted<T>| {
-                        hosted.ui.select_mut(&id).open = false;
-                    }
-                })
-                .child(list)
-                .anchored(trigger_key, Side::Bottom, Align::Start, LIST_GAP),
-        );
+        let popup = col()
+            .key(format!("{id}-popup"))
+            .focus_return(trigger_key.clone())
+            .min_w(width)
+            .radius(menu.geometry.radius)
+            .fill(ink(menu.surface.background))
+            .outline(menu.geometry.border_width, 0.0, ink(menu.surface.border))
+            .modal(true, {
+                let id = id.clone();
+                move |hosted: &mut Hosted<T>| {
+                    hosted.ui.select_mut(&id).open = false;
+                }
+            })
+            .child(list)
+            .anchored(trigger_key, Side::Bottom, Align::Start, LIST_GAP);
+        layers.push(paint.present(popup));
         trigger
     }
 }

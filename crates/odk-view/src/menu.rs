@@ -332,7 +332,7 @@ fn surface<T: 'static>(
             Entry::Item(item) => item_row(&paint, id, index, item, ask),
         });
     }
-    list
+    paint.present(list)
 }
 
 fn item_row<T: 'static>(

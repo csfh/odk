@@ -433,7 +433,7 @@ impl<T: 'static> Command<T> {
             scrim = scrim.fill(ink(backdrop));
         }
         // A press outside dismisses it: a target for the pointer, not a control with a name.
-        layers.push(pointer_target(scrim));
+        layers.push(pointer_target(paint.present(scrim)));
     }
 }
 

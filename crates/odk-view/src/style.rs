@@ -5,7 +5,7 @@ use std::sync::Arc;
 use odk_theme::component::{ComponentTokens, FocusRing};
 use odk_theme::foundation::{FontFamily, FoundationConfig, FoundationTokens, TypeRole, TypeStyle};
 use odk_theme::{TextScale, ThemeSnapshot};
-use rune::{El, Family, TextStyle};
+use rune::{El, Family, TextStyle, Transition};
 
 use crate::ink::ink;
 
@@ -53,6 +53,19 @@ impl Paint {
     /// is. A component reads the theme here and nowhere else.
     pub fn px(&self, points: f32) -> f32 {
         self.scale.px(points)
+    }
+
+    /// `element` as something that is mounted and removed (checklist items 20 and 21): with
+    /// Rune's own fade, which keeps a removed element drawn until its exit has run; and with
+    /// motion reduced, shown and gone at once with everything inside it, since Rune turns any
+    /// other transition into a fade under reduced motion and a fade is not "its end state at
+    /// once".
+    pub fn present(&self, element: El) -> El {
+        if self.tokens.foundation().motion.reduced {
+            element.transition(Transition::none()).instant_changes()
+        } else {
+            element
+        }
     }
 }
 

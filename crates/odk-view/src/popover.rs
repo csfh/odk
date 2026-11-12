@@ -162,7 +162,7 @@ impl<T: 'static> Popover<T> {
         let wrapper = pressable(wrapper, &self.id, true, toggle);
 
         if open {
-            let mut panel = apply(col(), &accessible)
+            let mut panel = apply(col().key(format!("{}-panel", self.id)), &accessible)
                 .px(g.padding_x)
                 .py(g.padding_y)
                 .gap(g.gap)
@@ -186,7 +186,8 @@ impl<T: 'static> Popover<T> {
             }
             let close = move |hosted: &mut Hosted<T>| ask(hosted, Some(false));
             layers.push(
-                panel
+                paint
+                    .present(panel)
                     .modal(self.close_on_outside_click, close)
                     .focus_return(self.id.clone())
                     .anchored(

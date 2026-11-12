@@ -222,7 +222,7 @@ impl<T: 'static> Sheet<T> {
                     }
                     false
                 });
-            layers.push(panel);
+            layers.push(paint.present(panel));
             return;
         }
 
@@ -257,7 +257,7 @@ impl<T: 'static> Sheet<T> {
             scrim = scrim.on_press(move |hosted: &mut Hosted<T>| ask(hosted));
         }
         // A press outside dismisses it: a target for the pointer, not a control with a name.
-        layers.push(pointer_target(scrim));
+        layers.push(pointer_target(paint.present(scrim)));
     }
 }
 
