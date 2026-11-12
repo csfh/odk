@@ -1,0 +1,6 @@
+plugin_manifest_version = 1
+id = "dev.example.notes.quote"
+name = "Quote"
+version = "1.0.0"
+entry = "main.luau"
+capabilities = ["ui", "network"]

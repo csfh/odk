@@ -1,0 +1,17 @@
+[package]
+name = "notes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "A small application that uses ODK's Plugins: the template for one that does (ADR 0092)"
+
+[dependencies]
+deps.workspace = true
+# `plugin` is off by default (ADR 0028); this application is the one that turns it on.
+odk = { workspace = true, features = ["plugin"] }
+
+[dev-dependencies]
+rune.workspace = true
+tempfile = "3"
