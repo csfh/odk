@@ -227,7 +227,7 @@ impl<T: 'static> Dialog<T> {
         if self.close_on_backdrop {
             scrim = scrim.on_press(move |hosted: &mut Hosted<T>| ask(hosted));
         }
-        layers.push(scrim);
+        layers.push(paint.present(scrim));
     }
 }
 

@@ -423,7 +423,7 @@ impl<T: 'static> Command<T> {
         if let Some(backdrop) = o.backdrop {
             scrim = scrim.fill(ink(backdrop));
         }
-        layers.push(scrim);
+        layers.push(paint.present(scrim));
     }
 }
 

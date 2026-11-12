@@ -222,7 +222,7 @@ impl<T: 'static> Sheet<T> {
                     }
                     false
                 });
-            layers.push(panel);
+            layers.push(paint.present(panel));
             return;
         }
 
@@ -256,7 +256,7 @@ impl<T: 'static> Sheet<T> {
         if self.close_on_backdrop {
             scrim = scrim.on_press(move |hosted: &mut Hosted<T>| ask(hosted));
         }
-        layers.push(scrim);
+        layers.push(paint.present(scrim));
     }
 }
 

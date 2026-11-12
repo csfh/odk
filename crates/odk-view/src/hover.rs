@@ -57,7 +57,8 @@ pub(crate) fn hover<T: 'static>(
         // It stays while the pointer is on it, so a pointer that moves from the trigger onto the
         // panel does not close it (WCAG 1.4.13).
         layers.push(
-            panel
+            paint
+                .present(panel)
                 // The pointer that has crossed from the trigger to the panel keeps it open at
                 // once; leaving it closes after the same wait.
                 .hover_delays(Duration::ZERO, closes)

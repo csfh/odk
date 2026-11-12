@@ -186,7 +186,8 @@ impl<T: 'static> Popover<T> {
             }
             let close = move |hosted: &mut Hosted<T>| ask(hosted, Some(false));
             layers.push(
-                panel
+                paint
+                    .present(panel)
                     .modal(self.close_on_outside_click, close)
                     .focus_return(self.id.clone())
                     .anchored(
