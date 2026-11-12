@@ -142,6 +142,11 @@ pub fn run<T: 'static>(
         .init(move || hosted)
         .tab_visits_controls(true);
     let handle = app.handle();
+    // What other threads reach the application's state through: an answer from the file chooser.
+    let feed = handle.clone();
+    crate::files::install(std::sync::Arc::new(move |job| {
+        feed.update(move |hosted: &mut Hosted<T>, _| job(&mut hosted.app));
+    }));
     // Kept until the window closes.
     let _follower = crate::follow::follow(manager, move |theme| {
         handle.update(move |hosted: &mut Hosted<T>, _| hosted.set_theme(theme));
