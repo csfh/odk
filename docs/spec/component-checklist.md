@@ -78,7 +78,7 @@ A pointer target is at least 24 px on each side (WCAG 2.5.8), or the space aroun
 ## Performance
 
 35. A window that shows it with nothing happening to it is never drawn again. Rune draws a frame only when something is dirty or woken, so a component that asks for wakes it does not need makes the window pay. What animates on its own asks for a redraw only while it is in view and only when what it shows changes, with one `Tx::wake_after` at that moment (`Spinner`'s poll; a transition asks only while it moves); with reduced motion it asks for none.
-36. It has a sample in `tests/common/mod.rs`'s `SAMPLES` (a representative instance), which `tests/samples.rs` keeps complete. A window busy with its sample is built and laid out from scratch within 4 ms, a quarter of a 60 Hz frame, and about a thousand controls within 100 ms (`DRAW_BUDGET_MS` loosens the first on a busy machine). A component's own cost is its element count and the state it owns: keep both low.
+36. It has a sample in `tests/common/mod.rs`'s `SAMPLES` (a representative instance), which `tests/samples.rs` keeps complete. A window busy with its sample is built and laid out from scratch within 4 ms, a quarter of a 60 Hz frame, and about a thousand controls within 100 ms (`DRAW_BUDGET_MS` loosens the first on a busy machine); `cargo bench -p odk-view --bench frame` prints the figures for every sample. A component's own cost is its element count and the state it owns: keep both low.
 
 ## Proof
 
