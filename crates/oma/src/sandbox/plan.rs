@@ -130,6 +130,8 @@ const ETC_AUDIO: &[&str] = &["pipewire", "alsa"];
 const ETC_GPU: &[&str] = &["vulkan", "drirc.d"];
 const DEVICES: &[&str] = &["null", "zero", "full", "random", "urandom", "tty"];
 const ROOT_LINKS: &[&str] = &["bin", "lib", "lib64", "sbin"];
+/// Where the user keeps their own fonts, under the home.
+const USER_FONTS: &str = ".local/share/fonts";
 
 /// Where the Bundle appears inside the sandbox, read-only.
 pub const APP: &str = "/app";
@@ -346,6 +348,26 @@ impl Plan {
                 }
                 Err(why) => unavailable.push((grant.dir, *why)),
             }
+        }
+
+        // The user's own fonts (ADR 0095): `~/.local/share/fonts`, read-only, for every application
+        // and with no permission to ask for. `/usr` and `/etc/fonts` already show the system's.
+        // A font names shapes and nothing else, and a window that cannot find the family `odkd`
+        // names draws in its bundled one. Without the directory there is no mount.
+        let user_fonts = i.home.join(USER_FONTS);
+        if user_fonts.is_dir() {
+            let mut at = i.home.to_owned();
+            for part in Path::new(USER_FONTS).components() {
+                at.push(part);
+                ops.push(Op::Dir(at.clone()));
+            }
+            ops.push(Op::Bind {
+                src: user_fonts.clone(),
+                dst: user_fonts.clone(),
+                readonly: true,
+                device: false,
+            });
+            landlock.push((user_fonts, Rights::Read));
         }
 
         if p.updates
@@ -642,6 +664,41 @@ mod tests {
         );
         assert!(!has_dst(&p, config.join("omarchy").to_str().unwrap()));
         assert!(!has_dst(&p, config.join("fontconfig").to_str().unwrap()));
+    }
+
+    /// The user's own fonts (ADR 0095) appear read-only at their usual path when there is such a
+    /// directory, and nothing else of `~/.local` does.
+    #[test]
+    fn the_users_font_directory_is_mounted_read_only_when_there_is_one() {
+        let w = world();
+        let fonts = w.home.join(".local/share/fonts");
+        let p = plan(&w, &Permissions::default()).unwrap();
+        assert!(
+            !has_dst(&p, fonts.to_str().unwrap()),
+            "no directory, no mount"
+        );
+
+        fs::create_dir_all(&fonts).unwrap();
+        fs::create_dir_all(w.home.join(".local/share/applications")).unwrap();
+        let p = plan(&w, &Permissions::default()).unwrap();
+        assert!(binds(&p).contains(&(fonts.as_path(), fonts.as_path(), true)));
+        assert!(
+            p.landlock
+                .iter()
+                .any(|(d, r)| d == &fonts && *r == Rights::Read)
+        );
+        // Only that directory, and not the rest of what is under `~/.local`.
+        let local = w.home.join(".local");
+        assert!(
+            binds(&p)
+                .iter()
+                .all(|(_, d, _)| !d.starts_with(&local) || *d == fonts)
+        );
+        assert!(
+            binds(&p)
+                .iter()
+                .all(|(s, ..)| !local.starts_with(s) || *s == w.home)
+        );
     }
 
     /// Hyprland's socket accepts commands (ADR 0048), so an application that could open it would

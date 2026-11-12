@@ -20,6 +20,32 @@ impl Face {
         }
     }
 
+    /// Keep each of `files` for the process and name both slots `family`: the regular face and,
+    /// when there is one, the bold.
+    pub(crate) fn leak_files(files: Vec<Vec<u8>>, family: String) -> Self {
+        let files: Vec<&'static [u8]> = files
+            .into_iter()
+            .map(|bytes| &*Box::leak(bytes.into_boxed_slice()))
+            .collect();
+        let fonts: &'static [&'static [u8]] = Box::leak(files.into_boxed_slice());
+        let family: &'static str = Box::leak(family.into_boxed_str());
+        Self {
+            fonts,
+            families: (family, family),
+        }
+    }
+
+    /// How many font files the face is made of: the regular one, and the bold one when there is
+    /// one. The bundled face has none of its own.
+    pub fn faces(self) -> usize {
+        self.fonts.len()
+    }
+
+    /// The family both slots are named.
+    pub fn family(self) -> &'static str {
+        self.families.0
+    }
+
     /// Keep `bytes` for the process and name both slots `family`.
     ///
     /// Call this once for a given file. A later call leaks another copy.
