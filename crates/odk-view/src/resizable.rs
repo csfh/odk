@@ -259,7 +259,7 @@ fn to(sizes: &[f32], handle: usize, size: f32) -> Vec<f32> {
 
 impl<T: 'static> Resizable<T> {
     pub fn show(self, hosted: &Hosted<T>) -> El {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let limits: Rc<Vec<Limits>> = Rc::new(self.limits());
         let first = initial(&limits);
         let (sizes, hovered, dragging, length) = match hosted.ui.resize(&self.id) {

@@ -33,6 +33,7 @@ const NOT_CONTROLS: &[&str] = &[
     "layout.rs",
     "number.rs",
     "placement.rs",
+    "post.rs",
     "toggle.rs",
     "tone.rs",
 ];

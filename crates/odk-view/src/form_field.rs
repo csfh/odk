@@ -168,7 +168,7 @@ impl<T: 'static> FormField<T> {
     }
 
     pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) -> El {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let described = self.control.as_ref().map(|c| c.accessible());
         let disabled = self.disabled || described.as_ref().is_some_and(|a| a.disabled);
         let required = self.required || described.as_ref().is_some_and(|a| a.required);
@@ -293,7 +293,7 @@ fn join_sentences<'a>(parts: impl IntoIterator<Item = &'a str>) -> Option<String
 
 /// A column of form fields and actions, `form_gap` apart.
 pub fn form<T>(hosted: &Hosted<T>) -> El {
-    let paint = style::paint(hosted.theme());
+    let paint = style::paint(hosted);
     col().gap(paint.tokens.form_field(States::NONE).form_gap)
 }
 

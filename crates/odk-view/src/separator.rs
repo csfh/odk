@@ -49,7 +49,7 @@ impl Separator {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let line = style::paint(hosted.theme()).tokens.separator();
+        let line = style::paint(hosted).tokens.separator();
         let inset = if self.inset { line.inset } else { 0.0 };
         // A box of its thickness, stretched along the group it divides. Rune does not shrink it.
         let bar = apply(el(), &accessible)

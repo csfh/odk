@@ -313,7 +313,7 @@ impl<T: 'static> Toaster<T> {
     /// Draws the toasts that show into `layers`, last, so they lie over the page. A window with no
     /// toast draws nothing and asks for nothing.
     pub fn show(&self, hosted: &Hosted<T>, layers: &mut Vec<El>) {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         {
             let mut state = self.state.borrow_mut();
             state.base = paint.tokens.foundation().motion.toast;

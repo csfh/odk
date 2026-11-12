@@ -78,7 +78,7 @@ impl Item {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.item(paint.tokens.density(self.density));
 
         let mut text = col().grow(1.0).shrink().gap(s.line_gap).child(words(

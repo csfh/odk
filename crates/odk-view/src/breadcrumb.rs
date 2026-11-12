@@ -135,7 +135,7 @@ impl<T> Describe for Breadcrumb<T> {
 impl<T: 'static> Breadcrumb<T> {
     /// The path, with the folded middle's menu drawn into `layers` while it is open.
     pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) -> El {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.nav_link(States::NONE);
         let current_page = paint
             .tokens

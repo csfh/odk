@@ -123,7 +123,7 @@ impl<T: 'static> Sheet<T> {
             return;
         }
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.sheet();
         let g = s.geometry;
         let side = self.side;

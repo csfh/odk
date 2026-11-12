@@ -40,6 +40,7 @@ mod number_input;
 mod password_input;
 mod placement;
 mod popover;
+mod post;
 mod progress;
 mod radio;
 mod resizable;
@@ -76,7 +77,10 @@ pub use face::Face;
 pub use files::{FileChooser, FileChooserError, StartFolder};
 pub use follow::{Follower, follow};
 pub use form_field::{FieldControl, Fielded, FormField, form};
-pub use host::{Hosted, frame, headless, run, start};
+pub use host::{
+    Hosted, WindowConfig, configure, focused_component, frame, headless, run, set_reduced_motion,
+    start,
+};
 pub use hover_card::HoverCard;
 pub use icon::{Glyph, Icon};
 pub use image::{Image, ImageFit};
@@ -94,6 +98,7 @@ pub use odk_a11y::{Accessible, Describe, Role};
 pub use password_input::PasswordInput;
 pub use placement::{Align, Placement};
 pub use popover::Popover;
+pub use post::{NoWindow, on_host};
 pub use progress::Progress;
 pub use radio::RadioGroup;
 pub use resizable::{Resizable, ResizablePanel};
@@ -113,3 +118,10 @@ pub use toast::{MAX_VISIBLE, Toast, ToastId, Toaster};
 pub use toggle_group::ToggleGroup;
 pub use tone::Tone;
 pub use tooltip::Tooltip;
+
+/// What an application imports to write a view: the host, the layout builders and the components'
+/// builders it draws with most.
+pub mod prelude {
+    pub use crate::{Button, Heading, Hosted, Layout, Space, Text, WindowConfig, frame, run};
+    pub use rune::{Cx, El};
+}

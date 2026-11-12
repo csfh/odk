@@ -25,7 +25,8 @@ pub struct Button<F> {
     disabled: bool,
     busy: bool,
     variant: ButtonVariant,
-    density: Density,
+    /// Its own density; none takes the application's.
+    density: Option<Density>,
     /// A button inside a field's box: sized by the field's action tokens, and a press on it
     /// leaves focus, caret and selection where they are.
     in_field: bool,
@@ -45,7 +46,7 @@ impl<F> Button<F> {
             disabled: false,
             busy: false,
             variant: ButtonVariant::Primary,
-            density: Density::Default,
+            density: None,
             in_field: false,
             tab_stop: true,
             on_press,
@@ -102,7 +103,7 @@ impl<F> Button<F> {
     }
 
     pub fn density(mut self, density: Density) -> Self {
-        self.density = density;
+        self.density = Some(density);
         self
     }
 
@@ -202,7 +203,8 @@ impl Button<()> {
             tab_stop,
             on_press: _,
         } = self;
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
+        let density = paint.tokens.density(density);
         let states = States::NONE.disabled(disabled).loading(busy);
         let style = if in_field {
             paint.tokens.field_action(variant, density, layout, states)

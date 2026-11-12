@@ -127,7 +127,7 @@ impl<T: 'static> Dialog<T> {
             return;
         }
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.dialog();
         let g = s.geometry;
         let escape = self.escape_closes();

@@ -91,7 +91,7 @@ impl<T: 'static> Alert<T> {
 
     pub fn show(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.alert(self.tone.into(), self.emphasis);
         let g = if self.compact { s.compact } else { s.geometry };
         let gap = paint.tokens.foundation().spacing.s1;

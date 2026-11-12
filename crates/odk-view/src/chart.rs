@@ -565,7 +565,7 @@ pub(crate) fn advance<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool 
     if !hosted.ui.charts.moving() {
         return false;
     }
-    let paint = style::paint(hosted.theme());
+    let paint = style::paint(hosted);
     let length = paint
         .tokens
         .foundation()
@@ -581,7 +581,7 @@ pub(crate) fn advance<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool 
 
 impl<T: 'static> Chart<T> {
     pub fn show(self, hosted: &Hosted<T>) -> El {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let style = paint.tokens.chart();
         let foundation = paint.tokens.foundation();
         let accessible = self.accessible();
@@ -949,6 +949,11 @@ mod tests {
     #[allow(non_snake_case)]
     fn ThemeSnapshot_style() -> ChartStyle {
         let snapshot = odk_theme::ThemeSnapshot::emergency();
-        crate::style::paint(&snapshot).tokens.chart()
+        crate::style::paint_for(
+            &snapshot,
+            &odk_theme::foundation::FoundationConfig::default(),
+        )
+        .tokens
+        .chart()
     }
 }

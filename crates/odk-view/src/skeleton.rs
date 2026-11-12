@@ -74,7 +74,7 @@ impl Skeleton {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let s = style::paint(hosted.theme()).tokens.skeleton();
+        let s = style::paint(hosted).tokens.skeleton();
         let shape = match self.shape {
             Shape::Text(lines) => (0..lines).fold(col().w_full(), |stack, n| {
                 let last = lines > 1 && n + 1 == lines;

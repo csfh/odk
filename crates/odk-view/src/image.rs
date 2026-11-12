@@ -104,7 +104,7 @@ impl Image {
     }
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.image();
         let accessible = self.accessible();
         // An avatar's size is known, so its circle is a shape at that size.

@@ -7,7 +7,6 @@ use crate::ink::ink;
 use crate::style::{self, focus_ring, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
-use odk_theme::foundation::Density;
 use rune::{Align, El, Key, KeyEvent, Side, Tx, col, row, text};
 
 /// The trigger's and the list's width in points at the base text size, unless the application
@@ -121,7 +120,7 @@ impl<F> Select<F> {
             on_select,
             ..
         } = self;
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let open = !disabled && hosted.ui.select(&id).is_some_and(|slot| slot.open);
         let highlight = hosted
             .ui
@@ -129,7 +128,7 @@ impl<F> Select<F> {
             .map(|slot| slot.highlight)
             .unwrap_or(0);
         let field = paint.tokens.field(
-            Density::Default,
+            paint.tokens.density(None),
             States::NONE
                 .expanded(open)
                 .disabled(disabled)
@@ -245,7 +244,7 @@ impl<F> Select<F> {
         });
         for (index, option) in options.iter().enumerate() {
             let item = paint.tokens.select_item(
-                Density::Default,
+                paint.tokens.density(None),
                 States::NONE
                     .highlighted(index == highlight)
                     .selected(selected == Some(index)),

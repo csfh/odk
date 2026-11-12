@@ -159,7 +159,7 @@ impl<T: 'static> ToggleGroup<T> {
         if self.items.is_empty() {
             return row();
         }
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let density = paint.tokens.density(self.density);
         let frame = paint.tokens.segmented(density);
         let selected = self

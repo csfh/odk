@@ -4,28 +4,17 @@
 //! The answer comes back on a thread of its own and is handed to the application's state through
 //! Rune's `AppHandle::update`, which [`crate::run`] installs for the process.
 
-use std::any::Any;
 use std::fmt;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
+use crate::host::Hosted;
+use crate::post::{self, Post};
 pub use odk_theme::chooser::StartFolder;
 use odk_theme::chooser::{
     ChooserAnswer, ChooserKind, ChooserRequest, FileFilter, MAX_ANSWER, files_socket_path,
 };
-
-/// What gets a job onto the application's state from another thread.
-pub(crate) type Post = Arc<dyn Fn(Box<dyn FnOnce(&mut dyn Any) + Send>) + Send + Sync>;
-
-static POST: Mutex<Option<Post>> = Mutex::new(None);
-
-/// Makes `post` the way an answer reaches the application, for the process. [`crate::run`] calls
-/// it once the window's handle exists.
-pub(crate) fn install(post: Post) {
-    *POST.lock().unwrap_or_else(|e| e.into_inner()) = Some(post);
-}
 
 /// Asks the user to choose a file to open, a file to save or a folder, in the desktop's own file
 /// chooser, which `odkd` opens outside the sandbox. The answer is a path, a name and not access:
@@ -120,10 +109,7 @@ impl FileChooser {
         self,
         done: impl FnOnce(&mut T, Result<Option<Vec<PathBuf>>, FileChooserError>) + Send + 'static,
     ) -> Result<(), FileChooserError> {
-        let post = POST
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        let post = post::current()
             .ok_or_else(|| FileChooserError::Failed("there is no window to answer to".into()))?;
         choose_at(files_socket_path(), self.request, post, done);
         Ok(())
@@ -142,11 +128,9 @@ fn choose_at<T: 'static>(
         .name("odk-file-chooser".into())
         .spawn(move || {
             let answer = ask(socket, &request);
-            post(Box::new(move |state: &mut dyn Any| {
-                if let Some(state) = state.downcast_mut::<T>() {
-                    done(state, answer);
-                }
-            }));
+            post::send::<T>(&post, move |host: &mut Hosted<T>| {
+                done(&mut host.app, answer)
+            });
         });
     // A thread that cannot start is an answer too, but there is no state to give it to from
     // here; the caller saw `Ok` and the window simply never hears. It is the same as a refused
@@ -222,12 +206,15 @@ pub(crate) fn choose_for_test<T: 'static>(
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
     use std::os::unix::net::UnixListener;
     use std::path::Path;
     use std::sync::mpsc::channel;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use super::*;
+    use crate::face::Face;
 
     const WAIT: Duration = Duration::from_secs(5);
 
@@ -279,16 +266,26 @@ mod tests {
         socket: Option<PathBuf>,
     ) -> Result<Option<Vec<PathBuf>>, FileChooserError> {
         let (tx, rx) = channel::<Result<Option<Vec<PathBuf>>, FileChooserError>>();
-        let app = Arc::new(Mutex::new(App::default()));
-        let state = app.clone();
-        let post: Post = Arc::new(move |job| job(&mut *state.lock().unwrap() as &mut dyn Any));
+        // As Rune's own poster would: the job goes to the thread that owns the host, which runs
+        // it there.
+        let (jobs, queue) = channel::<Box<dyn FnOnce(&mut dyn Any) + Send>>();
+        let post: Post = Arc::new(move |job| {
+            let _ = jobs.send(job);
+        });
+        let mut host = Hosted::new(
+            App::default(),
+            odk_theme::ThemeSnapshot::emergency(),
+            Face::bundled(),
+        );
         choose_for_test::<App>(socket, request, post, move |app, answer| {
             app.heard.push(answer.clone());
             let _ = tx.send(answer);
         });
+        let job = queue.recv_timeout(WAIT).expect("a job for the host");
+        job(&mut host as &mut dyn Any);
         let answer = rx.recv_timeout(WAIT).expect("an answer");
         assert_eq!(
-            app.lock().unwrap().heard.len(),
+            host.app.heard.len(),
             1,
             "it reached the application's state, once"
         );

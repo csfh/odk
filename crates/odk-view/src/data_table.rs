@@ -257,7 +257,7 @@ pub struct DataTable<T, R> {
     row_menu: Option<RowMenu<T, R>>,
     empty: String,
     loading: bool,
-    density: Density,
+    density: Option<Density>,
     height: Option<f32>,
 }
 
@@ -286,7 +286,7 @@ impl<T: 'static, R: 'static> DataTable<T, R> {
             row_menu: None,
             empty: "No rows".into(),
             loading: false,
-            density: Density::Default,
+            density: None,
             height: None,
         }
     }
@@ -351,7 +351,7 @@ impl<T: 'static, R: 'static> DataTable<T, R> {
     }
 
     pub fn density(mut self, density: Density) -> Self {
-        self.density = density;
+        self.density = Some(density);
         self
     }
 
@@ -525,7 +525,7 @@ fn row_el<T: 'static, R: 'static>(
     row_data: &R,
     selected: bool,
 ) -> El {
-    let paint = style::paint(hosted.theme());
+    let paint = style::paint(hosted);
     let s = paint.tokens.table(spec.density);
     let key = (spec.row_key)(row_data);
     let states = States::NONE.selected(selected);
@@ -673,8 +673,9 @@ impl<T: 'static, R: 'static> DataTable<T, R> {
     /// The table, with the open row menu drawn into `layers`.
     pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
-        let s = paint.tokens.table(self.density);
+        let paint = style::paint(hosted);
+        let density = paint.tokens.density(self.density);
+        let s = paint.tokens.table(density);
         let DataTable {
             id,
             name,
@@ -691,7 +692,7 @@ impl<T: 'static, R: 'static> DataTable<T, R> {
             row_menu,
             empty,
             loading,
-            density,
+            density: _,
             height,
         } = self;
         let spec = Rc::new(Spec {

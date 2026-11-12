@@ -12,7 +12,6 @@ use crate::style::{self, text_style};
 use crate::text::{Flow, words};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
-use odk_theme::foundation::Density;
 use rune::{El, GrowthSpec, Key, KeyEvent, ScrollSpec, Tx, col, el, row, spacer, text};
 
 /// The widest the panel is, in points at the base text size. ODK's own (ADR 0035).
@@ -217,7 +216,7 @@ impl<T: 'static> Command<T> {
             return;
         }
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.command();
         let o = s.overlay;
         let g = o.geometry;
@@ -243,7 +242,7 @@ impl<T: 'static> Command<T> {
         // are all as tall as a menu item.
         let row_height = paint
             .tokens
-            .menu_item(Density::Default, States::NONE, false)
+            .menu_item(paint.tokens.density(None), States::NONE, false)
             .geometry
             .height;
         let mut rows = col()
@@ -257,7 +256,9 @@ impl<T: 'static> Command<T> {
             let states = States::NONE
                 .disabled(item.disabled)
                 .highlighted(highlighted);
-            let m = paint.tokens.menu_item(Density::Default, states, false);
+            let m = paint
+                .tokens
+                .menu_item(paint.tokens.density(None), states, false);
             let mg = m.geometry;
             let colour = m.colours.default.foreground;
             let row_accessible = Accessible::new(Role::Option, item.label.clone())

@@ -84,7 +84,7 @@ impl<T: 'static> Switch<T> {
             .checked
             .unwrap_or_else(|| hosted.ui.toggle_value(&self.id, self.default_checked));
         let accessible = self.accessible_at(on);
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let states = States::NONE.disabled(self.disabled).checked(on);
         let s = paint
             .tokens
@@ -184,7 +184,8 @@ mod tests {
     #[test]
     fn the_thumb_travels_inside_the_track() {
         let theme = odk_theme::ThemeSnapshot::emergency();
-        let paint = crate::style::paint(&theme);
+        let paint =
+            crate::style::paint_for(&theme, &odk_theme::foundation::FoundationConfig::default());
         for density in Density::ALL {
             let g = paint.tokens.switch(density, States::NONE).geometry;
             let (left, top) = thumb_origin(&g);

@@ -65,7 +65,7 @@ impl ItemGroup {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.item_group(self.variant);
 
         let mut group = apply(col(), &accessible)

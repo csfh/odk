@@ -114,7 +114,7 @@ impl<T: 'static> Checkbox<T> {
             .checked
             .unwrap_or_else(|| hosted.ui.toggle_value(&self.id, self.default_checked));
         let accessible = self.accessible_at(on);
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let states = States::NONE
             .disabled(self.disabled)
             .checked(on)
