@@ -1,5 +1,5 @@
-//! ODK's icons on the Rune host (ADR 0080, ADR 0083): the same subset of Remix Icon 4.8.0 that
-//! `odk-ui` draws with GPUI, read from the same files, so the two cannot drift while both exist.
+//! ODK's icons (ADR 0080, ADR 0083): a subset of Remix Icon 4.8.0, in `icons/remixicon/` and
+//! compiled in.
 //!
 //! Rune draws an SVG icon of paths itself (`rune::icon`, a `text::Icon`), tinted with a colour,
 //! and every Remix icon here is one filled path. That needs no `svg` feature, so no `resvg`.
@@ -7,7 +7,7 @@
 use odk_theme::semantic::Role;
 use rune::{El, Icon as Drawing};
 
-/// An icon's name and file in `odk-ui/icons/remixicon/`, written once for the enum, the list and
+/// An icon's name and file in `icons/remixicon/`, written once for the enum, the list and
 /// the drawings.
 macro_rules! icons {
     ($($(#[$doc:meta])* $name:ident => $file:literal,)*) => {
@@ -36,7 +36,7 @@ macro_rules! icons {
                         name: $file,
                         view: VIEW,
                         body: include_str!(concat!(
-                            "../../odk-ui/icons/remixicon/", $file, ".svg"
+                            "../icons/remixicon/", $file, ".svg"
                         )),
                     },
                 )*];

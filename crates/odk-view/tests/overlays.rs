@@ -452,7 +452,7 @@ fn a_popover_that_ignores_outside_presses_stays_open_and_blocks_the_page_behind_
         "a press outside leaves it open"
     );
     // In Rune a popover is modal, so the page behind it takes no press while it is open, where
-    // `odk-ui`'s leaves the window behind usable. The gap is in `docs/checks.md`.
+    // the GPUI popover left the window behind usable. The gap is in `docs/checks.md`.
     assert_eq!(
         runtime.state.app.applied, before,
         "the page behind is inert"

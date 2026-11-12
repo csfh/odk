@@ -9,7 +9,7 @@ description = "Makes every build of one package resolve shared dependencies as t
 
 # Cargo unifies a dependency's features only across the packages in one build, so `cargo build
 # -p stories` and `cargo build --workspace` can compile `libc` or `serde` with different features,
-# and then everything above them, GPUI included, is compiled again. Every workspace member
+# and then everything above them is compiled again. Every workspace member
 # depends on this crate, and it asks for each such dependency with the features the whole
 # workspace uses, so every selection agrees. `tools/check-deps` finds the list; run it
 # after changing dependencies and copy what it prints here.
@@ -38,7 +38,7 @@ event-listener = { version = "5", features = ["default", "parking", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "default", "std"] }
 smallvec = { version = "1", features = ["const_generics", "const_new", "union", "write"] }
 concurrent-queue = { version = "2", features = ["default", "std"] }
-# What `ureq` (ADR 0066) shares with GPUI's HTTP client and TLS.
+# What `ureq` (ADR 0066) shares with the rest of the tree's HTTP and TLS.
 http = { version = "1", features = ["default", "std"] }
 httparse = { version = "1", features = ["default", "std"] }
 rustls = { version = "0.23", default-features = false, features = ["log", "logging", "ring", "std", "tls12"] }
@@ -51,11 +51,11 @@ getrandom_02 = { package = "getrandom", version = "0.2", features = ["js", "rdra
 crypto-common = { version = "0.1", features = ["rand_core", "std"] }
 digest_010 = { package = "digest", version = "0.10", features = ["alloc", "core-api", "mac", "std"] }
 subtle = { version = "2", features = ["default", "i128", "std"] }
-# Through url in GPUI, and in oma for the consent dialog's hosts (ADR 0060, section 7).
+# Through url, and in oma for the consent dialog's hosts (ADR 0060, section 7).
 idna = { version = "1", features = ["alloc", "compiled_data", "default", "std"] }
 event-listener-strategy = { version = "0.5", features = ["default", "std"] }
 memchr = { version = "2", features = ["alloc", "default", "std"] }
-# Through ashpd and zbus in odkd's file chooser (ADR 0068), as GPUI uses them.
+# Through ashpd and zbus in odkd's file chooser (ADR 0068), as the rest of the tree uses them.
 equivalent = "1"
 futures-channel = { version = "0.3", features = ["alloc", "default", "futures-sink", "sink", "std"] }
 futures-sink = { version = "0.3", features = ["alloc", "default", "std"] }

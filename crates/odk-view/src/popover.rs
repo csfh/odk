@@ -29,7 +29,7 @@ type Content<T> = Box<dyn FnOnce(&Hosted<T>) -> El>;
 /// The panel is placed beside the trigger, below it by default. It takes focus on open and gives
 /// it back to the trigger on close. Escape closes it, and so does a press outside, which is the
 /// overlay's: nothing beneath is pressed. In Rune a panel like this is modal, so Tab stays
-/// inside it, where `odk-ui`'s lets Tab leave to the control after its trigger.
+/// inside it, where the GPUI one let Tab leave to the control after its trigger.
 ///
 /// Uncontrolled by default, starting from `default_open` and keeping its state in the host's
 /// store; pass `open` to control it and follow `on_open_change`, which hears each request once.

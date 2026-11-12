@@ -1,126 +1,134 @@
-# Migrating an application to the token design language
+# Migrating an application from GPUI to ODK on Rune
 
-For applications written against ODK before ADR 0040 to 0047 (the flat `Tokens`, the shared `Variant`, a radius of 0). ODK is at version 0.0.0 and has no release yet, so these are breaking changes made on purpose, once, and listed here (ADR 0047). The code under "After" is compiled by `crates/odk/tests/migration.rs`; a section whose code stops compiling fails that test before this page is wrong. "Before" code does not compile any more, and is shown as text.
+For applications written against `odk::ui` while it drew with GPUI. ADR 0094 made one breaking switch: `odk::ui` is `odk-view`, on Rune, and `odk::gpui`, `odk-ui`, `patches/` and the `gpui` pin are gone. ODK is at version 0.x (ADR 0064), so this is a change made on purpose, once. The code in this guide is compiled by `crates/odk/tests/migration.rs`, one function for each section, so a change to an API the guide shows fails there first.
 
-## What happens without a code change
+## What does not change
 
-Everything an application did not set itself. A theme that the user switches to is followed live; every component draws the new component layer; corners are 2 px (or 0 on request); controls take the density's height; text and headings take the type roles (at the default text size, body text is 13 px with a 20 px line, headings 22, 18 and 15 px); motion uses the shared durations and curve and stops under reduced motion; focus rings are 2 px outside the control. If an application used only `Button`, `Text`, `Heading`, the form controls and the overlays through their builders, it compiles as it was, apart from the table below.
+The theme and everything under it: `odk::theme` (the palette, the semantic and component tokens, `ThemeManager`), `odk::a11y`, `odk::db`, `odk::plugin`. The component names are the same (`Button`, `Input`, `DataTable`, ...), and so are their builders where a builder is about what a component is: `variant`, `density`, `disabled`, `open`, `on_close`.
 
-## What needs a change
+## What changes
 
-| Before | After |
+| Before (GPUI) | After (Rune) |
 |---|---|
-| `odk::ui::tokens()`, `odk::theme::Tokens` | `odk::ui::theme_snapshot()` for colours, `odk::ui::foundation()` for sizes and durations, `odk::ui::components()` for a component's own style |
-| `Variant::Primary`, `Secondary`, `Ghost` on a button | `ButtonVariant::Primary`, `Secondary`, `Ghost` (and `Outline`, `Destructive`, `Success`, `Warning`, `Link`) |
-| `Badge::variant(Variant::X)` | `Badge::role(Role::Accent).emphasis(Emphasis::Solid)`, `Badge::tone(Tone::Danger)`, or `Badge::appearance(BadgeAppearance::new(..))` |
-| Reading `tokens().accent`, `.surface`, `.radius`, `.space` | A component reads its own style from `components()`; an application's own drawing reads `theme_snapshot().semantic` (`surface`, `text`, `border`, `roles`) and `foundation()` |
-| A `[controls]` colour in a theme's `shell.toml` | Nothing: ODK reads only `[font] base-size` of a theme's `shell.toml` and no colour from it (ADR 0047, accepted) |
-| Control `Size` as a font and padding step | `Size::Sm`, `Md`, `Lg` is one density step tighter, the density, one roomier (*provisional*, `docs/spec/odk-component-tokens.md`); or name a density with `.density(..)` |
-
-`docs/spec/odk-theme-tokens.md` has the full table of removed names.
+| A view is a `Render` type with `&mut Window` and `&mut Context<Self>` | A view is a function `fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El` over the application's own state `T` |
+| A handler takes `&mut Window` and `&mut App`, and calls `cx.notify()` | A handler takes `&mut T`; the window draws again by itself |
+| `Button::new("save").label("Save").on_click(cx.listener(..))` | `Button::new("save", "Save", \|app: &mut T\| ..).show(hosted)` |
+| A component is a GPUI element, `.child(button)` | A component's `show(hosted)` returns an `El`; a group is `Layout::of(hosted).stack(Space::Sm)` or `.row(..)` |
+| `odk::gpui`, the raw escape hatch | Gone. `odk::ui::prelude` brings `Cx` and `El`, which are Rune's |
+| `Stack::new()`, `Row::new()`, `Grid` | `Layout::stack`, `Layout::row`, `Layout::row_stretch`, `Layout::sidebar`, and Rune's `col()` and `row()` for your own drawing |
+| An overlay (`Dialog`, `Popover`, `DropdownMenu`, `Select`) is a child of the page | It draws into a `layers` list that you give `frame`; what a modal's content opens goes after the modal (see "Overlays") |
+| `odk::ui::theme_snapshot()`, `foundation()`, `components()` anywhere | `hosted.theme()`, `hosted.foundation()`, `hosted.components()`, from the `Hosted` your view is given |
+| `Window::refresh`, `cx.notify()`, `Entity` | Nothing: an `Input`'s text, a `Select`'s open list and a caret live in the window's `Store`, and the rest is your `T` |
 
 ## Starting
 
-`odk::ui::run` loads the theme before the first window, so a component may read the tokens in `render` from the first frame. Calling `theme_snapshot()` or `components()` before `run` is a programming error and panics with a message that says so; `foundation()` returns the defaults.
+`odk::ui::run` loads the theme before the window opens, so a component may read the tokens in the view from its first frame. It opens one window and returns when it closes. The font is the family `odkd` reports, found among the fonts the sandbox shows (ADR 0095); with none it is Rune's bundled one.
 
 ```rust,ignore
-odk::ui::run(|cx| {
-    let window = WindowConfig::new("dev.example.app").title("My app").size(960.0, 680.0);
-    odk::ui::open_window(cx, window, |_, cx| cx.new(|_| MyApp)).unwrap();
-});
+let window = WindowConfig::new((960.0, 680.0)).title("My app");
+odk::ui::run(App::default(), window, view)
 ```
 
-Open windows with `odk::ui::open_window`, not GPUI's: it draws the `Shell` that hosts overlays, toasts and the text size. A `WindowConfig` gives the window its application id, title, the size it opens at (at the 12 px text size, grown with the user's) and the smallest it can be made; GPUI's `WindowOptions` is still accepted for anything else.
+The view puts the page and its layers in `frame`:
+
+```rust,ignore
+fn view(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
+    frame(hosted, cx, buttons(hosted), [])
+}
+```
 
 ## Density, corners and motion
 
-One setting each, for the whole application, changed at any time; every window redraws on the next frame and keeps its values, focus and open overlays.
+One setting each, for the whole application, changed at any time: the next frame draws with it. At start, in the `WindowConfig`; later, from a handler, through the process's poster, which returns `NoWindow` when the application did not start through `run`.
 
 ```rust,ignore
-odk::ui::configure(cx, |c| {
-    c.density = Density::Compact;           // 28 px controls at the default text size
-    c.corner_radius = CornerRadius::Square; // 0 px; Subtle (the default) is 2 px
-});
-odk::ui::set_reduced_motion(cx, true);      // adds to the user's own request, never removes it
+odk::ui::configure::<App>(|c| {
+    c.density = Density::Compact;            // 28 px controls at the default text size
+    c.corner_radius = CornerRadius::Square;  // 0 px; Subtle (the default) is 2 px
+})?;
+odk::ui::set_reduced_motion::<App>(true)?;   // adds to the user's own request, never removes it
 ```
 
-`CornerRadius` is `odk::theme::foundation::CornerRadius`. A control may take another density than the application's with `.density(..)`.
+`CornerRadius`, `Density` and `FoundationConfig` are in `odk::theme::foundation`. A control may take another density than the application's with `.density(..)`.
 
 ## Following and previewing themes
 
-By default the application follows Omarchy's current theme. To show another theme without choosing it (a theme picker, a design tool), preview it; Omarchy's own files are not touched, and a change the system makes meanwhile is kept for when the preview ends.
+By default the application follows Omarchy's current theme: the palette, the user's text size and `odkd`'s request for reduced motion change from the next frame. To show another theme without choosing it (a theme picker, a design tool), preview it; Omarchy's own files are not touched, and a change the system makes meanwhile is kept and drawn when the preview ends. The user's request for reduced motion is not a theme's, and follows the user under a preview.
 
 ```rust,ignore
 let mut manager = ThemeManager::following_host(ThemeSource::named("nord")?);
 manager.reload();
-odk::ui::preview_theme(cx, manager.snapshot());
-// ...
-odk::ui::end_theme_preview(cx);
+odk::ui::preview_theme((*manager.snapshot()).clone())?;
+// ...and back to the theme the system follows.
+odk::ui::end_theme_preview()?;
 ```
 
-Tune how colours are resolved (strategy, preferred source colours, stricter contrast) with `odk::ui::set_colour_options(cx, ResolveOptions { .. })`. It never lets contrast go below 4.5:1 for text or 3:1 for indicators. `odk::ui::theme_diagnostics(cx)` says what the theme manager knows.
+Tune how colours are resolved (strategy, preferred source colours, stricter contrast) with `odk::ui::set_colour_options(ResolveOptions { .. })`; it never lets contrast go below 4.5:1 for text or 3:1 for indicators, and refuses options that would. `odk::ui::reload_theme()` reads the theme again.
 
 ## Buttons
 
-Eight variants, any role at any emphasis, an icon-only button with a required name, a loading state that keeps the size.
+Eight variants, an icon-only button with a required name, a busy state that keeps the size. A handler takes the application's state and is called once per completed press, from the pointer or from Enter and Space; a disabled or busy button ignores a second activation.
 
 ```rust,ignore
-// Before
-Button::new("save").label("Save").variant(Variant::Primary)
-// After
-Button::new("save").label("Save").variant(ButtonVariant::Primary)
-Button::new("delete").label("Delete").variant(ButtonVariant::Destructive).emphasis(Emphasis::Muted)
-Button::icon("settings", "⚙", "Settings").variant(ButtonVariant::Ghost)
+Button::new("save", "Save", |app: &mut App| app.saved += 1)
+    .variant(ButtonVariant::Primary)
+    .show(hosted)
 ```
 
-A disabled or loading button ignores a second activation; `on_click` is called once per completed press, from the pointer or from Enter and Space.
+`ButtonVariant` is `odk::theme::component::ButtonVariant`.
 
 ## Form controls
 
-`Input`, `Textarea`, `Select`, `Checkbox`, `Switch` keep their builders. New, and worth moving to: `SearchInput`, `PasswordInput`, `NumberInput`, `RadioGroup`, and `FormField` (or `form()`), which gives a control its label, description and error. A control that is invalid keeps its edge and a `!` mark when focused, so it never relies on colour alone. `NumberInput::value` and `default_value` take a number that is not finite (NaN, infinity) as no number, so the field is empty instead of showing `NaN`; `min` and `max` ignore a NaN.
+`Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `SearchInput`, `PasswordInput`, `NumberInput`, `RadioGroup` and `FormField` take the application's state in their handlers (`on_change(|app: &mut App, value| ..)`). A control is controlled when you give it its value and uncontrolled when you give it a default: an uncontrolled one keeps its state in the window's `Store`, so the application gains no field for it.
 
 ## Navigation
 
-`Tabs`, `ToggleGroup` (the segmented control) and `NavList` take `.density(..)`; `Breadcrumb` follows the application's; a selected item reads apart from a hovered one and from a focused one. There is no `Pagination` yet (`docs/spec/odk-ui-components.md`, "Left out of v1").
+`Tabs`, `ToggleGroup` (the segmented control) and `NavList` take `.density(..)`; `Breadcrumb` follows the application's. A selected item reads apart from a hovered one and from a focused one.
 
 ## Badges and status
 
 A badge is a role at an emphasis, or a `Tone` (an application's name for a status). `.marked()` adds the status mark so it reads without colour.
 
 ```rust,ignore
-Badge::new("New").role(Role::Accent).emphasis(Emphasis::Solid)
-Badge::new("Failed").tone(Tone::Danger).marked()
-StatusIndicator::new(Status::Active, "Online")
+Badge::new("New").role(Role::Accent).emphasis(Emphasis::Solid).show(hosted)
+Badge::new("Failed").tone(Tone::Danger).marked().show(hosted)
+StatusIndicator::new(Status::Active, "Online").show(hosted)
 ```
 
-`Role` here is `odk::theme::semantic::Role` (six colour roles), not `odk::a11y::Role` (what a component is). `Alert::variant` and `Toast::variant` take a `Tone`, as they did; the name is older than `ButtonVariant` and is kept so existing calls compile (a known inconsistency, `docs/release-readiness.md`).
+`Role` here is `odk::theme::semantic::Role` (six colour roles), not `odk::a11y::Role` (what a component is).
 
 ## Overlays
 
-`DropdownMenu`, `ContextMenu`, `Popover`, `Tooltip`, `HoverCard`, `Dialog`, `Sheet` and `Toast` keep their builders. A popover or modal opened inside a modal is lifted to a host the `Shell` draws (ADR 0039). Toasts are a manager: `toast(window, cx, Toast::new(..))` returns after queuing, `Toast::persistent()` stays until dismissed, `Toast::timeout(..)` sets how long (a duration too long to count is a toast that stays), and `dismiss_toast` and `set_toast_limit` manage the stack. Placement is `Placement` and `Align`.
+`DropdownMenu`, `ContextMenu`, `Popover`, `Select`, `Tooltip`, `HoverCard`, `Dialog`, `Sheet`, `Command` and `Toast` draw into a `Vec<El>` of layers that you pass to `frame`, and a later layer is drawn above an earlier one. A modal is modal to the page and to the layers before it, so a menu, a select or a popover in a `Dialog`'s or a `Sheet`'s content must be put after the modal in the list: build the content with its own `inner` list, `show` the modal into `layers`, then `layers.extend(inner)`. Escape closes the top one first (`crates/odk-view/tests/nested.rs`). Under reduced motion every overlay appears and goes at once.
 
 ## Layout
 
-`v_flex()`, `h_flex()` and `content_column()` are gone (ADR 0088). `Stack`, `Row` and `Grid` are the layout groups, and every method the old helpers' `Div` had works on them:
+A group is `Layout::of(hosted)` (made once per view; it reads the theme) and a `Space` for the gap:
 
 | Before | After |
 |---|---|
-| `v_flex()` | `Stack::new()` |
-| `h_flex()` | `Row::new()` |
-| `content_column()` | `Stack::page()` |
+| `Stack::new().gap(Space::Sm)` | `layout.stack(Space::Sm)` |
+| `Row::new().gap(Space::Sm)` | `layout.row(Space::Sm)` |
+| `Stack::page()` | `layout.content_column(..)` |
+| `sidebar_frame()` | `layout.sidebar(sidebar, content)` |
 
-`root()` and `form()` return a `Stack` and `sidebar_frame()` a `Row`, where each returned a `Div`. A function of yours that returned `Div` for such a group, or returned one of those as a `Div`, returns `Stack` or `Row`, and one that took a `Stateful<Div>` of a group takes a `Stateful<Stack>`. A row that must not centre its children across it is `Row::stretch()`. `Grid`, `ContentColumn` and `content_column_for_grid` are unchanged.
+For drawing of your own, `rune::col()` and `rune::row()` are the primitives, and `odk::ui::ink(color)` turns a token's colour into Rune's.
 
 ## Your own components
 
-Follow `docs/contributing-components.md`: read `components()` and `foundation()` in `render`, never the palette, never compute a colour while drawing, take durations from `foundation().motion`.
+Follow `docs/contributing-components.md`: read `hosted.components()` and `hosted.foundation()` in the view, never the palette, never compute a colour while drawing, take durations from `foundation().motion`, and draw a focus ring with the component tokens' (`style::focus_ring`).
 
 ```rust,ignore
-let foundation = odk::ui::foundation();
+let foundation = hosted.foundation();
 let height = foundation.controls.metrics().height;
-let ink = odk::ui::theme_snapshot().semantic.text.primary;
+let ink = hosted.theme().semantic.text.primary;
+let tokens = hosted.components();
 ```
+
+## Several windows
+
+Not yet: `run` opens one window. Rune has `Windows`; the process's poster (`configure`, `set_reduced_motion`, `preview_theme`) assumes one.
 
 ## Accessibility
 
-Name every icon-only control (`Button::icon(id, glyph, name)` or `.accessible_name(..)`), give a dialog an action and a title, and do not build a control from a bare `div` with `on_click`. ODK reports roles and states through `odk::a11y::Describe`, but GPUI 0.2.2 has no accessibility tree, so a screen reader cannot read an ODK window yet. `docs/accessibility.md` says what works.
+Name every icon-only control (`Button::icon(id, glyph, name)` or `.accessible_name(..)`), give a dialog an action and a title. ODK reports roles and states through Rune's accessibility tree (`odk-a11y`'s `Describe`, applied by `describe::apply`); a sandboxed application reaches a screen reader through `odkd`'s bus (ADR 0096).

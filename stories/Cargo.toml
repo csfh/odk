@@ -9,39 +9,10 @@ autobins = false
 
 [dependencies]
 deps.workspace = true
-odk.workspace = true
 # The Rune stories (ADR 0089): `stories/rune/`, run with `tools/story rune-NAME`.
 odk-theme.workspace = true
 odk-view.workspace = true
 rune.workspace = true
-
-# The helpers every story uses (`section`, `row`, `narrow`).
-[lib]
-path = "lib.rs"
-
-[[bin]]
-name = "button"
-path = "button.rs"
-
-[[bin]]
-name = "checkbox"
-path = "checkbox.rs"
-
-[[bin]]
-name = "item_group"
-path = "item_group.rs"
-
-[[bin]]
-name = "kbd"
-path = "kbd.rs"
-
-[[bin]]
-name = "switch"
-path = "switch.rs"
-
-[[bin]]
-name = "toggle_group"
-path = "toggle_group.rs"
 
 [[bin]]
 name = "rune-button"

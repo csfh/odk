@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Runs a story in watch mode: rebuilds and reopens its window whenever it or ODK changes.
 #
-#   tools/story NAME        (runs stories/NAME.rs, e.g. tools/story button)
-#   tools/story rune-NAME   (runs stories/rune/NAME.rs, a story on Rune, ADR 0089)
+#   tools/story rune-NAME   (runs stories/rune/NAME.rs, e.g. tools/story rune-button)
+#   tools/story             (lists the stories)
 #
 # This opens a window on the display it is run from, so run it yourself, in your own terminal.
 # Anything that drives a session without the owner (CLAUDE.md, "Windows: headless only") uses
@@ -12,7 +12,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 name=${1:-}
-# A story on Rune is stories/rune/NAME.rs, run as rune-NAME so it cannot take a GPUI story's name.
+# A story is stories/rune/NAME.rs, run as rune-NAME.
 file=stories/$name.rs
 [[ $name == rune-* ]] && file=stories/rune/${name#rune-}.rs
 [[ -n $name && -f $file ]] || {
@@ -33,5 +33,5 @@ export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-8}
 # restart ends it.
 exec watchexec --restart --shell=bash --exts rs,toml,svg \
     --watch stories \
-    --watch crates/odk --watch crates/odk-ui --watch crates/odk-view --watch crates/odk-theme --watch crates/odk-a11y \
+    --watch crates/odk --watch crates/odk-view --watch crates/odk-theme --watch crates/odk-a11y \
     -- "cargo build -p stories --bin $name && exec ./target/debug/$name"

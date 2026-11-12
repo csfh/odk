@@ -1,7 +1,6 @@
 //! The checklist's source rules, for the components on the Rune host (`docs/spec/component-
-//! checklist.md`, items 1, 2, 14 and 34). `odk-ui`'s `checklist/source.rs` reads only that crate,
-//! so these keep a literal out of `odk-view` while the port is under way. When GPUI leaves, this
-//! is where those rules live.
+//! checklist.md`, items 1, 2, 14, 34, 40, 41 and 42). They keep a literal, a colour worked out and
+//! a stray timing out of `odk-view`.
 
 use std::fs;
 use std::path::Path;

@@ -1,8 +1,6 @@
-//! The window ODK draws once GPUI has left (ADR 0089).
-//!
-//! This crate is the port's host. `odk` does not depend on it, and `odk-ui` still draws with
-//! GPUI, until the port's last step. Nothing here links GPUI. A component's own state lives in
-//! [`Store`]: an open list, a caret and a held key.
+//! ODK's interface, on Rune (ADR 0089, ADR 0094): the components, the host that draws them and
+//! follows the user's theme, and the window. `odk::ui` is this crate. A component's own state
+//! lives in [`Store`]: an open list, a caret and a held key.
 
 mod alert;
 mod badge;

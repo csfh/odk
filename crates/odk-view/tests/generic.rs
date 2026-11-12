@@ -405,7 +405,7 @@ fn the_keyboards_focus_shows_a_ring_on_the_part_that_has_it() {
 }
 
 /// What the first frame of a window busy with one component may take: a quarter of a 60 Hz
-/// frame. `DRAW_BUDGET_MS` replaces it on a machine that is slower or busy, as for `odk-ui`.
+/// frame. `DRAW_BUDGET_MS` replaces it on a machine that is slower or busy.
 fn budget() -> std::time::Duration {
     std::env::var("DRAW_BUDGET_MS")
         .ok()

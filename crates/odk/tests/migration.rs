@@ -1,109 +1,117 @@
 //! The "after" code of `docs/migration.md`, compiled. Each function is one section's code, so a
 //! change to an API the guide shows fails here before the guide is wrong. Nothing here opens a
-//! window; the functions that need an `App` are checked by being built, not run.
+//! window; the functions that start one are checked by being built, not run.
 
 use odk::prelude::*;
-use odk::theme::foundation::CornerRadius;
-use odk::theme::semantic::{ResolveOptions, Role};
+use odk::theme::component::ButtonVariant;
+use odk::theme::foundation::{CornerRadius, Density, FoundationConfig};
+use odk::theme::semantic::{Emphasis, ResolveOptions, Role};
 use odk::theme::{ThemeManager, ThemeSource};
-use odk::ui::{Density, Emphasis};
+use odk::ui::{Badge, StatusIndicator, Tone};
 
-/// "Starting": `run` loads the theme before the first window, so a component may read the tokens
-/// in `render` from its first frame.
-#[allow(dead_code)]
-fn starting() {
-    odk::ui::run(|cx| {
-        let window = WindowConfig::new("dev.example.app")
-            .title("My app")
-            .size(960.0, 680.0);
-        odk::ui::open_window(cx, window, |_, cx| cx.new(|_| Empty)).unwrap();
-    });
+/// The application's own state, which a handler gets and a view reads.
+#[derive(Default)]
+struct App {
+    saved: u32,
 }
 
-struct Empty;
-
-impl Render for Empty {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        root()
-    }
+/// "Starting": `run` loads the theme before the window opens, so a component may read the tokens
+/// in the view from its first frame.
+#[allow(dead_code)]
+fn starting() -> Result<(), String> {
+    let window = WindowConfig::new((960.0, 680.0)).title("My app");
+    odk::ui::run(App::default(), window, view)
 }
 
-/// "Density, corners and motion".
+fn view(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
+    frame(hosted, cx, buttons(hosted), [])
+}
+
+/// "Density, corners and motion": the window's settings at start, or from a handler afterwards.
 #[allow(dead_code)]
-fn settings(cx: &mut App) {
-    odk::ui::configure(cx, |c| {
+fn settings() -> Result<WindowConfig, odk::ui::NoWindow> {
+    odk::ui::configure::<App>(|c: &mut FoundationConfig| {
         c.density = Density::Compact;
         c.corner_radius = CornerRadius::Square;
-    });
-    odk::ui::set_reduced_motion(cx, true);
+    })?;
+    odk::ui::set_reduced_motion::<App>(true)?;
+    Ok(
+        WindowConfig::new((960.0, 680.0)).foundation(FoundationConfig {
+            density: Density::Compact,
+            ..FoundationConfig::default()
+        }),
+    )
 }
 
 /// "Previewing a theme": the user's Omarchy theme is not touched.
 #[allow(dead_code)]
-fn previewing(cx: &mut App) -> Result<(), odk::theme::Error> {
+fn previewing() -> Result<(), Box<dyn std::error::Error>> {
     let mut manager = ThemeManager::following_host(ThemeSource::named("nord")?);
     manager.reload();
-    odk::ui::preview_theme(cx, manager.snapshot());
+    odk::ui::preview_theme((*manager.snapshot()).clone())?;
     // ...and back to the theme the system follows.
-    odk::ui::end_theme_preview(cx);
+    odk::ui::end_theme_preview()?;
     Ok(())
 }
 
-/// "Colour options": the resolver's options, set once by an application that wants other than the defaults.
+/// "Colour options": the resolver's options, set once by an application that wants other than
+/// the defaults.
 #[allow(dead_code)]
-fn colour_options(cx: &mut App) {
+fn colour_options() {
     let options = ResolveOptions::default();
-    odk::ui::set_colour_options(cx, options).unwrap();
+    odk::ui::set_colour_options(options).unwrap();
 }
 
-/// "Buttons".
+/// "Buttons": a handler takes the application's state.
 #[allow(dead_code)]
-fn buttons(cx: &mut Context<Empty>) -> impl IntoElement {
+fn buttons(hosted: &Hosted<App>) -> El {
     // Before: Button::new("save").label("Save").variant(Variant::Primary)
-    Stack::new()
-        .gap(Space::Sm)
+    Layout::of(hosted)
+        .stack(Space::Sm)
         .child(
-            Button::new("save")
-                .label("Save")
-                .variant(ButtonVariant::Primary),
+            Button::new("save", "Save", |app: &mut App| app.saved += 1)
+                .variant(ButtonVariant::Primary)
+                .show(hosted),
         )
         .child(
-            Button::new("delete")
-                .label("Delete")
+            Button::new("delete", "Delete", |_: &mut App| {})
                 .variant(ButtonVariant::Destructive)
-                .emphasis(Emphasis::Muted),
+                .show(hosted),
         )
-        .child(Button::icon("settings", "⚙", "Settings").variant(ButtonVariant::Ghost))
         .child(
-            Button::new("apply")
-                .label("Apply")
+            Button::new("apply", "Apply", |_: &mut App| {})
                 .density(Density::Compact)
-                .loading(false)
-                .on_click(cx.listener(|_, _, _, cx| cx.notify())),
+                .busy(false)
+                .show(hosted),
         )
 }
 
 /// "Badges and status".
 #[allow(dead_code)]
-fn badges() -> impl IntoElement {
+fn badges(hosted: &Hosted<App>) -> El {
     // Before: Badge::new("New").variant(Variant::Primary)
-    Row::new()
-        .gap(Space::Sm)
+    Layout::of(hosted)
+        .row(Space::Sm)
         .child(
             Badge::new("New")
                 .role(Role::Accent)
-                .emphasis(Emphasis::Solid),
+                .emphasis(Emphasis::Solid)
+                .show(hosted),
         )
-        .child(Badge::new("Failed").tone(Tone::Danger).marked())
-        .child(StatusIndicator::new(Status::Active, "Online"))
+        .child(
+            Badge::new("Failed")
+                .tone(Tone::Danger)
+                .marked()
+                .show(hosted),
+        )
+        .child(StatusIndicator::new(odk::ui::Status::Active, "Online").show(hosted))
 }
 
 /// "Reading tokens": a component of your own reads the layers, never the palette.
 #[allow(dead_code)]
-fn reading_tokens() {
-    let foundation = odk::ui::foundation();
+fn reading_tokens(hosted: &Hosted<App>) {
+    let foundation = hosted.foundation();
     let _height = foundation.controls.metrics().height;
-    let snapshot = odk::ui::theme_snapshot();
-    let _ink = snapshot.semantic.text.primary;
-    let _tokens = odk::ui::components();
+    let _ink = hosted.theme().semantic.text.primary;
+    let _tokens = hosted.components();
 }
