@@ -6,6 +6,7 @@ use crate::icon::Glyph;
 use crate::ink::ink;
 use crate::store::Activator;
 use crate::style::{self, focus_ring, text_style};
+use crate::text::{Flow, flowed};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonLayout, ButtonVariant, States};
 use odk_theme::foundation::Density;
@@ -222,6 +223,9 @@ impl Button<()> {
             // A disabled control leaves the Tab order (`docs/spec/odk-interaction.md`, 21). `apply`'s
             // `disabled` already takes it out in Rune; this says the rule where the button is drawn.
             .focusable(!disabled && tab_stop)
+            // It may narrow below its label's width, which is then cut.
+            .shrink()
+            .min_w(0.0)
             .h(geometry.height)
             .px(geometry.padding_x)
             .gap(geometry.gap)
@@ -273,11 +277,16 @@ impl Button<()> {
             button = button.child(glyph.slot(geometry.icon_size, ink_of));
         }
         if layout != ButtonLayout::IconOnly {
+            // A label longer than the room is cut with `…` inside the button, never drawn past it.
             button = button.child(
-                text(label)
-                    .font(text_style(paint.button))
-                    .color(ink_of)
-                    .a11y_hidden(),
+                flowed(
+                    text(label)
+                        .font(text_style(paint.button))
+                        .color(ink_of)
+                        .a11y_hidden(),
+                    Flow::End,
+                )
+                .shrink(),
             );
         }
         if let Some(glyph) = trailing {

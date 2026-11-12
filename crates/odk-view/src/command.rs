@@ -3,7 +3,7 @@
 
 use std::rc::Rc;
 
-use crate::describe::apply;
+use crate::describe::{apply, pointer_target};
 use crate::dialog::OnClose;
 use crate::host::Hosted;
 use crate::ink::ink;
@@ -264,9 +264,18 @@ impl<T: 'static> Command<T> {
             let row_accessible = Accessible::new(Role::Option, item.label.clone())
                 .selected(highlighted)
                 .disabled(item.disabled);
-            let mut content = row().center_y().gap(mg.gap).grow(1.0).child(
-                words(&paint, item.label.clone(), mg.type_role, colour, Flow::End).grow(1.0),
-            );
+            let mut content = row()
+                .center_y()
+                .gap(mg.gap)
+                .grow(1.0)
+                .shrink()
+                .min_w(0.0)
+                .child(
+                    words(&paint, item.label.clone(), mg.type_role, colour, Flow::End)
+                        .grow(1.0)
+                        .shrink()
+                        .min_w(0.0),
+                );
             if let Some(hint) = &item.hint {
                 content = content.child(spacer()).child(words(
                     &paint,
@@ -423,7 +432,8 @@ impl<T: 'static> Command<T> {
         if let Some(backdrop) = o.backdrop {
             scrim = scrim.fill(ink(backdrop));
         }
-        layers.push(scrim);
+        // A press outside dismisses it: a target for the pointer, not a control with a name.
+        layers.push(pointer_target(scrim));
     }
 }
 

@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-use crate::describe::apply;
+use crate::describe::{apply, pointer_target};
 use crate::dialog::{OnClose, modal_header};
 use crate::host::Hosted;
 use crate::ink::ink;
@@ -256,7 +256,8 @@ impl<T: 'static> Sheet<T> {
         if self.close_on_backdrop {
             scrim = scrim.on_press(move |hosted: &mut Hosted<T>| ask(hosted));
         }
-        layers.push(scrim);
+        // A press outside dismisses it: a target for the pointer, not a control with a name.
+        layers.push(pointer_target(scrim));
     }
 }
 
