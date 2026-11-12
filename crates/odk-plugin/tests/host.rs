@@ -231,10 +231,13 @@ fn app_state_reads_only_what_the_host_exposed_and_cannot_list_it() {
         Ok(Data::Number(43.0)),
         "live"
     );
-    assert_eq!(
-        host.call("com.example.reader", "keys", &[]),
-        Ok(Data::List(vec![text("get")]))
-    );
+    // What the table holds is `app`'s own two functions and nothing of the host's: no list of the
+    // exposed names, no way in to the rest of the application's state.
+    let Ok(Data::List(mut keys)) = host.call("com.example.reader", "keys", &[]) else {
+        panic!("keys")
+    };
+    keys.sort_by_key(|k| format!("{k:?}"));
+    assert_eq!(keys, vec![text("get"), text("subscribe")]);
 }
 
 #[test]
