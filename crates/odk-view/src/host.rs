@@ -1,9 +1,10 @@
 //! The window: one theme, a component store, and a list of layers above the page.
 
-use odk_theme::ThemeManager;
 use odk_theme::ThemeSnapshot;
 use odk_theme::component::ComponentTokens;
 use odk_theme::foundation::{FoundationConfig, FoundationTokens};
+use odk_theme::semantic::ResolveOptions;
+use odk_theme::{ThemeDiagnostics, ThemeManager};
 use rune::text::TextSystem;
 use rune::{App, AppSpec, Cx, El, Env, Runtime, Tx, Waker, el};
 
@@ -15,8 +16,14 @@ use crate::store::Store;
 pub struct Hosted<T> {
     pub app: T,
     pub ui: Store,
+    /// What is drawn: the previewed theme while one is shown, and the followed theme otherwise.
     theme: ThemeSnapshot,
+    /// The theme the application follows, which a preview does not replace.
+    followed: ThemeSnapshot,
+    previewing: bool,
     config: FoundationConfig,
+    options: ResolveOptions,
+    diagnostics: Option<ThemeDiagnostics>,
     face: Face,
 }
 
@@ -25,8 +32,12 @@ impl<T> Hosted<T> {
         Self {
             app,
             ui: Store::default(),
+            followed: theme.clone(),
             theme,
+            previewing: false,
             config: FoundationConfig::default(),
+            options: ResolveOptions::default(),
+            diagnostics: None,
             face,
         }
     }
@@ -63,10 +74,61 @@ impl<T> Hosted<T> {
         &self.theme
     }
 
-    /// Draws with `theme` from the next frame: the user changed the palette, the text size or the
-    /// request for reduced motion.
+    /// The theme the application follows from the next frame: the user changed the palette, the
+    /// text size or the request for reduced motion. While a theme is previewed it is kept for
+    /// when the preview ends, and only the user's request for reduced motion, which is not a
+    /// theme's, changes what is drawn.
     pub fn set_theme(&mut self, theme: ThemeSnapshot) {
-        self.theme = theme;
+        if self.previewing {
+            self.theme.reduced_motion = theme.reduced_motion;
+        } else {
+            self.theme = theme.clone();
+        }
+        self.followed = theme;
+    }
+
+    /// Draws `snapshot` in place of the theme the application follows, until
+    /// [`Self::end_theme_preview`]: for a tool that shows a theme without choosing it, such as a
+    /// theme selector. Omarchy's files and its current theme are not touched, and a change of the
+    /// followed theme meanwhile is kept, not drawn. Its request for reduced motion is the
+    /// followed theme's, whatever the snapshot says; the foundation (density, corners) is the
+    /// application's and stays. The colour options apply to the followed theme only: a preview
+    /// is resolved with the options of the manager that loaded it.
+    pub fn preview_theme(&mut self, mut snapshot: ThemeSnapshot) {
+        snapshot.reduced_motion = self.followed.reduced_motion;
+        self.theme = snapshot;
+        self.previewing = true;
+    }
+
+    /// Draws the followed theme again, as it is now and not as it was when the preview began.
+    /// Nothing happens when no theme is previewed.
+    pub fn end_theme_preview(&mut self) {
+        if self.previewing {
+            self.theme = self.followed.clone();
+            self.previewing = false;
+        }
+    }
+
+    /// The theme being previewed, if one is.
+    pub fn previewed_theme(&self) -> Option<&ThemeSnapshot> {
+        self.previewing.then_some(&self.theme)
+    }
+
+    /// The theme the application follows: what is drawn unless a theme is previewed.
+    pub fn followed_theme(&self) -> &ThemeSnapshot {
+        &self.followed
+    }
+
+    /// The colour options the application asked for, or the defaults.
+    pub fn colour_options(&self) -> &ResolveOptions {
+        &self.options
+    }
+
+    /// What the application draws and why: the theme's name and `colors.toml`, its mode, how many
+    /// colours it defines and which optional ones it leaves out, whether a fallback of ADR 0041 is
+    /// in use, the latest reload's error and the generation. `None` before [`run`] has started.
+    pub fn theme_diagnostics(&self) -> Option<&ThemeDiagnostics> {
+        self.diagnostics.as_ref()
     }
 }
 
@@ -157,6 +219,48 @@ pub fn set_reduced_motion<T: 'static>(reduced: bool) -> Result<(), crate::post::
     configure::<T>(move |config| config.reduced_motion = reduced)
 }
 
+/// What does not depend on the application's state type: the window's theme and what it is asked
+/// to show. [`run`] hands the window's host out through it.
+pub(crate) trait AnyHost {
+    fn remember_colour_options(&mut self, options: ResolveOptions);
+    fn preview(&mut self, snapshot: ThemeSnapshot);
+    fn end_preview(&mut self);
+    fn update(&mut self, update: crate::follow::Update);
+}
+
+impl<T> AnyHost for Hosted<T> {
+    fn remember_colour_options(&mut self, options: ResolveOptions) {
+        self.options = options;
+    }
+
+    fn preview(&mut self, snapshot: ThemeSnapshot) {
+        self.preview_theme(snapshot);
+    }
+
+    fn end_preview(&mut self) {
+        self.end_theme_preview();
+    }
+
+    fn update(&mut self, update: crate::follow::Update) {
+        if let Some(snapshot) = update.snapshot {
+            self.set_theme(snapshot);
+        }
+        self.diagnostics = Some(update.diagnostics);
+    }
+}
+
+/// Draws `snapshot` in every window in place of the theme the application follows, until
+/// [`end_theme_preview`], as [`Hosted::preview_theme`] does, from anywhere. `Err` when the
+/// application did not start through [`run`].
+pub fn preview_theme(snapshot: ThemeSnapshot) -> Result<(), crate::post::NoWindow> {
+    crate::post::on_any_host(move |host| host.preview(snapshot))
+}
+
+/// Draws the followed theme again; see [`Hosted::end_theme_preview`].
+pub fn end_theme_preview() -> Result<(), crate::post::NoWindow> {
+    crate::post::on_any_host(|host| host.end_preview())
+}
+
 /// The key of the element that has focus, from inside a key handler: what a component derives from
 /// its id (a button's is its id, a table's rows are `<id>-row-<key>`). `None` when nothing has
 /// focus. Rune gives no way to ask outside a handler or to move focus to a key, so Tab (which
@@ -230,7 +334,8 @@ pub fn run<T: 'static>(
             .and_then(Face::installed)
             .unwrap_or(Face::bundled())
     });
-    let hosted = Hosted::new(app, (*manager.snapshot()).clone(), face).with_config(foundation);
+    let mut hosted = Hosted::new(app, (*manager.snapshot()).clone(), face).with_config(foundation);
+    hosted.diagnostics = Some(manager.diagnostics());
     let spec = AppSpec {
         fonts: hosted.face.fonts(),
         families: hosted.face.families(),
@@ -249,10 +354,15 @@ pub fn run<T: 'static>(
     crate::post::install(std::sync::Arc::new(move |job| {
         feed.update(move |hosted: &mut Hosted<T>, _| job(hosted as &mut dyn std::any::Any));
     }));
+    let feed = handle.clone();
+    crate::post::install_any(std::sync::Arc::new(move |job| {
+        feed.update(move |hosted: &mut Hosted<T>, _| job(hosted as &mut dyn AnyHost));
+    }));
     // Kept until the window closes.
-    let _follower = crate::follow::follow(manager, move |theme| {
-        handle.update(move |hosted: &mut Hosted<T>, _| hosted.set_theme(theme));
+    let follower = crate::follow::follow(manager, move |update| {
+        handle.update(move |hosted: &mut Hosted<T>, _| AnyHost::update(hosted, update));
     });
+    crate::follow::install(follower.commands());
     app.try_run()
 }
 

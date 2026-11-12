@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::time::Duration;
 
+use odk_theme::semantic::ResolveOptions;
 use odk_theme::{ThemeManager, ThemeSnapshot, ThemeSource};
-use odk_view::follow;
+use odk_view::{Update, follow};
 
 const WAIT: Duration = Duration::from_secs(5);
 const QUIET: Duration = Duration::from_millis(700);
@@ -67,8 +68,10 @@ fn manager(dir: &Dir) -> ThemeManager {
 fn a_changed_palette_is_handed_over_and_an_unchanged_one_is_not() {
     let dir = Dir::new("palette", "#1c1c1c");
     let (tx, rx) = channel::<ThemeSnapshot>();
-    let follower = follow(manager(&dir), move |snapshot| {
-        let _ = tx.send(snapshot);
+    let follower = follow(manager(&dir), move |update: Update| {
+        if let Some(snapshot) = update.snapshot {
+            let _ = tx.send(snapshot);
+        }
     });
     let before = manager(&dir).snapshot();
 
@@ -96,8 +99,10 @@ fn a_request_reloads_for_a_change_the_files_do_not_announce() {
     let (tx, rx) = channel::<ThemeSnapshot>();
     let follower = follow(
         ThemeManager::new(ThemeSource::Dir(path.clone())),
-        move |snapshot| {
-            let _ = tx.send(snapshot);
+        move |update: Update| {
+            if let Some(snapshot) = update.snapshot {
+                let _ = tx.send(snapshot);
+            }
         },
     );
     fs::create_dir_all(&path).expect("a directory");
@@ -117,8 +122,10 @@ fn a_request_reloads_for_a_change_the_files_do_not_announce() {
 fn dropping_the_follower_ends_the_thread() {
     let dir = Dir::new("drop", "#1c1c1c");
     let (tx, rx) = channel::<ThemeSnapshot>();
-    let follower = follow(manager(&dir), move |snapshot| {
-        let _ = tx.send(snapshot);
+    let follower = follow(manager(&dir), move |update: Update| {
+        if let Some(snapshot) = update.snapshot {
+            let _ = tx.send(snapshot);
+        }
     });
     drop(follower);
     // The thread drops the callback, and with it the sender, once it has seen the queue close.
@@ -126,4 +133,48 @@ fn dropping_the_follower_ends_the_thread() {
         matches!(rx.recv_timeout(WAIT), Err(RecvTimeoutError::Disconnected)),
         "the thread is gone"
     );
+}
+
+#[test]
+fn colour_options_that_weaken_wcag_are_refused_and_good_ones_reach_the_window() {
+    let dir = Dir::new("options", "#1c1c1c");
+    let (tx, rx) = channel::<Update>();
+    let follower = follow(manager(&dir), move |update: Update| {
+        let _ = tx.send(update);
+    });
+    let weak = ResolveOptions {
+        text_contrast: 3.0,
+        ..ResolveOptions::default()
+    };
+    assert!(follower.set_options(weak).is_err(), "below WCAG's minimum");
+    assert!(
+        matches!(rx.recv_timeout(QUIET), Err(RecvTimeoutError::Timeout)),
+        "a refused option reaches no one"
+    );
+    // A stricter contrast than the palette gives is something the window must hear of: a new
+    // snapshot when it can be met, or else what the diagnostics say.
+    let strict = ResolveOptions {
+        text_contrast: 12.0,
+        ui_contrast: 7.0,
+        ..ResolveOptions::default()
+    };
+    follower.set_options(strict).expect("valid options");
+    rx.recv_timeout(WAIT)
+        .expect("an update after the options changed");
+    drop(follower);
+}
+
+#[test]
+fn a_reload_that_fails_is_told_by_the_diagnostics_and_not_as_a_new_theme() {
+    let dir = Dir::new("diag", "#1c1c1c");
+    let (tx, rx) = channel::<Update>();
+    let follower = follow(manager(&dir), move |update: Update| {
+        let _ = tx.send(update);
+    });
+    // A palette that cannot be read: the last theme stays and the diagnostics say so.
+    std::fs::write(dir.path().join("colors.toml"), "not a palette").unwrap();
+    let update = rx.recv_timeout(WAIT).expect("an update");
+    assert!(update.snapshot.is_none(), "the colours are the ones before");
+    assert!(!update.diagnostics.to_string().is_empty());
+    drop(follower);
 }
