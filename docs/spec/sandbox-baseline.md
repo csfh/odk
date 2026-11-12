@@ -33,6 +33,10 @@ What the host says (ADR 0062) comes from `odkd`, a per-user daemon outside every
 
 `~/.local/share/fonts` is bound read-only at the same path when it exists, for every application and with no permission to ask for (ADR 0095). The system's fonts are under `/usr/share/fonts` and `/etc/fonts`, which are already shown. Nothing else of `~/.local` is.
 
+### The screen reader
+
+While the user's accessibility is on, `odkd` writes the path of the AT-SPI bus's socket to `odk/a11y` in its directory, which is already bound, and runs a stand-in session bus on `odk/bus` there (ADR 0096). oma then binds that socket, which must be under the runtime directory, at the same relative path in the sandbox's runtime directory, and sets `DBUS_SESSION_BUS_ADDRESS` to the stand-in and `AT_SPI_BUS_ADDRESS` to it. With the file absent, or not naming a socket, or without the stand-in, none of that is done. No permission asks for it.
+
 ### `/etc` baseline
 
 `ld.so.cache`, `ld.so.conf`, `ld.so.conf.d/`, `fonts/`, `localtime`, `os-release`, `passwd`, `group`, `nsswitch.conf` and `xdg/`.

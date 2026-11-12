@@ -4995,6 +4995,7 @@ name = "odkd"
 version = "0.1.0-rc.3"
 dependencies = [
  "ashpd 0.11.1",
+ "async-channel 2.5.0",
  "deps",
  "futures-lite 2.6.1",
  "libc",

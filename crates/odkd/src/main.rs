@@ -8,6 +8,7 @@
 //! Beside it, `files.sock` opens the desktop's file chooser for an application and answers with
 //! the paths the user chose (ADR 0068).
 
+mod a11y;
 mod files;
 mod hub;
 mod portal;
@@ -54,6 +55,31 @@ fn run() -> Result<(), String> {
             let _ = tx.send(());
         })
     });
+
+    // A stand-in session bus for a sandboxed window's accessibility (ADR 0096), kept up to date
+    // with the user's own. Without `dbus-daemon` or a session bus there is none, and a window
+    // is as it was: no tree for a screen reader.
+    let _standin = socket_path()
+        .as_deref()
+        .and_then(std::path::Path::parent)
+        .and_then(|dir| match a11y::Standin::start(dir) {
+            Ok(standin) => Some(standin),
+            Err(why) => {
+                eprintln!("odkd: no accessibility stand-in: {why}");
+                None
+            }
+        });
+    if let Some(standin) = &_standin {
+        let sender = standin.sender();
+        std::thread::spawn(move || {
+            let report = |state| {
+                let _ = sender.try_send(state);
+            };
+            if let Err(why) = futures_lite::future::block_on(a11y::follow_session(report)) {
+                eprintln!("odkd: not following the session's accessibility: {why}");
+            }
+        });
+    }
 
     let mut state = sources.read();
     hub.publish(state.to_line());
