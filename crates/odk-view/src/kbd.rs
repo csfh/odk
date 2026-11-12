@@ -5,6 +5,7 @@ use crate::describe::apply;
 use crate::host::Hosted;
 use crate::ink::ink;
 use crate::style::{self, text_style};
+use crate::text::{Flow, flowed};
 use odk_a11y::{Accessible, Describe, Role};
 use rune::{El, row, text};
 
@@ -40,18 +41,28 @@ impl Kbd {
             row()
                 .h(geometry.height)
                 .px(geometry.padding_x)
+                // A key name longer than the room is cut with `…` inside its cap.
+                .shrink()
+                .min_w(0.0)
                 .center()
                 .radius(geometry.radius)
                 .fill(ink(kbd.colours.background))
                 .outline(geometry.border_width, 0.0, ink(kbd.colours.border))
                 .child(
-                    text(key)
-                        .font(text_style(paint.role(geometry.type_role)))
-                        .color(ink(kbd.colours.foreground))
-                        .a11y_hidden(),
+                    flowed(
+                        text(key)
+                            .font(text_style(paint.role(geometry.type_role)))
+                            .color(ink(kbd.colours.foreground))
+                            .a11y_hidden(),
+                        Flow::End,
+                    )
+                    .shrink(),
                 )
         });
-        apply(row().center_y().gap(geometry.gap), &accessible).children(caps)
+        apply(row().center_y().gap(geometry.gap), &accessible)
+            .shrink()
+            .min_w(0.0)
+            .children(caps)
     }
 }
 

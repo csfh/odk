@@ -70,6 +70,13 @@ fn has_selected_state(role: Role) -> bool {
     matches!(role, Role::Tab | Role::Option | Role::Row | Role::Cell)
 }
 
+/// `element` as a target for the pointer and nothing else: a scrim that a press dismisses, an addon
+/// that a press passes on to its field. Rune exposes any element that takes a press as an unnamed
+/// button, which a screen reader would list; this says it is not a control.
+pub(crate) fn pointer_target(element: El) -> El {
+    element.role("presentation")
+}
+
 /// `element` with `accessible`'s role, name and state. A text input's own text is Rune's to
 /// report, so its value is not repeated.
 pub(crate) fn apply(element: El, accessible: &Accessible) -> El {

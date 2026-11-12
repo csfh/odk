@@ -2,6 +2,7 @@
 //! (`docs/spec/odk-text-input.md`).
 
 use crate::button::Button;
+use crate::describe::pointer_target;
 use crate::host::Hosted;
 use crate::ink::ink;
 use crate::input::Input;
@@ -173,6 +174,8 @@ where
                 .on_press(move |hosted: &mut Hosted<T>| {
                     hosted.ui.input_edit(&target).focused = true;
                 });
+            // A press focuses the field: a target for the pointer, not a control of its own.
+            let element = pointer_target(element);
             if before {
                 element.pr(gap)
             } else {

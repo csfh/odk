@@ -8,7 +8,7 @@
 use std::rc::Rc;
 
 use crate::button::Button;
-use crate::describe::apply;
+use crate::describe::{apply, pointer_target};
 use crate::host::Hosted;
 use crate::icon::Icon;
 use crate::ink::ink;
@@ -227,7 +227,8 @@ impl<T: 'static> Dialog<T> {
         if self.close_on_backdrop {
             scrim = scrim.on_press(move |hosted: &mut Hosted<T>| ask(hosted));
         }
-        layers.push(scrim);
+        // A press outside dismisses it: a target for the pointer, not a control with a name.
+        layers.push(pointer_target(scrim));
     }
 }
 
