@@ -24,6 +24,7 @@ const HOST: &[&str] = &[
 /// structure, state or logic, so no
 /// `Describe` (item 14), though every other rule here still reads them.
 const NOT_CONTROLS: &[&str] = &[
+    "files.rs",
     "follow.rs",
     "font.rs",
     "hover.rs",
