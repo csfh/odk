@@ -51,10 +51,10 @@ Each component brings its `stories/rune/<name>.rs` in the same pull request (the
 
 ## Track B: OMA to a real release (parallel with A)
 
-1. **The unbuilt trust-plan parts.** Re-checked on 2026-11-11 against the code: the pinned-root upgrade by `install`, opening a Bundle that is not installed, the inbox watches, `.desktop` entries and the daemon are built, and their stale "not built" wording is fixed. Still open: the revocation document has no schema (`docs/oma-trust-plan.md`, question 2); opening a newer version is refused on purpose and `install` upgrades; and the trust plan and `CLAUDE.md` disagree about whether `bundle` calls the image writer (the code at `crates/oma/src/bundle.rs:172` does).
+1. **The unbuilt trust-plan parts.** Re-checked on 2026-11-11 against the code: the pinned-root upgrade by `install`, opening a Bundle that is not installed, the inbox watches, `.desktop` entries and the daemon are built, and their stale "not built" wording is fixed. Still open: the revocation document has no schema (`docs/oma-trust-plan.md`, question 2); opening a newer version is refused on purpose and `install` upgrades; and the trust plan and `CLAUDE.md` disagreed about whether `bundle` calls the image writer (it does, with `--sign`; both are corrected on 2026-11-12).
 2. **The owner's root key compiled in** (ADR 0086), then a real release signed with `odk oma sign-release`.
 3. **A first real release** on `odk.csfh.dev`, then `install.sh` and `odk oma self-upgrade` run against it on a second machine, which clears the install rows of `docs/checks.md`.
-4. **Registration.** The `binfmt_misc` line and the desktop handler are text in `packaging/`, and ADR 0087 forbids root. Decide, in an ADR, how v1 registers them or that it does not.
+4. **Registration.** The `binfmt_misc` line and the desktop handler are text in `packaging/`, and ADR 0087 forbids root. Decide, in an ADR, how v1 registers them or that it does not: ADR 0097 (`proposed`, 2026-11-12) recommends a per-user handler offered beside Disk Image Mounter, no default change, and no `binfmt_misc` entry; it waits for the owner, and for one hand check on a real file manager.
 5. **The two open sandbox rows:** Electron's own sandbox inside ours (plan step 6, with any seccomp change it forces) and playback-only PipeWire.
 6. **The sandbox's unverified rows:** `/etc`, ptys, Landlock ABI 6, unprivileged user namespaces, `odkd` under a real Hyprland, mount and unpack timings.
 
