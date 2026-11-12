@@ -117,7 +117,8 @@ impl<T: 'static> Sheet<T> {
         self
     }
 
-    /// Draws the sheet into `layers` when it is open.
+    /// Draws the sheet into `layers` when it is open. What its content opens (a menu, a select, a
+    /// popover) goes after it in the `layers` that `frame` takes, as for a `Dialog`.
     pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) {
         if !self.open {
             return;

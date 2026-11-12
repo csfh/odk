@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{CONTENT, SAMPLES, open, open_with, settle};
+use common::{CONTENT, SAMPLES, first_frame, open, open_with, settle};
 use odk_theme::ThemeSnapshot;
 
 const SIZE: (f32, f32) = (480.0, 360.0);
@@ -233,4 +233,243 @@ fn no_control_has_an_empty_accessible_name() {
         }
     }
     assert!(out.is_empty(), "controls with no name:\n{}", out.join("\n"));
+}
+
+/// Where every element is, by its place in the tree.
+fn layout(runtime: &rune::Runtime<odk_view::Hosted<()>>) -> Vec<(String, [f32; 4])> {
+    runtime
+        .elements()
+        .into_iter()
+        .filter(|e| !e.exiting)
+        .map(|e| (format!("{} {:?}", e.path, e.key), e.rect))
+        .collect()
+}
+
+/// What moved between two layouts, as lines to read: the elements that are in both and are not
+/// where they were. A part that appears or goes (a check mark, a list that closes) moves nothing,
+/// and is not counted here.
+fn moved(
+    component: &str,
+    before: &[(String, [f32; 4])],
+    after: &[(String, [f32; 4])],
+) -> Vec<String> {
+    let after: std::collections::HashMap<_, _> = after.iter().map(|(n, r)| (n, r)).collect();
+    let mut out = Vec::new();
+    for (name, a) in before {
+        let Some(b) = after.get(name) else { continue };
+        if a.iter().zip(b.iter()).any(|(x, y)| (x - y).abs() > 0.01)
+            && !MAY_MOVE_PART
+                .iter()
+                .any(|(c, part, _)| *c == component && name.contains(part))
+        {
+            out.push(format!("{name}: {a:?} -> {b:?}"));
+        }
+    }
+    out
+}
+
+/// The parts that are the state, and so move when it changes: a switch's thumb, the tab
+/// indicator that follows the selected tab, and a resize handle's line, which is thicker while
+/// it is held. Each is only itself: nothing around it moves.
+const MAY_MOVE_PART: &[(&str, &str, &str)] = &[
+    (
+        "Switch",
+        "-thumb",
+        "the thumb is where the switch is on or off",
+    ),
+    (
+        "Tabs",
+        "sample-tabs-one/#1",
+        "the indicator under the selected tab",
+    ),
+    ("Resizable", "handle-0/#0", "the line is thicker while held"),
+];
+
+/// Components where a hover, a press or a focus is meant to show something that was not there
+/// (the tooltip and the card), or to move a part (a drag handle), each with what it does.
+const MAY_MOVE: &[(&str, &str)] = &[
+    ("Tooltip", "a rest of the pointer shows it"),
+    ("HoverCard", "a rest of the pointer shows it"),
+];
+
+/// Item 32: no state change moves anything. Hovering, pressing and focusing each part of every
+/// component, one after another, keeps every element where it was.
+#[test]
+fn hovering_pressing_and_focusing_move_nothing() {
+    let mut out = Vec::new();
+    for sample in SAMPLES {
+        if !sample.interactive || MAY_MOVE.iter().any(|(n, _)| *n == sample.name) {
+            continue;
+        }
+        let mut runtime = open(sample, "Save", SIZE, None);
+        let at_rest = layout(&runtime);
+        let targets: Vec<_> = runtime
+            .elements()
+            .into_iter()
+            .filter(|e| e.focusable && !e.inert && !e.exiting)
+            .filter_map(|e| e.key)
+            .collect();
+        for key in targets {
+            let Some((x, y)) = runtime.find(&key) else {
+                continue;
+            };
+            // Hover.
+            runtime.pointer_move(x, y);
+            settle(&mut runtime);
+            for line in moved(sample.name, &at_rest, &layout(&runtime)) {
+                out.push(format!("{} hover {key}: {line}", sample.name));
+            }
+            // Press, held, and then let go where it was pressed, which presses the part.
+            runtime.pointer_down(x, y);
+            settle(&mut runtime);
+            for line in moved(sample.name, &at_rest, &layout(&runtime)) {
+                out.push(format!("{} press {key}: {line}", sample.name));
+            }
+            runtime.pointer_up(x, y);
+            settle(&mut runtime);
+            for line in moved(sample.name, &at_rest, &layout(&runtime)) {
+                out.push(format!("{} choose {key}: {line}", sample.name));
+            }
+        }
+        // Focus: Tab through every stop.
+        for _ in 0..12 {
+            runtime.key(rune::KeyEvent::from(rune::Key::Tab));
+            settle(&mut runtime);
+            let focused = runtime
+                .elements()
+                .into_iter()
+                .find(|e| e.focused)
+                .and_then(|e| e.key)
+                .unwrap_or_default();
+            for line in moved(sample.name, &at_rest, &layout(&runtime)) {
+                out.push(format!("{} focus {focused}: {line}", sample.name));
+            }
+        }
+    }
+    assert!(
+        out.is_empty(),
+        "state changes that moved something:\n{}",
+        out.join("\n")
+    );
+}
+
+/// The rings Rune drew in the last frame: instances with no fill and a border.
+fn rings(runtime: &rune::Runtime<odk_view::Hosted<()>>) -> usize {
+    runtime
+        .instances
+        .iter()
+        .filter(|i| i.fill[3] == 0.0 && i.border[3] > 0.0 && i.params[0] > 0.0)
+        .count()
+}
+
+/// Parts whose focus Rune shows another way, each with how: a text field by its caret, an item of
+/// a menu or a list by its highlight.
+const FOCUS_SHOWN_OTHERWISE: &[(&str, &str)] = &[];
+
+/// Item 11: the keyboard's focus shows a ring on the part that has it. Tab visits each stop of
+/// every interactive component, and each time one ring is drawn. (Its width, offset, colour and
+/// radius are the component tokens', set in one place: `style::focus_ring`, whose unit test
+/// measures a ring.)
+#[test]
+fn the_keyboards_focus_shows_a_ring_on_the_part_that_has_it() {
+    let mut out = Vec::new();
+    let mut stops = 0;
+    for sample in SAMPLES {
+        if !sample.interactive {
+            continue;
+        }
+        let mut runtime = open(sample, "Save", SIZE, None);
+        for _ in 0..12 {
+            runtime.key(rune::KeyEvent::from(rune::Key::Tab));
+            settle(&mut runtime);
+            let Some(focused) = runtime.elements().into_iter().find(|e| e.focused) else {
+                continue;
+            };
+            stops += 1;
+            let key = focused.key.clone().unwrap_or_default();
+            if FOCUS_SHOWN_OTHERWISE
+                .iter()
+                .any(|(c, k)| *c == sample.name && key.contains(k))
+            {
+                continue;
+            }
+            let drawn = rings(&runtime);
+            let line = format!("{}: {key} has focus and no ring", sample.name);
+            if drawn == 0 && !out.contains(&line) {
+                out.push(line);
+            }
+        }
+    }
+    assert!(stops > 40, "only {stops} stops were visited");
+    assert!(out.is_empty(), "{}", out.join("\n"));
+}
+
+/// What the first frame of a window busy with one component may take: a quarter of a 60 Hz
+/// frame. `DRAW_BUDGET_MS` replaces it on a machine that is slower or busy, as for `odk-ui`.
+fn budget() -> std::time::Duration {
+    std::env::var("DRAW_BUDGET_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(
+            std::time::Duration::from_millis(4),
+            std::time::Duration::from_millis,
+        )
+}
+
+/// Item 36: a window with a component's sample in it is built and laid out from scratch within
+/// the budget. (Rune's headless runtime has no GPU: this is the cost of the tree, not of the
+/// pixels, which `tools/idle-cpu` and a real frame measure.)
+#[test]
+fn a_window_busy_with_each_component_is_built_within_the_budget() {
+    let mut over = Vec::new();
+    for sample in SAMPLES {
+        let least = first_frame(sample, "Save", SIZE, 5);
+        if least > budget() {
+            over.push(format!("{} ({least:?})", sample.name));
+        }
+    }
+    assert!(
+        over.is_empty(),
+        "over the budget of {:?}: {}",
+        budget(),
+        over.join(", ")
+    );
+}
+
+fn thousand(hosted: &odk_view::Hosted<()>, cx: &mut rune::Cx<odk_view::Hosted<()>>) -> rune::El {
+    let mut list = rune::col()
+        .key("thousand")
+        .gap(4.0)
+        .scroll(rune::ScrollSpec {
+            stick_bottom: false,
+        });
+    for n in 0..1000 {
+        list = list.child(
+            odk_view::Button::new(format!("b{n}"), format!("Button {n}"), |_: &mut ()| {})
+                .show(hosted),
+        );
+    }
+    odk_view::frame(hosted, cx, list, [])
+}
+
+/// Item 36: a thousand controls in one window are built and laid out within a ceiling of six
+/// frames. No page has that many; it keeps a big window from running away.
+#[test]
+fn a_thousand_controls_stay_within_the_ceiling() {
+    let least = (0..3)
+        .map(|_| {
+            let hosted = odk_view::Hosted::new((), ThemeSnapshot::emergency(), common::face());
+            let started = std::time::Instant::now();
+            let runtime = odk_view::headless(hosted, thousand, SIZE);
+            let took = started.elapsed();
+            drop(runtime);
+            took
+        })
+        .min()
+        .expect("a try");
+    eprintln!("a thousand buttons: {least:?}");
+    assert!(
+        least <= std::time::Duration::from_millis(100).max(budget() * 25),
+        "a thousand controls took {least:?}"
+    );
 }

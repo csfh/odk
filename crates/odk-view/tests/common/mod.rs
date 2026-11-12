@@ -133,6 +133,28 @@ pub fn open_with(
     runtime
 }
 
+/// How long the first frame of `sample` takes to build and lay out, the least of `tries` (a
+/// busy machine only ever makes one slower).
+pub fn first_frame(
+    sample: &Sample,
+    text: &str,
+    size: (f32, f32),
+    tries: usize,
+) -> std::time::Duration {
+    CURRENT.with(|current| *current.borrow_mut() = Some((sample.build, text.to_string())));
+    (0..tries)
+        .map(|_| {
+            let hosted = Hosted::new((), ThemeSnapshot::emergency(), face());
+            let started = std::time::Instant::now();
+            let runtime = headless(hosted, page, size);
+            let took = started.elapsed();
+            drop(runtime);
+            took
+        })
+        .min()
+        .expect("at least one try")
+}
+
 /// The components whose open state a user reaches by a press or a rest of the pointer.
 fn reveal(runtime: &mut Runtime<Hosted<()>>, name: &str) {
     let (key, rests) = match name {

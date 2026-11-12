@@ -200,12 +200,17 @@ impl<T: 'static> Breadcrumb<T> {
             let words = text(label.clone()).font(text_style(type_style));
             path = path.child(match go {
                 Some(go) => flowed(
-                    words
-                        .color(ink(s.colours.default.foreground))
-                        .link(Link::new(0..label.len(), key.clone()))
-                        .on_link(move |hosted: &mut Hosted<T>, _: &str, _: &mut Tx| {
-                            go(&mut hosted.app)
-                        }),
+                    // Rune shows a link's focus by its hover look; the ring is the component
+                    // tokens', as for every other control (checklist item 11).
+                    style::focus_ring(
+                        words
+                            .color(ink(s.colours.default.foreground))
+                            .link(Link::new(0..label.len(), key.clone()))
+                            .on_link(move |hosted: &mut Hosted<T>, _: &str, _: &mut Tx| {
+                                go(&mut hosted.app)
+                            }),
+                        &s.focus,
+                    ),
                     Flow::End,
                 )
                 .key(key)

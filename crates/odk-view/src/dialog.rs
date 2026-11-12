@@ -122,6 +122,10 @@ impl<T: 'static> Dialog<T> {
     }
 
     /// Draws the dialog into `layers` when it is open.
+    ///
+    /// A menu, select or popover in its content draws into a `layers` of its own and goes after
+    /// the dialog's in the one that `frame` takes, since a later layer draws above an earlier one
+    /// and is what takes the click and Escape first (checklist item 33, `tests/nested.rs`).
     pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) {
         if !self.open {
             return;
