@@ -24,13 +24,13 @@ fn face() -> Face {
 }
 
 fn icons_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../odk-ui/icons/remixicon")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/remixicon")
 }
 
 #[test]
-fn the_icons_are_the_files_odk_ui_ships() {
+fn the_icons_are_the_files_odk_view_ships() {
     let mut shipped: Vec<String> = fs::read_dir(icons_dir())
-        .expect("odk-ui's icons")
+        .expect("odk-view's icons")
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .filter(|name| name.ends_with(".svg"))
         .collect();

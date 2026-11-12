@@ -5,7 +5,7 @@
 //! own. [`Layout`] reads the theme once; its methods are the only way a component or an
 //! application makes a group, and a [`Space`] is the only gap it takes.
 //!
-//! Not carried over from `odk-ui`: a page column is not centred when its parent is wider (Rune
+//! Not carried over from the GPUI version: a page column is not centred when its parent is wider (Rune
 //! has no auto margin), recorded in `docs/checks.md`. A grid with a `wide` cell is rows of equal
 //! columns, since Rune places a cell only in the first row of one grid (`El::grid_cell`).
 
@@ -20,7 +20,7 @@ use crate::style;
 /// `element` as wide as its content and no wider than its column, where a column holds it: a
 /// badge or a status in a stack. Rune's `max_w` takes points, not a share of the parent, so the
 /// element sits in a row, which stretches across a column and lets a `shrink` element narrow
-/// along it (`odk-ui`'s `max_w_full`).
+/// along it (GPUI's `max_w_full`).
 pub(crate) fn inline(element: El) -> El {
     row().shrink().child(element)
 }

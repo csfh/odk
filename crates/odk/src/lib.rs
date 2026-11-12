@@ -11,12 +11,11 @@ pub use odk_db as db;
 #[cfg(feature = "plugin")]
 pub use odk_plugin as plugin;
 pub use odk_theme as theme;
-pub use odk_ui as ui;
-/// The pinned GPUI, for the raw escape hatch (ADR 0004). Applications never depend on `gpui`
-/// themselves, so they cannot end up on a different version.
-pub use odk_ui::gpui;
+/// The interface: components, the host that draws them and follows the user's theme, and the
+/// window (ADR 0089, ADR 0094). It is `odk-view`, on Rune.
+pub use odk_view as ui;
 
 /// What an application needs in scope to write a view.
 pub mod prelude {
-    pub use odk_ui::prelude::*;
+    pub use odk_view::prelude::*;
 }

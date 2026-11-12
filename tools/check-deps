@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks that building any one workspace member reuses exactly the artifacts of a workspace
-build, so switching between `cargo -p` selections never recompiles GPUI.
+build, so switching between `cargo -p` selections never recompiles Rune's tree.
 
 It compares what Cargo actually builds (`cargo build --message-format=json`), because
 `cargo tree` cannot show everything that changes an artifact: a crate used only by build

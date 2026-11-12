@@ -1,36 +1,32 @@
 # ODK component checklist
 
-Normative. Every `odk-ui` component (`odk-ui-components.md`) must pass this checklist. It must not change a decision recorded in an ADR. Items keep their numbers: a new item is added at the end of its group with the next free number, and a removed one leaves a gap, so references such as "fails 11" stay valid.
+Normative. Every `odk-view` component (`odk-ui-components.md`) must pass this checklist. It must not change a decision recorded in an ADR. Items keep their numbers: a new item is added at the end of its group with the next free number, and a removed one leaves a gap, so references such as "fails 11" stay valid.
 
 A component is done when it passes every item below that applies to it. Mark an item that does not apply as such in review rather than skipping it. A component that is built but fails an item is listed under "Known gaps" until it is fixed.
 
 ## How it is tested
 
-The tests live in `crates/odk-ui/src/checklist/`, one module per component plus `source.rs` for the rules every component shares, and run with `cargo test`. Each test names the items it checks.
+The tests live in `crates/odk-view/tests/` (and unit tests beside the code), on Rune's headless runtime: nothing opens a window. They run with `cargo test`; each says which items it checks.
 
-- **Worst-case tests** (`content.rs`) check item 23 in small windows with the worst realistic content (long compounds, unbroken URLs, Japanese, emoji): nothing leaves its box or the window, and no button is pushed out of reach.
-- **Stability tests** (`stability.rs`) check item 32: they measure every part of a component, and its neighbours, by the names components give their parts (`part_name`), then focus, hover, press, select and disable parts one by one and fail on any change in bounds.
-- **Source scans** (`source.rs`) check items 1, 2, 12, 14, 15 (no empty names), 25, 26 and 31 for every component in its `COMPONENTS` list, and fail if a public component is missing from that list; item 28 for every component in its `COMPONENTS` list (the story exists, and a stale Known gaps row for one that has it fails); item 34 for every file in its `ON_COMPONENT_TOKENS` list (the components on component tokens and the helpers they share), including the legacy helpers a component might reach through (`Space::`, `LINE_HEIGHT`, `transition()`, `focus_layer(`, `layer(`); a name such as `t.text.` counts only where it starts and ends, so `layout.text.` and `.redo()` do not.
-- **Behaviour tests** drive each component on GPUI's headless test platform, pressing real keys through the bindings `run` installs. They check items 6–10, 13–17, 20–22 and 33 where they apply. Transitions are followed frame by frame on GPUI's test clock, which a test moves with `advance_clock`, reading how open each overlay was from `overlay::probe`, and item 23 as far as rendering odd content without failing.
-- **Interaction tests** (`interaction.rs`, with the rest of `motion.rs` and `forms.rs`) check items 10, 38 and 39 over several controls at once: a press released elsewhere, a disabled control, a held key, a transition interrupted three ways, and a density, corner or motion change in the middle of use. They are the place to add a control to when it activates.
-- **Performance tests** (`performance.rs`) check items 35 and 36: every component has a sample, a window of each sample, and of all of them together, is not drawn again while idle, and drawing one asks for no further frame. Redraws and frame requests are counted, not timed, so those tests are exact; every request goes through `interaction::request_frame`, which counts them, and a source scan in `source.rs` fails on any other (GPUI's test platform never runs the next frame's callbacks, so a component that asks for a frame at every draw is invisible to a count of redraws). `spinner.rs` holds the one component that moves on its own to a redraw per glyph. Each sample's window, a page of one of each, and all of them together are held to the item 36 thresholds on the least of several draws. How long a frame takes is the benchmarks' to say (`cargo bench -p odk-ui`), and `tools/idle-cpu COMMAND` measures a running program on a real renderer.
-- **Overlays** (`overlays.rs`, `popover.rs`, `menu.rs`, `dialog.rs`, `sheet.rs`, `toast.rs`): dismissal that goes no further, layer order, one callback per request, a live theme change, the toast manager's clocks (`docs/spec/odk-overlays.md`).
-- **By hand**: items 3, 4, 5, 11, 18 (beyond tone marks), 19, 23 (how it looks), 24, 28 and 29 need eyes on the component's story (`stories/`, or a `tools/headless-shot` screenshot of it); item 28 also has a source scan that the story exists.
+- **Source scans** (`source.rs`) check items 1, 2, 14, 34, 40, 41 and 42 and the one-time rules (a doc comment on every public component, every public type exported, a story for every component, the process-wide state that is listed). They read the crate's files, so a literal, a colour worked out, a timing or a corner written into a component fails them.
+- **Generic tests** (`generic.rs`, over the sample registry in `common/mod.rs`, one sample for every public component, which `samples.rs` keeps complete) check, for every component at once: items 3 (a theme change), 4 (dark and light palettes), 9 (one Tab stop), 11 (a ring at every stop), 15 (no empty names), 23 (worst-case content), 32 (no state change moves anything), 35 (idle), 36 (a build budget per sample and a thousand controls) and 37 (the text size).
+- **Behaviour tests**, one file per component or family, drive keys and the pointer through Rune's runtime and read its element list (`Runtime::elements`): items 6 to 10, 13 to 17, 20 and 38 where they apply. `motion.rs` holds items 20 to 22 and 39 over the overlays, a `Switch` and a `Progress`; `nested.rs` item 33.
+- **By hand**: items 5, 18 (beyond tone marks), 19, 24, 28's looks and 29 need eyes on the component's story (`stories/rune/`, or a `tools/headless-shot` screenshot of it).
 
-A known gap is a test marked `#[ignore = "known gap: <item>"]` that calls `assert_known_gap`, which fails unless the table below has a matching row. `cargo test -p odk-ui -- --ignored` runs them; each must fail until its gap is fixed.
+`docs/checks.md` says, for each slice of the port, which items a test covers, which a rule of Rune gives for free or cannot give, and what was broken by hand to see a test fail.
 
 ## Theme
 
 1. Every colour comes from a token. The only literal colour allowed is fully transparent.
 2. Every size, width and duration comes from a token or from a named constant in the component, with a comment saying it is ODK's own (ADR 0035). No unnamed number goes into a style.
-3. Tokens are read inside `render`, so a theme change shows on the next frame.
+3. Tokens are read in the view, so a theme change shows on the next frame.
 4. It looks right in a dark and a light stock theme.
 37. It follows the user's text size (ADR 0043) because every size it draws comes from a token that scales with it; a width fixed on purpose (a dialog's, a toast's) is a named constant. Check it at 9 px and at 20 px text: nothing clips, overlaps or leaves its box. Item 2's source scan finds a size that does not come from a token.
-34. Once it is on component tokens (`docs/plan.md`, "Design language migration", step 7 on), it draws only them: every colour, length, corner radius and duration comes from `odk::ui::components()` and `odk::ui::foundation()`, looked up once per render. It never reads the legacy `tokens()` or the Palette, names a palette colour, computes a colour or a contrast, or has a corner radius of its own (a round part is a `Shape`), and it takes state precedence from `States` (`docs/spec/odk-component-tokens.md`, "Rules for components"). Its hover, press and focus go through `interaction.rs`. Does not apply to a component that has not moved yet.
-40. No colour is worked out where it is drawn (Phase 12). In no file of `odk-ui` outside the store in `theme.rs` does code name the palette, do colour maths (OKLCH, contrast, mixing, alpha) or read a palette colour by name; only `app.rs`, `layout.rs` and `theme.rs` read the theme snapshot, the first two for the window's canvas. Item 34 says the same of the component files; this one covers every file, so a helper cannot become a second resolver. Tested in `checklist/source.rs`.
-41. No timing and no corner is written into a component (Phase 12). A `Duration` is built from a number only in a named constant, and then for a behaviour of the component's own (a typeahead's reset), never for motion, which is `foundation().motion`; no rectangle takes GPUI's named corner sizes (`rounded_md()`, ...), so every corner is the radius token, 0 or 2 px (ADR 0042). A literal radius is also caught by item 2.
-42. No component keeps theme data of its own (Phase 12). Process-wide state (`static`, `thread_local!`, `LazyLock`, `OnceLock`) outside tests and debug builds is the theme store in `theme.rs` and the entries of `PROCESS_STATE` in `checklist/source.rs`, each with what it is; a new one has to be argued for there. A component that needs a theme value reads `components()` or `foundation()` in `render`.
-43. Vertical and horizontal groups are a `Stack` or a `Row` (ADR 0088). In no source file of `odk-ui` outside `stack.rs` (a file's `tests` module and the checklist tests are not scanned) does code call `v_flex(` or `h_flex(`, or name `.flex_col()` or `.flex_row()`, so a group cannot be a third kind of thing. A bare `.flex()` that centres one element in a component's own drawing is not a group and is allowed. Tested in `checklist/source.rs`.
+34. Once it is on component tokens (`docs/plan.md`, "Design language migration", step 7 on), it draws only them: every colour, length, corner radius and duration comes from `odk::ui::components()` and `odk::ui::foundation()`, looked up once per view (`style::paint`). It never reads the Palette, names a palette colour, computes a colour or a contrast, or has a corner radius of its own, and it takes state precedence from `States` (`docs/spec/odk-component-tokens.md`, "Rules for components"). Its ring is `style::focus_ring`. Does not apply to a component that has not moved yet.
+40. No colour is worked out where it is drawn (Phase 12). In no file of `odk-view` outside the host's own (`HOST` in `tests/source.rs`) does code name the palette, do colour maths (OKLCH, contrast, mixing, alpha) or read the theme snapshot. Item 34 says the same of the component files; this one covers every file, so a helper cannot become a second resolver. Tested in `tests/source.rs`.
+41. No timing and no corner is written into a component (Phase 12). A `Duration` is built from a number only in a named constant, and then for a behaviour of the component's own (a typeahead's reset), never for motion, which is `foundation().motion`; no corner takes a number but zero (`.clip_rounded(`, `.rounded(`, `.radius(`), so every corner is the radius token or 0 (ADR 0042). A literal radius is also caught by item 2.
+42. No component keeps theme data of its own (Phase 12). Process-wide state (`static`, `thread_local!`, `LazyLock`, `OnceLock`) outside tests and debug builds is the entries of `PROCESS_STATE` in `tests/source.rs`, each with what it is; a new one has to be argued for there. A component that needs a theme value reads `components()` or `foundation()` in the view.
+43. Not applicable on Rune: a group is `col()` or `row()`, Rune's own primitives, or a `Layout` builder where the gap is a `Space` (ADR 0088 was for GPUI's `v_flex`).
 
 ## States
 
@@ -45,7 +41,7 @@ A known gap is a test marked `#[ignore = "known gap: <item>"]` that calls `asser
 9. Tab stops on it once. A composite control has one tab stop and moves between its items with the arrow keys, Home and End.
 10. Enter and Space activate, and Escape closes whatever it opened.
 11. The focused part shows a ring in `accent.base` (or `text.primary` on an accent fill) without moving anything around it. Once on component tokens, the ring is its style's `focus`: `focus_width` wide, `focus_offset` outside the part, with the part's corner radius.
-12. Every focus change it makes goes through `move_focus`, so the ring redraws.
+12. Not applicable on Rune: Rune owns focus and draws the ring; a component only says what is focusable (and `tests/generic.rs` holds that a ring is drawn at every stop).
 13. An overlay that takes focus moves it in on open and gives it back on close. A modal one keeps Tab inside itself.
 33. An overlay opened from inside a modal one (a `Dialog` or `Sheet`) is drawn above it and works there: it takes clicks and keys, is not cut off by the modal's panel or its scrolling body, and Escape closes it before it closes the modal (ADR 0039).
 38. One completed activation is one callback, and only a completed one: a press released off the control, a key held down (repeating), a disabled control and a busy one report nothing, and the press that closes an overlay goes no further (ADR 0045). Checked over the controls together in `checklist/interaction.rs`.
@@ -66,7 +62,7 @@ A pointer target is at least 24 px on each side (WCAG 2.5.8), or the space aroun
 20. When `motion.reduced` is set, it shows its end state at once and nothing loops.
 21. Anything that disappears runs an exit, and keeps whatever it needs to draw that exit (a sheet keeps its side).
 22. A transition reversed partway starts from where it is, without jumping.
-31. It takes the time from GPUI's clock (`cx.background_executor().now()`), never from `Instant::now()`, so tests can move time on.
+31. It takes the time from Rune's clock (what the poll and a handler are given), never from `Instant::now()`, so tests can move time on.
 39. A transition interrupted by another state change, by a theme change, by reduced motion turned on, or by the component going, ends where the state is and leaves nothing running: no frame is asked for on its behalf afterwards.
 
 ## Content
@@ -81,8 +77,8 @@ A pointer target is at least 24 px on each side (WCAG 2.5.8), or the space aroun
 
 ## Performance
 
-35. A window that shows it with nothing happening to it is never drawn again. GPUI draws the whole window whenever any view in it is dirty, so a component that asks for redraws it does not need makes everything beside it pay. What animates on its own asks for a redraw only while it is in view and only when what it shows changes, with a timer at that moment and not a frame request (`Spinner`; a tween or a transition asks only while it moves); with reduced motion it asks for none.
-36. It has a sample in `samples::SAMPLES` (a representative instance, as many as make a window busy with it), and so a benchmark in `crates/odk-ui/benches/frame.rs`. A window busy with its sample, and a page with one of every component, are drawn from scratch within 4 ms, a quarter of a 60 Hz frame; all the components together cost at most three times what they cost apart, and at most 100 ms for about a thousand controls. Each is tested, in debug builds as in release. A component's own cost is its element count and the state it owns: keep both low, and share a handle rather than cloning an `Entity` into every listener of every frame.
+35. A window that shows it with nothing happening to it is never drawn again. Rune draws a frame only when something is dirty or woken, so a component that asks for wakes it does not need makes the window pay. What animates on its own asks for a redraw only while it is in view and only when what it shows changes, with one `Tx::wake_after` at that moment (`Spinner`'s poll; a transition asks only while it moves); with reduced motion it asks for none.
+36. It has a sample in `tests/common/mod.rs`'s `SAMPLES` (a representative instance), which `tests/samples.rs` keeps complete. A window busy with its sample is built and laid out from scratch within 4 ms, a quarter of a 60 Hz frame, and about a thousand controls within 100 ms (`DRAW_BUDGET_MS` loosens the first on a busy machine). A component's own cost is its element count and the state it owns: keep both low.
 
 ## Proof
 
@@ -97,42 +93,6 @@ Where built components fail the checklist, by item number. Remove a line when it
 
 | Component | Fails | What is wrong |
 |---|---|---|
-| `Alert` | 28 | No story: `stories/alert.rs`, a `[[bin]]` of the `stories` crate. |
-| `Badge` | 28 | No story: `stories/badge.rs`, a `[[bin]]` of the `stories` crate. |
-| `Breadcrumb` | 28 | No story: `stories/breadcrumb.rs`, a `[[bin]]` of the `stories` crate. |
-| `Chart` | 28 | No story: `stories/chart.rs`, a `[[bin]]` of the `stories` crate. |
-| `Checkbox` | 23 | An Arabic label is drawn below the box, clipped at the window's left edge, with a stray tick beside the column (`stories/checkbox.rs`, "Worst case"); a long label, an unbreakable word and Japanese wrap correctly. A bare `Text` with the same string wraps correctly in the same column, so it is the row `Checkbox` and `Switch` share (`toggle.rs`, `labelled`), not `Text`. |
-| `Command` | 28 | No story: `stories/command.rs`, a `[[bin]]` of the `stories` crate. |
-| `DataTable` | 28 | No story: `stories/data_table.rs`, a `[[bin]]` of the `stories` crate. |
-| `ContextMenu` | 28 | No story: `stories/context_menu.rs`, a `[[bin]]` of the `stories` crate. |
-| `Dialog` | 28 | No story: `stories/dialog.rs`, a `[[bin]]` of the `stories` crate. |
-| `Empty` | 28 | No story: `stories/empty.rs`, a `[[bin]]` of the `stories` crate. |
-| `DropdownMenu` | 28 | No story: `stories/dropdown_menu.rs`, a `[[bin]]` of the `stories` crate. |
-| `FormField` | 28 | No story: `stories/form_field.rs`, a `[[bin]]` of the `stories` crate. |
-| `Heading` | 28 | No story: `stories/heading.rs`, a `[[bin]]` of the `stories` crate. |
-| `HoverCard` | 28 | No story: `stories/hover_card.rs`, a `[[bin]]` of the `stories` crate. |
-| `Image` | 28 | No story: `stories/image.rs`, a `[[bin]]` of the `stories` crate. |
-| `Input` | 28 | No story: `stories/input.rs`, a `[[bin]]` of the `stories` crate. |
-| `InputGroup` | 28 | No story: `stories/input_group.rs`, a `[[bin]]` of the `stories` crate. |
-| `Item` | 28 | No story: `stories/item.rs`, a `[[bin]]` of the `stories` crate. |
-| `NavList` | 28 | No story: `stories/nav_list.rs`, a `[[bin]]` of the `stories` crate. |
-| `NumberInput` | 28 | No story: `stories/number_input.rs`, a `[[bin]]` of the `stories` crate. |
-| `PasswordInput` | 28 | No story: `stories/password_input.rs`, a `[[bin]]` of the `stories` crate. |
-| `Popover` | 28 | No story: `stories/popover.rs`, a `[[bin]]` of the `stories` crate. |
-| `Progress` | 28 | No story: `stories/progress.rs`, a `[[bin]]` of the `stories` crate. |
-| `RadioGroup` | 28 | No story: `stories/radio_group.rs`, a `[[bin]]` of the `stories` crate. |
-| `Resizable` | 28 | No story: `stories/resizable.rs`, a `[[bin]]` of the `stories` crate. |
-| `SearchInput` | 28 | No story: `stories/search_input.rs`, a `[[bin]]` of the `stories` crate. |
-| `Select` | 28 | No story: `stories/select.rs`, a `[[bin]]` of the `stories` crate. |
-| `Separator` | 28 | No story: `stories/separator.rs`, a `[[bin]]` of the `stories` crate. |
-| `Sheet` | 28 | No story: `stories/sheet.rs`, a `[[bin]]` of the `stories` crate. |
-| `Skeleton` | 28 | No story: `stories/skeleton.rs`, a `[[bin]]` of the `stories` crate. |
-| `Spinner` | 28 | No story: `stories/spinner.rs`, a `[[bin]]` of the `stories` crate. |
-| `StatusIndicator` | 28 | No story: `stories/status_indicator.rs`, a `[[bin]]` of the `stories` crate. |
-| `Switch` | 23 | The same as `Checkbox`: an Arabic label is drawn below the track, clipped at the window's left edge (`stories/switch.rs`, "Worst case"), through the shared `labelled` row in `toggle.rs`. |
-| `Tabs` | 28 | No story: `stories/tabs.rs`, a `[[bin]]` of the `stories` crate. |
-| `Text` | 28 | No story: `stories/text.rs`, a `[[bin]]` of the `stories` crate. |
-| `Textarea` | 28 | No story: `stories/textarea.rs`, a `[[bin]]` of the `stories` crate. |
-| `Toast` | 28 | No story: `stories/toast.rs`, a `[[bin]]` of the `stories` crate. |
-| `ToggleGroup` | 23 | Seven options in a 260 px column are drawn past the group's frame instead of truncating or wrapping (`stories/toggle_group.rs`, "Worst case"); two long labels truncate with `…` correctly. A short Arabic option is also cut to `العر…` while the group has room. |
-| `Tooltip` | 28 | No story: `stories/tooltip.rs`, a `[[bin]]` of the `stories` crate. |
+| `Checkbox` | 23 | An Arabic label is not checked on Rune: the worst-case strings of `generic.rs` are Latin, Japanese and emoji. The GPUI version drew it below the box, clipped. |
+| `Switch` | 23 | The same as `Checkbox`. |
+| `ToggleGroup` | 23 | The same as `Checkbox`, and seven options in a 260 px column are not checked on Rune either. |

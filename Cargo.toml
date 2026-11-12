@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-ui", "crates/odk-db", "crates/odk-plugin", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "crates/odk-view", "stories"]
+members = ["crates/oma", "crates/odk", "crates/odk-theme", "crates/odk-a11y", "crates/odk-db", "crates/odk-plugin", "crates/odkd", "crates/odk-cli", "crates/oma-consent", "crates/deps", "crates/odk-view", "stories"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -13,32 +13,24 @@ license = "MIT"
 odk = { path = "crates/odk" }
 odk-theme = { path = "crates/odk-theme" }
 odk-a11y = { path = "crates/odk-a11y" }
-odk-ui = { path = "crates/odk-ui" }
 odk-view = { path = "crates/odk-view" }
 odk-db = { path = "crates/odk-db" }
 odk-plugin = { path = "crates/odk-plugin" }
 # Luau through `mlua` (ADR 0091). The one Luau binding, in `odk-plugin` only.
 mlua = { version = "0.12.2", features = ["luau"] }
 deps = { path = "crates/deps" }
-# Exact pin, ADR 0029. Bump deliberately and test; GPUI breaks in minor releases.
-gpui = "=0.2.2"
 # Git revision, ADR 0089. The spike checked `dev` at 7ead7d6. Default features stay off.
 rune = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b", default-features = false, features = ["accessibility"] }
 
-# GPUI, taffy and the text stack do all of a frame's layout and painting. Unoptimised they are an
-# order of magnitude slower, which made running a GPUI program unusable (docs/checks.md, "Frame cost").
-# Dependencies are compiled once and then cached, so only the first build pays for it; the
-# workspace's own crates stay at opt-level 1 for fast rebuilds and still-readable backtraces.
+# Rune's layout, text and painting and the crates under them are slow unoptimised, which made
+# running a program unusable (docs/checks.md, "Frame cost"). Dependencies are compiled once and
+# then cached, so only the first build pays for it; the workspace's own crates stay at opt-level 1
+# for fast rebuilds and still-readable backtraces.
 [profile.dev]
 opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
-
-# gpui 0.2.2 does not compile on Linux without this; see patches/README.md and ADR 0029.
-[patch.crates-io]
-xattr = { path = "patches/xattr" }
-gpui = { path = "patches/gpui" }
 
 # Every member depends on `deps` so shared crates resolve one feature set (see crates/deps).
 # The dependency is named only in Cargo.toml, which cargo-machete treats as unused.

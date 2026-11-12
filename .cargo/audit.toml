@@ -10,7 +10,7 @@
 # is `["yanked"]`; without that, cargo-audit only warns about a yank.
 # Unmaintained, unsound and notice advisories stay warnings: `informational_warnings`
 # is left unset (cargo-audit's default reports all three) and they are not in `deny`.
-# The warnings in this tree come through the pinned GPUI (ADR 0029) and stay visible.
+# The warnings in this tree come through Rune's dependencies and stay visible.
 #
 # `ignore` is a list of advisory ids. It can accept a vulnerability, or an
 # informational advisory, until it can be fixed. It does not silence a yank:

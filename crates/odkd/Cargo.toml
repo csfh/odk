@@ -8,7 +8,7 @@ description = "Tells every ODK application what the host says: reduced motion, t
 
 [dependencies]
 deps.workspace = true
-# The portal client GPUI already brings, with the same features (ADR 0068), so a build of
+# The portal client, with the features the rest of the tree uses (ADR 0068), so a build of
 # odkd alone reuses the workspace's; `wayland` is unused here.
 ashpd = { version = "0.11", default-features = false, features = ["async-std", "wayland"] }
 async-channel = "2"
