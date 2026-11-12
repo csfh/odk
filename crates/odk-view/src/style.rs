@@ -118,4 +118,66 @@ mod tests {
             assert_eq!(mono, role == TypeRole::Mono, "{role:?}");
         }
     }
+
+    /// Item 11: a ring is the token's width, offset and colour, outside the part, with the part's
+    /// corner grown by what it stands off and is wide, and it moves nothing.
+    #[test]
+    fn a_focus_ring_is_the_tokens_width_offset_and_colour_outside_the_part() {
+        use crate::host::{Hosted, headless};
+        use rune::{Cx, Key, KeyEvent, el};
+
+        fn view(_: &Hosted<()>, _: &mut Cx<Hosted<()>>) -> El {
+            let ring = FocusRing {
+                colour: odk_theme::Color::from_rgba8([0x3b, 0x82, 0xf6, 0xff]),
+                width: 2.0,
+                offset: 1.5,
+            };
+            rune::col().padding(20.0).items_start().child(focus_ring(
+                el().key("part")
+                    .size(40.0, 20.0)
+                    .radius(6.0)
+                    .fill(ink(odk_theme::Color::from_rgba8([0x20, 0x20, 0x20, 0xff])))
+                    .focusable(true),
+                &ring,
+            ))
+        }
+        let mut runtime = headless(
+            Hosted::new((), ThemeSnapshot::emergency(), crate::face::Face::bundled()),
+            view,
+            (200.0, 100.0),
+        );
+        runtime.set_tab_visits_controls(true);
+        let rings = |rt: &rune::Runtime<Hosted<()>>| {
+            rt.instances
+                .iter()
+                .filter(|i| i.fill[3] == 0.0 && i.border[3] > 0.0 && i.params[0] > 0.0)
+                .map(|i| (i.rect, i.params[0], i.radii[0]))
+                .collect::<Vec<_>>()
+        };
+        runtime.frame(0.0);
+        assert!(
+            rings(&runtime).is_empty(),
+            "no ring before the keyboard has focus"
+        );
+        let at_rest = runtime.find("part").expect("the part");
+        runtime.key(KeyEvent::from(Key::Tab));
+        for _ in 0..30 {
+            runtime.frame(1.0 / 60.0);
+        }
+        let drawn = rings(&runtime);
+        assert_eq!(drawn.len(), 1, "one ring: {drawn:?}");
+        let (rect, width, radius) = drawn[0];
+        let out = 2.0 + 1.5;
+        assert_eq!(
+            rect,
+            [20.0 - out, 20.0 - out, 40.0 + 2.0 * out, 20.0 + 2.0 * out]
+        );
+        assert_eq!(width, 2.0, "token width");
+        assert_eq!(radius, 6.0 + out, "the part's corner, grown");
+        assert_eq!(
+            runtime.find("part"),
+            Some(at_rest),
+            "and the part has not moved"
+        );
+    }
 }
