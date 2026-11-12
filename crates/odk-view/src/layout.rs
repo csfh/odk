@@ -6,13 +6,15 @@
 //! application makes a group, and a [`Space`] is the only gap it takes.
 //!
 //! Not carried over from `odk-ui`: a page column is not centred when its parent is wider (Rune
-//! has no auto margin), and a grid has no `wide` cell, since Rune places a cell only in the
-//! first row (`El::grid_cell`). Both are recorded in `docs/checks.md`.
+//! has no auto margin), recorded in `docs/checks.md`. A grid with a `wide` cell is rows of equal
+//! columns, since Rune places a cell only in the first row of one grid (`El::grid_cell`).
 
+use odk_theme::component::SidebarStyle;
 use odk_theme::foundation::{LayoutTokens, SpacingTokens};
-use rune::{Cx, El, col, row};
+use rune::{Cx, El, col, el, row};
 
 use crate::host::Hosted;
+use crate::ink::ink;
 use crate::style;
 
 /// `element` as wide as its content and no wider than its column, where a column holds it: a
@@ -38,6 +40,66 @@ pub enum Space {
 pub struct Layout {
     spacing: SpacingTokens,
     layout: LayoutTokens,
+    sidebar: SidebarStyle,
+}
+
+/// A cell of a grid: in the next column, or `wide`, on a row of its own across every column, such
+/// as a chart or a table that needs the room.
+pub struct Cell {
+    element: El,
+    wide: bool,
+}
+
+impl Cell {
+    pub fn new(element: El) -> Self {
+        Self {
+            element,
+            wide: false,
+        }
+    }
+
+    pub fn wide(element: El) -> Self {
+        Self {
+            element,
+            wide: true,
+        }
+    }
+}
+
+impl From<El> for Cell {
+    fn from(element: El) -> Self {
+        Self::new(element)
+    }
+}
+
+/// A page's column that holds a grid, with the count of columns the grid gets: see
+/// [`Layout::content_column`].
+pub struct ContentColumn {
+    columns: u16,
+    outer: El,
+    inner: El,
+}
+
+impl ContentColumn {
+    /// How many columns the grid in this column gets.
+    pub fn columns(&self) -> u16 {
+        self.columns
+    }
+
+    /// A child of the column.
+    pub fn child(mut self, child: El) -> Self {
+        self.inner = self.inner.child(child);
+        self
+    }
+
+    pub fn children(mut self, children: impl IntoIterator<Item = El>) -> Self {
+        self.inner = self.inner.children(children);
+        self
+    }
+
+    pub fn into_el(self) -> El {
+        self.outer.child(self.inner)
+    }
 }
 
 impl Layout {
@@ -48,6 +110,7 @@ impl Layout {
         Self {
             spacing: foundation.spacing.clone(),
             layout: foundation.layout.clone(),
+            sidebar: paint.tokens.sidebar(),
         }
     }
 
@@ -70,6 +133,34 @@ impl Layout {
     /// Elements side by side and centred across, `gap` apart.
     pub fn row(&self, gap: Space) -> El {
         row().center_y().gap(self.space(gap))
+    }
+
+    /// Elements side by side, as tall as the tallest, `gap` apart: the frame of a sidebar and its
+    /// content, whose two parts fill the height. A plain [`Self::row`] centres across instead.
+    pub fn row_stretch(&self, gap: Space) -> El {
+        row().items_stretch().gap(self.space(gap))
+    }
+
+    /// The frame of an application with a sidebar: the sidebar at the foundation's width on the
+    /// recessed surface with its content inset by the sidebar padding, a line, and the content
+    /// taking the rest. It fills its parent, so put it where the page goes.
+    pub fn sidebar(&self, sidebar: El, content: El) -> El {
+        let s = &self.sidebar;
+        row()
+            .key("odk-sidebar-frame")
+            .w_full()
+            .h_full()
+            .items_stretch()
+            .child(
+                col()
+                    .key("odk-sidebar")
+                    .w(s.width)
+                    .padding(s.padding)
+                    .fill(ink(s.surface))
+                    .child(sidebar),
+            )
+            .child(el().w(s.rule_width).fill(ink(s.rule)))
+            .child(col().grow(1.0).min_w(0.0).child(content))
     }
 
     /// A page's column: as wide as its parent up to the foundation's content width, with the
@@ -112,6 +203,74 @@ impl Layout {
             .equal_columns(usize::from(columns))
             .gap(gap)
             .children(cells)
+    }
+
+    /// [`Self::grid`] for cells some of which are [`Cell::wide`]: rows of `columns` equal cells,
+    /// and each wide cell on a row of its own across them. `columns` is what the page's
+    /// [`ContentColumn`] gave, or any count.
+    pub fn grid_of(&self, key: &str, columns: u16, cells: impl IntoIterator<Item = Cell>) -> El {
+        let gap = self.layout.section_gap;
+        let columns = usize::from(columns.max(1));
+        let mut rows = col().key(key).w_full().gap(gap);
+        let mut open: Vec<El> = Vec::new();
+        let close = |rows: El, open: &mut Vec<El>| {
+            if open.is_empty() {
+                return rows;
+            }
+            rows.child(
+                row()
+                    .w_full()
+                    .equal_columns(columns)
+                    .gap(gap)
+                    .children(std::mem::take(open)),
+            )
+        };
+        for cell in cells {
+            if cell.wide {
+                rows = close(rows, &mut open);
+                rows = rows.child(row().w_full().child(cell.element.w_full()));
+            } else {
+                open.push(cell.element);
+                if open.len() == columns {
+                    rows = close(rows, &mut open);
+                }
+            }
+        }
+        close(rows, &mut open)
+    }
+
+    /// A page's column for a grid of `cells` cells (those that are not wide) in up to
+    /// `max_columns` columns: as wide as its parent up to the foundation's content width, and once
+    /// its parent has room for two of the grid's columns, up to the wide content width, so a page
+    /// of groups sits two side by side on a wide window and one under another on a narrow one.
+    /// `key` names it, and the count follows the width Rune measured on the last layout, so the
+    /// view runs again when the count changes and not on every pixel of a resize.
+    pub fn content_column<T: 'static>(
+        &self,
+        cx: &Cx<Hosted<T>>,
+        key: &str,
+        max_columns: u16,
+        cells: usize,
+    ) -> ContentColumn {
+        let (column, gap) = (self.layout.grid_column_width, self.layout.section_gap);
+        let padding = self.layout.panel_padding;
+        let columns = cx
+            .layout_with(key, move |r| {
+                grid_columns(r[2] - 2.0 * padding, column, gap, max_columns, cells)
+            })
+            .unwrap_or(1);
+        let inner = if columns >= 2 {
+            self.wide_page()
+        } else {
+            self.page()
+        };
+        // The outer element is the room the parent gives; the inner one is what the page takes of
+        // it. The count is read from the outer one, so a page at its narrow width can still grow.
+        ContentColumn {
+            columns,
+            outer: col().key(key).w_full(),
+            inner,
+        }
     }
 }
 
