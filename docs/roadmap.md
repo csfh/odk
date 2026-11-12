@@ -66,7 +66,7 @@ Each component brings its `stories/rune/<name>.rs` in the same pull request (the
 2. The provisional values in `docs/plan.md`'s "Open questions": `Size` as a density step, the keyboard-only focus ring, `motion.cycle`, the status dot and progress bar sizes, focus offset, thumb gap. Settle each, or keep it knowingly.
 3. Visual regression with `tools/headless-shot` baselines, since it is by eye now.
 4. The figures "not measured": memory, overlay opening and theme-watch latency; `cargo bench` and `tools/idle-cpu` against the story budgets on the Rune stories.
-5. `cargo audit` was run by hand on 2026-11-11 (0 vulnerabilities; the one yanked crate is fixed; the warnings are in `docs/checks.md`). `cargo deny` and `cargo udeps` are not installed here and have never been run.
+5. `cargo audit` was run by hand on 2026-11-11 (0 vulnerabilities; the one yanked crate is fixed; the warnings are in `docs/checks.md`). **Decided by the owner on 2026-11-12: `cargo deny` and `cargo udeps` are not run for v1**; `cargo audit` and `cargo machete` are enough. `cargo deny` would add a policy for licences, duplicate crates and sources (the Rune git dependency); `cargo udeps` needs a nightly toolchain and does a heavier `cargo machete`. Either can come later.
 6. ~~Rename `Alert::variant` and `Toast::variant`~~ done on 2026-11-12: both are `tone(Tone)` now, as `Badge::tone` is (`docs/migration.md` has the line).
 
 ## Track E: Plugins (in v1, the owner, 2026-11-11; parallel with A)
