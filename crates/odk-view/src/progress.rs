@@ -131,7 +131,7 @@ impl Progress {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let role = if self.paused {
             semantic::Role::Neutral
         } else {

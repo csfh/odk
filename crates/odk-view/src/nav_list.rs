@@ -159,7 +159,7 @@ impl<T: 'static> NavList<T> {
 
     pub fn show(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let density = paint.tokens.density(self.density);
         let list = paint.tokens.nav_list(density);
         let current = self

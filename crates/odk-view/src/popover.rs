@@ -117,7 +117,7 @@ impl<T: 'static> Popover<T> {
     /// `trigger` with its popover: the open panel is added to `layers`.
     pub fn wrap(self, hosted: &Hosted<T>, trigger: El, layers: &mut Vec<El>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.popover();
         let g = s.geometry;
         let open = self

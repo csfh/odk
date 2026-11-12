@@ -8,7 +8,6 @@ use crate::input::Input;
 use crate::style::{self, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
-use odk_theme::foundation::Density;
 use rune::{El, row, text};
 
 type Action<T> = Box<dyn FnOnce(&Hosted<T>) -> El>;
@@ -149,9 +148,9 @@ where
             on_change,
             on_submit,
         } = self;
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let field = paint.tokens.field(
-            Density::Default,
+            paint.tokens.density(None),
             States::NONE.disabled(disabled).invalid(invalid),
         );
         let limit = paint.px(width) * ADDON_SHARE;

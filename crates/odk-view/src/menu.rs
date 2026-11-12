@@ -19,7 +19,6 @@ use crate::style::{self, focus_ring, inset_focus_ring};
 use crate::text::{Flow, words};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::{ButtonVariant, States};
-use odk_theme::foundation::Density;
 use rune::{El, Key, KeyEvent, PointerPress, Tx, col, row, spacer};
 
 /// The narrowest a menu is, in points at the base text size. ODK's own.
@@ -255,7 +254,7 @@ impl<T: 'static> DropdownMenu<T> {
             && !self.disabled
             && let Some(menu) = self.menu
         {
-            let gap = style::paint(hosted.theme()).tokens.foundation().spacing.s1;
+            let gap = style::paint(hosted).tokens.foundation().spacing.s1;
             let hosted_ask: HostedChange<T> =
                 Rc::new(move |h: &mut Hosted<T>, open| ask(&mut h.app, open));
             layers.push(
@@ -293,7 +292,7 @@ fn surface<T: 'static>(
     menu: Menu<T>,
     ask: &HostedChange<T>,
 ) -> El {
-    let paint = style::paint(hosted.theme());
+    let paint = style::paint(hosted);
     let s = paint.tokens.menu();
     let g = s.geometry;
     let accessible = Accessible::new(Role::Menu, name);
@@ -339,9 +338,11 @@ fn item_row<T: 'static>(
     let accessible = item_accessible(&item);
     let states = States::NONE.disabled(item.disabled);
     let chosen = item.radio.or(item.checked) == Some(true);
-    let s = paint
-        .tokens
-        .menu_item(Density::Default, states.selected(chosen), item.danger);
+    let s = paint.tokens.menu_item(
+        paint.tokens.density(None),
+        states.selected(chosen),
+        item.danger,
+    );
     let g = s.geometry;
     let colour = s.colours.default.foreground;
     let mut content = row().center_y().gap(g.gap).grow(1.0);
@@ -432,7 +433,7 @@ impl<T: 'static> ContextMenu<T> {
 
     /// The trigger, with the open menu drawn into `layers`.
     pub fn show(self, hosted: &Hosted<T>, layers: &mut Vec<El>) -> El {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let open = hosted.ui.is_open(&self.id, false);
         let id = self.id.clone();
         let ring = paint.tokens.trigger_focus();
@@ -486,7 +487,7 @@ pub(crate) fn below_trigger<T: 'static>(
     if !hosted.ui.is_open(id, false) {
         return;
     }
-    let gap = style::paint(hosted.theme()).tokens.foundation().spacing.s1;
+    let gap = style::paint(hosted).tokens.foundation().spacing.s1;
     let key = id.to_string();
     let ask: HostedChange<T> = Rc::new(move |h: &mut Hosted<T>, open| h.ui.set_open(&key, open));
     let close = ask.clone();

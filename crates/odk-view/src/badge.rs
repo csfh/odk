@@ -100,7 +100,7 @@ impl Badge {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.badge(self.appearance);
         let g = s.geometry;
         let mut badge = apply(row(), &accessible)

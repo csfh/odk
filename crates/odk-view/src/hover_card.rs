@@ -60,7 +60,7 @@ impl HoverCard {
     /// `trigger` with its card: the open card is added to `layers`.
     pub fn wrap<T: 'static>(self, hosted: &Hosted<T>, trigger: El, layers: &mut Vec<El>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.popover();
         let g = s.geometry;
         let mut panel = apply(col(), &accessible)

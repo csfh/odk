@@ -139,7 +139,7 @@ impl Text {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let style = if self.mono {
             paint.tokens.text_mono(self.muted)
         } else {
@@ -186,7 +186,7 @@ impl Heading {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let style = paint.tokens.heading(self.level);
         prose(
             &paint,

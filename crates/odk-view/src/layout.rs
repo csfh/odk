@@ -43,7 +43,7 @@ pub struct Layout {
 impl Layout {
     /// The window's spacing. This is a read of the theme, so it is made once per view.
     pub fn of<T>(hosted: &Hosted<T>) -> Self {
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let foundation = paint.tokens.foundation();
         Self {
             spacing: foundation.spacing.clone(),

@@ -58,7 +58,7 @@ impl Tooltip {
     /// `trigger` with its tooltip: the open tooltip is added to `layers`.
     pub fn wrap<T: 'static>(self, hosted: &Hosted<T>, trigger: El, layers: &mut Vec<El>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.tooltip();
         let g = s.geometry;
         let panel = apply(col(), &accessible)

@@ -12,7 +12,6 @@ use crate::ink::ink;
 use crate::style::{self, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
-use odk_theme::foundation::Density;
 use rune::{El, Key, KeyEvent, PointerButton, Tx, auto_grow, col, edit_access, row, text_input};
 
 /// The most rows a field of rows grows to when it is given no limit.
@@ -219,11 +218,13 @@ impl<C, S> Input<C, S> {
             hosted.ui.note_input_selection(&id);
         }
         let edit = hosted.ui.input_edit_clone(&id);
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let states = States::NONE.disabled(disabled).invalid(invalid);
         let field = match rows {
-            Some((rows, _)) => paint.tokens.textarea(Density::Default, rows, states),
-            None => paint.tokens.field(Density::Default, states),
+            Some((rows, _)) => paint
+                .tokens
+                .textarea(paint.tokens.density(None), rows, states),
+            None => paint.tokens.field(paint.tokens.density(None), states),
         };
         let multiline = rows.is_some();
         let width = paint.px(width);

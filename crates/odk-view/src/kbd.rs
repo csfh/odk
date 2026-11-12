@@ -29,7 +29,7 @@ impl Kbd {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let kbd = paint.tokens.kbd();
         let geometry = kbd.geometry;
         let caps = self.keys.into_iter().map(|key| {

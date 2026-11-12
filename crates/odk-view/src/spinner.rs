@@ -56,7 +56,7 @@ impl Spinner {
 
     pub fn show<T>(self, hosted: &Hosted<T>) -> El {
         let accessible = self.accessible();
-        let paint = style::paint(hosted.theme());
+        let paint = style::paint(hosted);
         let s = paint.tokens.spinner(paint.tokens.density(self.density));
         let size = s.size;
         let shown = if animates(s.still, s.turn) {
@@ -112,7 +112,7 @@ pub(crate) fn turn<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool {
     if !hosted.ui.spinning() {
         return false;
     }
-    let paint = style::paint(hosted.theme());
+    let paint = style::paint(hosted);
     let s = paint.tokens.spinner(paint.tokens.density(None));
     if !animates(s.still, s.turn) {
         return false;

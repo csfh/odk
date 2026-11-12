@@ -39,7 +39,7 @@ fn face() -> Face {
 
 /// Open the story's window on the user's theme, and return when it closes.
 pub fn run<T: 'static>(app: T, view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El) {
-    if let Err(error) = odk_view::run(app, Some(face()), view, WINDOW) {
+    if let Err(error) = odk_view::run(app, odk_view::WindowConfig::new(WINDOW).face(face()), view) {
         eprintln!("odk-view: {error}");
         std::process::exit(1);
     }

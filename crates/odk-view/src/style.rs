@@ -16,10 +16,17 @@ pub(crate) struct Paint {
     pub body: TypeStyle,
 }
 
-pub(crate) fn paint(theme: &ThemeSnapshot) -> Paint {
+/// The tokens a host draws with: its theme's colours and text size, and its own foundation
+/// settings (density, corners, the application's choice of reduced motion) with the user's request
+/// for reduced motion added.
+pub(crate) fn paint<T>(hosted: &crate::host::Hosted<T>) -> Paint {
+    paint_for(hosted.theme(), hosted.config())
+}
+
+pub(crate) fn paint_for(theme: &ThemeSnapshot, config: &FoundationConfig) -> Paint {
     let config = FoundationConfig {
-        reduced_motion: theme.reduced_motion,
-        ..FoundationConfig::default()
+        reduced_motion: theme.reduced_motion || config.reduced_motion,
+        ..config.clone()
     };
     let foundation = FoundationTokens::scaled(&config, theme.text);
     let button = foundation.typography.style(TypeRole::Button);
