@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR 0097
 ---
 
 # A Bundle file is browsed as a disk image, through udisks

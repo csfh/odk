@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs odk for the user who runs it (ADR 0063, ADR 0086): the `odk` command, the programs
 # behind it, and the `odkd` daemon with its systemd user units, and the `.oma` file type
-# (ADR 0065). No root, nothing outside the home directory.
+# (ADR 0065) with its handler (ADR 0097). No root, nothing outside the home directory.
 #
 #   curl --proto '=https' --tlsv1.2 -fsS -o install.sh https://odk.csfh.dev/install.sh
 #   curl --proto '=https' --tlsv1.2 -fsS -o install.sh.sig https://odk.csfh.dev/install.sh.sig
@@ -20,6 +20,9 @@
 #                   ${XDG_CONFIG_HOME:-~/.config}/systemd/user/{odkd.socket,odkd-files.socket,odkd.service,
 #                       oma-register.service,oma-applications.path,oma-inbox@.path}
 #                   ${XDG_DATA_HOME:-~/.local/share}/mime/packages/oma.xml
+#                   ${XDG_DATA_HOME:-~/.local/share}/applications/odk-oma.desktop, which runs a
+#                       .oma file, and is made the default for the type in
+#                       ${XDG_CONFIG_HOME:-~/.config}/mimeapps.list (ADR 0097)
 #                   ${XDG_DATA_HOME:-~/.local/share}/doc/odk/{LICENSE,THIRD-PARTY-LICENSES}
 #                   ${XDG_DATA_HOME:-~/.local/share}/oma/runtime.toml, the release installed
 #
@@ -42,7 +45,7 @@ die() { printf 'odk install: %s\n' "$*" >&2; exit 1; }
 while [ $# -gt 0 ]; do
     case $1 in
         --uninstall) action=uninstall ;;
-        --help | -h) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help | -h) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option '$1' (try --help)" ;;
     esac
     shift
@@ -59,7 +62,9 @@ case ${XDG_CONFIG_HOME:-} in /*) config=$XDG_CONFIG_HOME ;; *) config=$HOME/.con
 units=$config/systemd/user
 case ${XDG_DATA_HOME:-} in /*) data=$XDG_DATA_HOME ;; *) data=$HOME/.local/share ;; esac
 mime=$data/mime
+apps=$data/applications
 receipt=$data/oma/runtime.toml
+default_line='application/x-oma=odk-oma.desktop'
 
 # The file type is known to the desktop once its database is rebuilt. Without the tool the
 # type is in place for when it is there.
@@ -69,6 +74,51 @@ refresh_types() {
     else
         say "note: update-mime-database (shared-mime-info) is not installed, so .oma files are not recognised yet"
     fi
+}
+
+# The desktop's list of handlers is rebuilt when the tool is there. A handler is found by its
+# file all the same, so a missing tool is a note and not a failure.
+refresh_apps() {
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$apps" || say "note: update-desktop-database failed; the handler may not be listed yet"
+    else
+        say "note: update-desktop-database (desktop-file-utils) is not installed; the handler is found by its file"
+    fi
+}
+
+# Makes the handler the default for a .oma file: the line is put first under [Default Applications]
+# in mimeapps.list, in place of any other default for the type, and the rest of the file is kept.
+set_default() {
+    list=$config/mimeapps.list
+    mkdir -p "$config"
+    if [ -f "$list" ]; then
+        awk -v line="$default_line" '
+            /^\[.*\]$/ { sect = $0 }
+            sect == "[Default Applications]" && index($0, "application/x-oma=") == 1 { next }
+            { print }
+            $0 == "[Default Applications]" { print line; done = 1 }
+            END { if (!done) printf "[Default Applications]\n%s\n", line }
+        ' "$list" >"$list.new.$$"
+    else
+        printf '[Default Applications]\n%s\n' "$default_line" >"$list.new.$$"
+    fi
+    mv -f "$list.new.$$" "$list"
+    say "made $apps/odk-oma.desktop the default for .oma files in $list"
+}
+
+# Takes the line out again if it is the one this script wrote, and the file with it when nothing
+# else is left in it.
+drop_default() {
+    list=$config/mimeapps.list
+    [ -f "$list" ] || return 0
+    grep -qxF "$default_line" "$list" || return 0
+    grep -vxF "$default_line" "$list" >"$list.new.$$" || true
+    if grep -qv '^\[.*\]$\|^[[:space:]]*$' "$list.new.$$"; then
+        mv -f "$list.new.$$" "$list"
+    else
+        rm -f "$list.new.$$" "$list"
+    fi
+    say "removed the default for .oma files from $list"
 }
 
 # A user manager is there when it answers. Over ssh with no session bus it does not.
@@ -97,7 +147,8 @@ if [ "$action" = uninstall ]; then
     for file in "$bin/odk" "$lib/odk-oma" "$lib/oma-consent" "$lib/odkd" \
         "$units/odkd.socket" "$units/odkd-files.socket" "$units/odkd.service" \
         "$units/oma-register.service" "$units/oma-applications.path" "$units/oma-inbox@.path" \
-        "$mime/packages/oma.xml" "$data/doc/odk/LICENSE" "$data/doc/odk/THIRD-PARTY-LICENSES"; do
+        "$mime/packages/oma.xml" "$apps/odk-oma.desktop" \
+        "$data/doc/odk/LICENSE" "$data/doc/odk/THIRD-PARTY-LICENSES"; do
         if [ -e "$file" ]; then
             rm -f "$file"
             say "removed $file"
@@ -106,11 +157,18 @@ if [ "$action" = uninstall ]; then
     rmdir "$lib" "$data/doc/odk" 2>/dev/null || true
     if have_user_manager; then systemctl --user daemon-reload || true; fi
     if [ -d "$mime/packages" ]; then refresh_types; fi
+    drop_default
+    if [ -d "$apps" ]; then refresh_apps; fi
     say "done; application data under ~/.local/share/oma, and the record of the release installed, are kept"
     exit 0
 fi
 
 # --- checks -------------------------------------------------------------------------------
+# The handler's Exec names the `odk` installed, quoted; a path with a character that a .desktop
+# file or the substitution below would read as something else is refused before anything is written.
+case $bin in
+    *[\"\\\`\$\|\&]*) die "$bin has a character a handler cannot carry (one of \" \\ \` \$ | &); nothing was installed" ;;
+esac
 [ "$(uname -s)" = Linux ] || die "odk runs on Linux only"
 [ "$(uname -m)" = x86_64 ] || die "odk is built for x86_64 only"
 for tool in curl tar gzip sha256sum mktemp install; do
@@ -205,6 +263,23 @@ if [ -f "$src/share/systemd/user/oma-register.service" ] && [ ! -L "$src/share/s
 fi
 put 644 "$src/share/mime/packages/oma.xml" "$mime/packages/oma.xml"
 refresh_types
+# The handler for a Bundle file (ADR 0097): written with the path of the `odk` installed above,
+# and made the default for the type; a release before it has none.
+handler=
+if [ -f "$src/share/applications/odk-oma.desktop" ] && [ ! -L "$src/share/applications/odk-oma.desktop" ]; then
+    mkdir -p "$apps"
+    sed "s|@ODK@|\"$bin/odk\"|" "$src/share/applications/odk-oma.desktop" >"$apps/odk-oma.desktop.new.$$"
+    chmod 644 "$apps/odk-oma.desktop.new.$$"
+    mv -f "$apps/odk-oma.desktop.new.$$" "$apps/odk-oma.desktop"
+    say "wrote $apps/odk-oma.desktop"
+    refresh_apps
+    if command -v awk >/dev/null 2>&1; then
+        set_default
+    else
+        say "note: awk is not installed, so the handler was not made the default for .oma files"
+    fi
+    handler=yes
+fi
 # ODK's licence and those of what its programs contain (ADR 0081); a release before them has none.
 for doc in LICENSE THIRD-PARTY-LICENSES; do
     if [ -f "$src/share/doc/odk/$doc" ] && [ ! -L "$src/share/doc/odk/$doc" ]; then
@@ -243,5 +318,9 @@ say "installed odk $version (release $release_version)"
 say "  command:  $bin/odk"
 say "  private:  $lib/ (odk-oma, oma-consent, odkd)"
 say "  units:    $units/ ($sockets, odkd.service${registration:+, $registration}); started: $started"
-say "  type:     $mime/packages/oma.xml (a .oma file opens as a disk image)"
+if [ -n "$handler" ]; then
+    say "  type:     $mime/packages/oma.xml, handler $apps/odk-oma.desktop (a .oma file runs, or asks first)"
+else
+    say "  type:     $mime/packages/oma.xml (a .oma file opens as a disk image)"
+fi
 say "  remove:   sh install.sh --uninstall"

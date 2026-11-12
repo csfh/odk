@@ -1,8 +1,10 @@
+# The handler for a Bundle file (ADR 0097). `install.sh` writes it as ~/.local/share/applications/odk-oma.desktop,
+# with @ODK@ made the quoted path of the `odk` it installed, and makes it the default for the type.
 [Desktop Entry]
 Type=Application
 Name=odk
 Comment=Run an Omarchy application bundle
-Exec=/usr/bin/odk oma run %f
+Exec=@ODK@ oma run %f
 MimeType=application/x-oma;
 NoDisplay=true
 Terminal=false

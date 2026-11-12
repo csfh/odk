@@ -1,7 +1,7 @@
 //! `install.sh` (ADR 0063, ADR 0086), against a release built by `tools/package-release`, the same
 //! script a release is made with, in a throwaway home. The programs are shell scripts, except `odk`, which is the real
-//! dispatcher so that the layout is shown to work. `systemctl` and `update-mime-database` are stubs
-//! that record their arguments; nothing here reaches the real user manager, the network or the
+//! dispatcher so that the layout is shown to work. `systemctl`, `update-mime-database` and
+//! `update-desktop-database` are stubs that record their arguments; nothing here reaches the real user manager, the network or the
 //! real home.
 
 use std::fs;
@@ -47,6 +47,10 @@ impl World {
         executable(
             &root.join("stubs/update-mime-database"),
             "#!/bin/sh\necho \"$*\" >>\"$MIME_LOG\"\n",
+        );
+        executable(
+            &root.join("stubs/update-desktop-database"),
+            "#!/bin/sh\necho \"$*\" >>\"$DESKTOP_LOG\"\n",
         );
         Self { _dir: dir, root }
     }
@@ -183,6 +187,7 @@ impl World {
             )
             .env("SYSTEMCTL_LOG", self.root.join("systemctl.log"))
             .env("MIME_LOG", self.root.join("mime.log"))
+            .env("DESKTOP_LOG", self.root.join("desktop.log"))
             .env("NO_MANAGER", self.root.join("no-manager"))
             .env("ODKD_RUNNING", self.root.join("odkd-running"));
         for (k, v) in extra {
@@ -235,7 +240,7 @@ fn skip_as_root() -> bool {
     String::from_utf8_lossy(&id.stdout).trim() == "0"
 }
 
-const FILES: [&str; 13] = [
+const FILES: [&str; 14] = [
     ".local/bin/odk",
     ".local/lib/odk/odk-oma",
     ".local/lib/odk/oma-consent",
@@ -247,6 +252,7 @@ const FILES: [&str; 13] = [
     ".config/systemd/user/oma-applications.path",
     ".config/systemd/user/oma-inbox@.path",
     ".local/share/mime/packages/oma.xml",
+    ".local/share/applications/odk-oma.desktop",
     ".local/share/doc/odk/LICENSE",
     ".local/share/doc/odk/THIRD-PARTY-LICENSES",
 ];
@@ -271,8 +277,9 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
             assert!(tree.contains(&file.to_owned()), "{file} in {tree:?}");
         }
         let files: Vec<&String> = tree.iter().filter(|p| w.home().join(p).is_file()).collect();
-        // And the record of the release installed (ADR 0086).
-        assert_eq!(files.len(), FILES.len() + 1, "{files:?}");
+        // And the record of the release installed (ADR 0086), and the list that makes the handler
+        // the default for the type (ADR 0097).
+        assert_eq!(files.len(), FILES.len() + 2, "{files:?}");
         let receipt = fs::read_to_string(w.home().join(".local/share/oma/runtime.toml")).unwrap();
         assert!(
             receipt.lines().any(|l| l.starts_with("version = ")),
@@ -286,6 +293,8 @@ fn it_installs_the_command_the_private_programs_and_the_units_for_this_user_only
                 & 0o777;
             let want = if file.contains("systemd")
                 || file.ends_with(".xml")
+                || file.ends_with(".desktop")
+                || file.ends_with("mimeapps.list")
                 || file.contains("/doc/")
                 || file.ends_with("runtime.toml")
             {
@@ -795,4 +804,116 @@ fn an_older_release_is_refused_and_the_same_one_repairs() {
     let o = w.install(&[]);
     assert!(o.status.success(), "{}", out(&o));
     assert!(w.home().join(".local/lib/odk/odkd").is_file());
+}
+
+/// The handler for a Bundle file (ADR 0097): written with the path of the `odk` installed, made
+/// the default for the type, and gone, with only its own line, on uninstall.
+#[test]
+fn the_handler_runs_a_bundle_file_and_is_the_default_until_uninstalled() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    let list = w.home().join(".config/mimeapps.list");
+    // The user's own associations, with a default of another program for the type.
+    fs::create_dir_all(list.parent().unwrap()).unwrap();
+    fs::write(
+        &list,
+        "[Added Associations]\ntext/plain=editor.desktop;\n\n[Default Applications]\nimage/png=viewer.desktop\napplication/x-oma=gnome-disk-image-mounter.desktop\n\n[Removed Associations]\nfoo/bar=baz.desktop;\n",
+    )
+    .unwrap();
+
+    let o = w.install(&[]);
+    assert!(o.status.success(), "{}", out(&o));
+    let desktop = fs::read_to_string(w.home().join(".local/share/applications/odk-oma.desktop"))
+        .expect("the handler is written");
+    assert!(
+        desktop
+            .lines()
+            .any(|l| l == format!("Exec=\"{}/.local/bin/odk\" oma run %f", w.home().display())),
+        "it runs the odk installed: {desktop}"
+    );
+    assert!(desktop.contains("MimeType=application/x-oma;"));
+    assert!(!desktop.contains("@ODK@"), "the placeholder is filled in");
+    assert_eq!(
+        w.lines("desktop.log"),
+        [w.home()
+            .join(".local/share/applications")
+            .display()
+            .to_string()]
+    );
+    assert_eq!(
+        fs::read_to_string(&list).unwrap(),
+        "[Added Associations]\ntext/plain=editor.desktop;\n\n[Default Applications]\napplication/x-oma=odk-oma.desktop\nimage/png=viewer.desktop\n\n[Removed Associations]\nfoo/bar=baz.desktop;\n",
+        "the other default for the type is replaced and nothing else is touched"
+    );
+
+    // Again: one line, not two.
+    let o = w.install(&[]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert_eq!(
+        fs::read_to_string(&list)
+            .unwrap()
+            .matches("application/x-oma=")
+            .count(),
+        1
+    );
+
+    let o = w.install(&["--uninstall"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(
+        !w.home()
+            .join(".local/share/applications/odk-oma.desktop")
+            .exists()
+    );
+    let kept = fs::read_to_string(&list).unwrap();
+    assert!(
+        !kept.contains("application/x-oma="),
+        "our default is gone: {kept}"
+    );
+    assert!(
+        kept.contains("image/png=viewer.desktop") && kept.contains("foo/bar=baz.desktop;"),
+        "and the user's own lines stay: {kept}"
+    );
+}
+
+#[test]
+fn with_no_associations_of_the_users_the_list_is_made_and_unmade() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    let list = w.home().join(".config/mimeapps.list");
+    let o = w.install(&[]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert_eq!(
+        fs::read_to_string(&list).unwrap(),
+        "[Default Applications]\napplication/x-oma=odk-oma.desktop\n"
+    );
+    let o = w.install(&["--uninstall"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(
+        !list.exists(),
+        "a list that holds only our line is removed with it"
+    );
+}
+
+#[test]
+fn a_path_the_handler_cannot_carry_is_refused_before_anything_is_written() {
+    if skip_as_root() {
+        return;
+    }
+    let w = World::new();
+    w.publish("1.0.0");
+    let home = w.root.join("home&dir");
+    fs::create_dir_all(&home).unwrap();
+    let o = w.install_with(&["sh"], &[], &[("HOME", home.display().to_string())]);
+    assert!(!o.status.success());
+    assert!(out(&o).contains("cannot carry"), "{}", out(&o));
+    assert!(
+        fs::read_dir(&home).unwrap().next().is_none(),
+        "nothing was written"
+    );
 }
