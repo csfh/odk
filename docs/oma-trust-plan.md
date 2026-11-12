@@ -201,7 +201,7 @@ How permission lines are read is question 12. Until an ADR answers it, the dialo
 
 This phase can start the writer after phase 1. An example that is meant to be executed waits until phase 5.
 
-The writer is built (`oma::image::write`, [`docs/spec/oma-image.md`](spec/oma-image.md), "What the writer emits") and tested against the reader, against `fsck.erofs` and, in CI, against the kernel. `bundle` does not call it yet: it would stop emitting directories, which `install`, `run` and `dev` still take until phase 5.
+The writer is built (`oma::image::write`, [`docs/spec/oma-image.md`](spec/oma-image.md), "What the writer emits") and tested against the reader, against `fsck.erofs` and, in CI, against the kernel. `bundle --sign` calls it (`bundle::write_file`, `crates/oma/src/bundle.rs`) and writes one signed `.oma` file, as `odk oma dev` does (checked against the code on 2026-11-12; this sentence said `bundle` did not call it); `bundle` without `--sign` still assembles a directory.
 
 **Modules.** `crates/oma/src/bundle.rs`, `examples/hello`, `examples/todo`, and the example README (the examples were removed on 2026-10-31).
 
