@@ -8,6 +8,10 @@ use crate::style::{self, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use rune::{El, row, text};
 
+/// A keyboard chord shown as key caps, such as `Ctrl+K`: `Kbd::new("Ctrl+K")` splits it at the
+/// `+` into one cap for each key, and `Kbd::keys` takes the keys already apart. It is decoration
+/// beside a command or a menu item and takes no focus and no input; a screen reader hears the
+/// chord as one text.
 pub struct Kbd {
     keys: Vec<String>,
 }

@@ -3,6 +3,9 @@
 use crate::icon::Icon;
 use odk_theme::semantic::Role;
 
+/// What a notice means: `Info` (the default), `Success`, `Warning` or `Danger`. An `Alert` or a
+/// `Toast` takes one with `variant`, and it picks the status colour and the icon that goes with
+/// it, so the meaning never shows by colour alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Tone {
     #[default]

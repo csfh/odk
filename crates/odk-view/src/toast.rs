@@ -30,6 +30,11 @@ use rune::{El, Key, KeyEvent, Tx, col, row};
 
 /// The most toasts shown at once unless [`Toaster::set_limit`] says otherwise. A count.
 pub const MAX_VISIBLE: usize = 3;
+/// How long a toast stays until the first draw, which reads the foundation's `motion.toast` (also
+/// 5 s) into the stack. A toast raised before any draw has a clock only once it shows, so this
+/// stands in and is never what a toast waits for.
+const BEFORE_THE_FIRST_DRAW: Duration = Duration::from_secs(5);
+
 /// The width of a toast, in points at the base text size. ODK's own (ADR 0035).
 const TOAST_WIDTH: f32 = 336.0;
 /// How many times as long as an ordinary toast one with an action stays: time enough to reach the
@@ -210,7 +215,7 @@ impl<T> Toaster<T> {
                 entries: Vec::new(),
                 limit: MAX_VISIBLE,
                 paused: false,
-                base: Duration::from_secs(5),
+                base: BEFORE_THE_FIRST_DRAW,
                 last: None,
             })),
         }

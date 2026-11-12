@@ -246,3 +246,144 @@ fn every_component_implements_describe_and_draws_it() {
         );
     }
 }
+
+/// A file's lines that are code: trimmed, numbered from 1, with comments dropped and everything
+/// from the first `#[cfg(test)]` on, which is the file's own tests.
+fn code_lines(text: &str) -> Vec<(usize, String)> {
+    let mut lines = Vec::new();
+    for (i, raw) in text.lines().enumerate() {
+        let line = raw.trim();
+        if line.starts_with("#[cfg(test)]") {
+            break;
+        }
+        if !line.starts_with("//") {
+            lines.push((i + 1, line.to_owned()));
+        }
+    }
+    lines
+}
+
+/// Item 41: no timing and no corner is written into a component. A `Duration` is built from a
+/// number only in a named constant (a behaviour's own, such as a typeahead's reset, never a
+/// motion: motion is the foundation's), and a corner is the radius token, never a number of
+/// points (zero, which is no corner, is the one number allowed).
+#[test]
+fn timing_and_corners_come_from_tokens() {
+    for (file, text) in sources() {
+        for (n, line) in code_lines(&text) {
+            let builds_a_duration = ["Duration::from_", "Duration::new("].iter().any(|p| {
+                line.match_indices(p).any(|(i, _)| {
+                    let rest = &line[i + p.len()..];
+                    let args = rest.trim_start_matches(|c: char| c.is_alphanumeric() || c == '_');
+                    args.strip_prefix('(')
+                        .is_some_and(|a| a.starts_with(|c: char| c.is_ascii_digit()))
+                        || (p.ends_with('(') && rest.starts_with(|c: char| c.is_ascii_digit()))
+                })
+            });
+            let named = line.starts_with("const ") || line.starts_with("pub const ");
+            assert!(
+                !builds_a_duration || named,
+                "{file}:{n}: a duration outside a named constant: {line}"
+            );
+            for corner in [".clip_rounded(", ".rounded(", ".radius("] {
+                for (at, _) in line.match_indices(corner) {
+                    let arg = line[at + corner.len()..]
+                        .split([')', ','])
+                        .next()
+                        .unwrap_or("")
+                        .trim();
+                    let number = arg.starts_with(|c: char| c.is_ascii_digit());
+                    assert!(
+                        !number || arg.parse::<f32>().is_ok_and(|v| v == 0.0),
+                        "{file}:{n}: a corner that is not the radius token (`{corner}{arg})`): {line}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Item 42: no component keeps theme data of its own. Process-wide state is what is listed below,
+/// each named with its file and what it is, so a new one has to be argued for here. State only
+/// for tests (a `#[cfg(test)]` module) is not counted.
+const PROCESS_STATE: &[(&str, &str, &str)] = &[
+    (
+        "follow.rs",
+        "COMMANDS",
+        "the queue of the follower of the theme, for `reload_theme` and `set_colour_options`",
+    ),
+    (
+        "post.rs",
+        "POST",
+        "the way a job reaches the window's host from another thread, set by `run`",
+    ),
+    (
+        "post.rs",
+        "POST_ANY",
+        "the same for what does not name the application's state type",
+    ),
+    ("toast.rs", "NEXT", "the counter that numbers toasts"),
+    (
+        "icon.rs",
+        "DRAWINGS",
+        "each icon's parsed drawing, made once from the embedded files",
+    ),
+];
+
+/// The name a `static` line declares: `static NAME: ...` or `static mut NAME: ...`.
+fn static_name(line: &str) -> Option<&str> {
+    let after = line.split_once("static ")?.1;
+    let after = after.strip_prefix("mut ").unwrap_or(after);
+    let name = after.split([':', ' ']).next()?;
+    (!name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit()))
+    .then_some(name)
+}
+
+#[test]
+fn process_wide_state_is_what_is_listed() {
+    assert_eq!(static_name("    static NEXT: Cell<u64> = x;"), Some("NEXT"));
+    assert_eq!(static_name("pub static mut ID: u8 = 0;"), Some("ID"));
+    assert_eq!(static_name("fn f(x: &'static str)"), None);
+    for (file, text) in sources() {
+        for (n, line) in code_lines(&text) {
+            let Some(name) = static_name(&line) else {
+                continue;
+            };
+            assert!(
+                PROCESS_STATE
+                    .iter()
+                    .any(|(f, listed, _)| *f == file && *listed == name),
+                "{file}:{n}: process-wide state `{name}` that PROCESS_STATE does not list: {line}"
+            );
+        }
+    }
+    // And nothing listed is gone: a stale row is as wrong as a missing one.
+    for (file, name, _) in PROCESS_STATE {
+        let found = sources().into_iter().any(|(f, text)| {
+            f == *file
+                && code_lines(&text)
+                    .iter()
+                    .any(|(_, line)| static_name(line) == Some(name))
+        });
+        assert!(
+            found,
+            "{file}: PROCESS_STATE lists `{name}`, which is not there"
+        );
+    }
+}
+
+/// Item 31: time comes from Rune's clock, which a test controls: no component reads the system's.
+#[test]
+fn time_comes_from_the_hosts_clock() {
+    for (file, text) in sources() {
+        for (n, line) in code_lines(&text) {
+            assert!(
+                !line.contains("Instant::now()") && !line.contains("SystemTime::now()"),
+                "{file}:{n}: reads the system clock; use the time Rune hands the poll and the handler: {line}"
+            );
+        }
+    }
+}
