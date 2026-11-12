@@ -5,12 +5,22 @@
 use std::any::Any;
 use std::sync::{Arc, Mutex};
 
-use crate::host::Hosted;
+use crate::host::{AnyHost, Hosted};
 
 /// What gets a job onto the host from another thread.
 pub(crate) type Post = Arc<dyn Fn(Box<dyn FnOnce(&mut dyn Any) + Send>) + Send + Sync>;
 
 static POST: Mutex<Option<Post>> = Mutex::new(None);
+
+/// The same for what does not depend on the application's state type: the theme, its preview and
+/// its colour options.
+pub(crate) type PostAny = Arc<dyn Fn(Box<dyn FnOnce(&mut dyn AnyHost) + Send>) + Send + Sync>;
+
+static POST_ANY: Mutex<Option<PostAny>> = Mutex::new(None);
+
+pub(crate) fn install_any(post: PostAny) {
+    *POST_ANY.lock().unwrap_or_else(|e| e.into_inner()) = Some(post);
+}
 
 /// Makes `post` the way a job reaches the window, for the process.
 pub(crate) fn install(post: Post) {
@@ -51,5 +61,19 @@ pub fn on_host<T: 'static>(
 ) -> Result<(), NoWindow> {
     let post = current().ok_or(NoWindow)?;
     send(&post, job);
+    Ok(())
+}
+
+/// Runs `job` on the window's host without naming the application's state, once the window has a
+/// turn. `Err` when the application did not start through [`crate::run`].
+pub(crate) fn on_any_host(
+    job: impl FnOnce(&mut dyn AnyHost) + Send + 'static,
+) -> Result<(), NoWindow> {
+    let post = POST_ANY
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .ok_or(NoWindow)?;
+    post(Box::new(job));
     Ok(())
 }

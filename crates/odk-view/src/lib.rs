@@ -75,11 +75,11 @@ pub use dialog::Dialog;
 pub use empty::Empty;
 pub use face::Face;
 pub use files::{FileChooser, FileChooserError, StartFolder};
-pub use follow::{Follower, follow};
+pub use follow::{ColourOptionsError, Follower, Update, follow, reload_theme, set_colour_options};
 pub use form_field::{FieldControl, Fielded, FormField, form};
 pub use host::{
-    Hosted, WindowConfig, configure, focused_component, frame, headless, run, set_reduced_motion,
-    start,
+    Hosted, WindowConfig, configure, end_theme_preview, focused_component, frame, headless,
+    preview_theme, run, set_reduced_motion, start,
 };
 pub use hover_card::HoverCard;
 pub use icon::{Glyph, Icon};
