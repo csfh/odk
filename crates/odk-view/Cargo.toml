@@ -11,6 +11,7 @@ description = "ODK's window on Rune, while odk-ui still draws with GPUI (ADR 008
 deps.workspace = true
 odk-a11y.workspace = true
 odk-theme.workspace = true
+read-fonts = { version = "0.41", default-features = false, features = ["std"] }
 rune.workspace = true
 
 [dev-dependencies]

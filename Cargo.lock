@@ -4985,6 +4985,7 @@ dependencies = [
  "deps",
  "odk-a11y",
  "odk-theme",
+ "read-fonts",
  "rune",
  "serde_json",
 ]

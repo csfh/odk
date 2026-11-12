@@ -111,15 +111,24 @@ pub fn start<T: 'static>(
 
 /// Open the window on the user's theme and keep it up to date: the palette when the theme changes,
 /// the text size, and `odkd`'s request for reduced motion, each from the next frame. With no
-/// theme it draws the emergency palette (ADR 0041). The font is `face`: Rune loads a family from
-/// bytes before the window opens and not after (`docs/checks.md`).
+/// theme it draws the emergency palette (ADR 0041). The font is `face` when the caller names
+/// one, and otherwise the family `odkd` reports, found in the fonts the sandbox shows
+/// ([`Face::installed`], ADR 0095), and Rune's bundled one when there is none. Rune loads a family
+/// from bytes before the window opens and not after, so a font changed while the window is open
+/// applies at the next start (`docs/checks.md`).
 pub fn run<T: 'static>(
     app: T,
-    face: Face,
+    face: Option<Face>,
     view: fn(&Hosted<T>, &mut Cx<Hosted<T>>) -> El,
     size: (f32, f32),
 ) -> Result<(), String> {
     let manager = ThemeManager::current();
+    let face = face.unwrap_or_else(|| {
+        manager
+            .font_family()
+            .and_then(Face::installed)
+            .unwrap_or(Face::bundled())
+    });
     let hosted = Hosted::new(app, (*manager.snapshot()).clone(), face);
     let spec = AppSpec {
         fonts: hosted.face.fonts(),

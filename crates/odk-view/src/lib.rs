@@ -17,6 +17,7 @@ mod dialog;
 mod empty;
 mod face;
 mod follow;
+mod font;
 mod form_field;
 mod host;
 mod hover;

@@ -29,6 +29,10 @@ Under Run once (ADR 0018) the data directory is a private tmpfs that disappears 
 
 What the host says (ADR 0062) comes from `odkd`, a per-user daemon outside every sandbox. Its socket is `$XDG_RUNTIME_DIR/odk/odkd.sock`, and oma binds the directory `odk/` into the sandbox's private runtime directory at the same path, read-only, for every application and with no permission to ask for, since the socket can only say what the user's settings are: the reduced-motion request (Hyprland's `animations:enabled`, ADR 0048), the text size and font (ADR 0043) and the theme's colours. The directory and not the socket is bound, so a socket made again is the one the application sees. The same directory holds `files.sock`, `odkd`'s file chooser (ADR 0068): an application writes one request and reads back the paths the user chose in the desktop's dialog, which `odkd` opens outside the sandbox. A path is a name, not access, so nothing here changes what the application can read, and connecting to a socket needs no write to the read-only directory. A user with no `odkd` has no such directory, and nothing is bound. The sandbox shows nothing of `~/.config/omarchy`, `~/.config/fontconfig` or `~/.local/state/omarchy`, and nothing of `$XDG_RUNTIME_DIR/hypr` is ever mounted or granted: its socket accepts commands, so an application that could open it would not be sandboxed (a test in `sandbox/plan.rs` holds this). A test in `tests/sandbox.rs` connects to a socket through the bind, finds the directory read-only, and hears a socket made again at the same path.
 
+### The user's fonts
+
+`~/.local/share/fonts` is bound read-only at the same path when it exists, for every application and with no permission to ask for (ADR 0095). The system's fonts are under `/usr/share/fonts` and `/etc/fonts`, which are already shown. Nothing else of `~/.local` is.
+
 ### `/etc` baseline
 
 `ld.so.cache`, `ld.so.conf`, `ld.so.conf.d/`, `fonts/`, `localtime`, `os-release`, `passwd`, `group`, `nsswitch.conf` and `xdg/`.
