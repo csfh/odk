@@ -90,7 +90,7 @@ pub use input_group::InputGroup;
 pub use item::Item;
 pub use item_group::ItemGroup;
 pub use kbd::Kbd;
-pub use layout::{Layout, Space};
+pub use layout::{Cell, ContentColumn, Layout, Space};
 pub use menu::{ContextMenu, DropdownMenu, Menu, MenuItem};
 pub use nav_list::NavList;
 pub use number_input::NumberInput;

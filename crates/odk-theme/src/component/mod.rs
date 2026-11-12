@@ -49,8 +49,8 @@ pub use data::{
 };
 pub use feedback::{
     AlertStyle, BadgeAppearance, BadgeStyle, EMPTY_MEASURE_EMS, EmptyStyle, KbdStyle,
-    ProgressStyle, ProseStyle, SeparatorStyle, SkeletonStyle, SpinnerStyle, StatusDotStyle,
-    StatusStyle, heading_role, status_mark,
+    ProgressStyle, ProseStyle, SeparatorStyle, SidebarStyle, SkeletonStyle, SpinnerStyle,
+    StatusDotStyle, StatusStyle, heading_role, status_mark,
 };
 pub use geometry::{
     CheckGeometry, ControlGeometry, FocusRing, RadioGeometry, Shape, SurfaceGeometry,

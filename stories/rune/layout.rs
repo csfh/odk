@@ -3,8 +3,8 @@
 //! `tools/story rune-layout`.
 
 use odk_theme::semantic::{Emphasis, Role, State};
-use odk_view::{Hosted, Layout, Space, ink};
-use rune::{Cx, El, el};
+use odk_view::{Cell, Hosted, Layout, Space, ink};
+use rune::{Cx, El, col, el};
 
 #[path = "support.rs"]
 mod support;
@@ -13,6 +13,7 @@ use support::{line, section, wide_page};
 /// A box of the story's size, in points at the base text size.
 const BOX: (f32, f32) = (64.0, 32.0);
 const CELL_HEIGHT: f32 = 48.0;
+const FRAME_HEIGHT: f32 = 120.0;
 
 fn block<T>(hosted: &Hosted<T>, key: &str) -> El {
     let theme = hosted.theme();
@@ -22,6 +23,14 @@ fn block<T>(hosted: &Hosted<T>, key: &str) -> El {
             .semantic
             .treatment(Role::Accent, Emphasis::Solid, State::Default)
             .background))
+}
+
+fn cell<T>(hosted: &Hosted<T>, key: &str, label: &str) -> El {
+    let theme = hosted.theme();
+    el().key(key.to_string())
+        .h(theme.text.px(CELL_HEIGHT))
+        .fill(ink(theme.semantic.surface.canvas))
+        .child(line(hosted, label.to_string()))
 }
 
 fn view(hosted: &Hosted<()>, cx: &mut Cx<Hosted<()>>) -> El {
@@ -50,6 +59,23 @@ fn view(hosted: &Hosted<()>, cx: &mut Cx<Hosted<()>>) -> El {
         }),
     );
 
+    let framed = col()
+        .h(theme.text.px(FRAME_HEIGHT))
+        .w_full()
+        .child(layout.sidebar(
+            line(hosted, "Sidebar".to_string()),
+            line(hosted, "Content takes the rest.".to_string()),
+        ));
+    let wide = layout.grid_of(
+        "wide-grid",
+        2,
+        [
+            Cell::new(cell(hosted, "wide-a", "A")),
+            Cell::new(cell(hosted, "wide-b", "B")),
+            Cell::wide(cell(hosted, "wide-w", "A wide cell, across every column")),
+            Cell::new(cell(hosted, "wide-c", "C")),
+        ],
+    );
     wide_page(
         hosted,
         cx,
@@ -66,6 +92,18 @@ fn view(hosted: &Hosted<()>, cx: &mut Cx<Hosted<()>>) -> El {
                 "Grid",
                 "As many columns as fit, no more than three.",
                 grid,
+            ),
+            section(
+                hosted,
+                "Wide cell",
+                "Two columns, and a wide cell on a row of its own.",
+                wide,
+            ),
+            section(
+                hosted,
+                "Sidebar frame",
+                "The sidebar at the foundation's width on the recessed surface, a line, and the content.",
+                framed,
             ),
         ],
         [],

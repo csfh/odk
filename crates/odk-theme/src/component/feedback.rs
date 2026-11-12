@@ -186,6 +186,17 @@ pub struct SeparatorStyle {
     pub inset: f32,
 }
 
+/// What an application's sidebar frame draws: the surface behind the sidebar, how wide it is, how
+/// far its content is inset, and the rule between it and the content.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SidebarStyle {
+    pub surface: Color,
+    pub width: f32,
+    pub padding: f32,
+    pub rule: Color,
+    pub rule_width: f32,
+}
+
 /// A keyboard key, such as `Ctrl+K`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct KbdStyle {
@@ -353,6 +364,19 @@ impl ComponentTokens {
             colour: self.colour(C::Border(B::Subtle)),
             thickness: f.geometry.border_width,
             inset: f.controls.metrics().padding_x,
+        }
+    }
+
+    /// An application's sidebar frame (`Layout::sidebar`): the recessed surface at the
+    /// foundation's width with its padding, and the line that divides it from the content.
+    pub fn sidebar(&self) -> SidebarStyle {
+        let f = &self.foundation;
+        SidebarStyle {
+            surface: self.colour(C::Surface(crate::semantic::SurfaceToken::Recessed)),
+            width: f.layout.sidebar_width,
+            padding: f.layout.sidebar_padding,
+            rule: self.colour(C::Border(B::Subtle)),
+            rule_width: f.geometry.border_width,
         }
     }
 
