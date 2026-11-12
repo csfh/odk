@@ -1,0 +1,6 @@
+plugin_manifest_version = 1
+id = "dev.example.notes.word-count"
+name = "Word count"
+version = "1.0.0"
+entry = "main.luau"
+capabilities = ["app.state", "ui"]
