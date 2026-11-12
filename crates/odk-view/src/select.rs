@@ -7,7 +7,7 @@ use crate::ink::ink;
 use crate::style::{self, focus_ring, text_style};
 use odk_a11y::{Accessible, Describe, Role};
 use odk_theme::component::States;
-use rune::{Align, El, Key, KeyEvent, Side, Tx, col, row, text};
+use rune::{Align, El, Key, KeyEvent, ScrollSpec, Side, Tx, col, row, text};
 
 /// The trigger's and the list's width in points at the base text size, unless the application
 /// sets one (ODK's own).
@@ -169,6 +169,8 @@ impl<F> Select<F> {
             let slot = hosted.ui.select_mut(&open_id);
             if !slot.open {
                 reveal(slot, chosen, press_len);
+                let at = slot.highlight;
+                hosted.ui.reveal_row(format!("{open_id}-{at}"));
             }
         })
         .on_key(move |hosted: &mut Hosted<T>, ev: &KeyEvent, tx: &mut Tx| {
@@ -178,6 +180,8 @@ impl<F> Select<F> {
             let slot = hosted.ui.select_mut(&key_id);
             if !slot.open {
                 reveal(slot, chosen, key_len);
+                let at = slot.highlight;
+                hosted.ui.reveal_row(format!("{key_id}-{at}"));
             }
             true
         })
@@ -217,6 +221,12 @@ impl<F> Select<F> {
         .focusable(true)
         .w(width)
         .padding(menu.geometry.padding_y)
+        // A list longer than the room scrolls: it shrinks to what `anchored_fit` leaves it.
+        .scroll(ScrollSpec {
+            stick_bottom: false,
+        })
+        .shrink()
+        .min_h(0.0)
         .on_key({
             let id = id.clone();
             let options = options.clone();
@@ -234,6 +244,8 @@ impl<F> Select<F> {
                 None => false,
                 Some(Action::Move(index)) => {
                     hosted.ui.select_mut(&id).highlight = index;
+                    // The highlight is not Rune's focus, so Rune does not scroll to it.
+                    tx.scroll_into_view(format!("{id}-{index}"));
                     true
                 }
                 Some(Action::Choose(index)) => {
@@ -289,8 +301,10 @@ impl<F> Select<F> {
                     hosted.ui.select_mut(&id).open = false;
                 }
             })
+            .shrink()
+            .min_h(0.0)
             .child(list)
-            .anchored(trigger_key, Side::Bottom, Align::Start, LIST_GAP);
+            .anchored_fit(trigger_key, Side::Bottom, Align::Start, LIST_GAP);
         layers.push(paint.present(popup));
         trigger
     }

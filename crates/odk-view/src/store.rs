@@ -131,9 +131,22 @@ pub struct Store {
     pub(crate) charts: crate::chart::Charts,
     /// The window's toasts, which the host's poll steps.
     toasts: RefCell<Option<Rc<dyn crate::toast::Clock>>>,
+    /// Rows to bring into view once they are laid out: a list that has just opened on its chosen
+    /// row, which no handler can scroll to, since the row is not built until the view is.
+    reveals: RefCell<Vec<String>>,
 }
 
 impl Store {
+    /// Asks for the row keyed `key` to be scrolled into view at the next frame's poll.
+    pub(crate) fn reveal_row(&self, key: String) {
+        self.reveals.borrow_mut().push(key);
+    }
+
+    /// The rows asked for since the last poll.
+    pub(crate) fn take_reveals(&self) -> Vec<String> {
+        std::mem::take(&mut *self.reveals.borrow_mut())
+    }
+
     /// Remembers the toasts' clock, for the host's poll.
     pub(crate) fn attach_clock(&self, clock: Rc<dyn crate::toast::Clock>) {
         *self.toasts.borrow_mut() = Some(clock);

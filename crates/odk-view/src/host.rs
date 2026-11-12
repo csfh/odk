@@ -146,6 +146,9 @@ fn poll<T>(hosted: &mut Hosted<T>, now: f64, tx: &mut Tx) -> bool {
     let settled = hosted.ui.images.settled();
     let charted = crate::chart::advance(hosted, now, tx);
     let toasted = hosted.ui.step_toasts(now, tx);
+    for key in hosted.ui.take_reveals() {
+        tx.scroll_into_view(key);
+    }
     turned | settled | charted | toasted
 }
 
