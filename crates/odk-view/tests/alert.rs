@@ -153,7 +153,7 @@ fn alerts(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
                     "long",
                     "A title far longer than the room the alert gives it",
                 )
-                .variant(Tone::Danger)
+                .tone(Tone::Danger)
                 .description("Unbreakable_word_with_no_place_to_wrap_at_all_inside_the_alert")
                 .action(Button::new("act", "Retry", |_: &mut App| {}).show(hosted))
                 .on_dismiss(|app: &mut App| app.dismissed += 1)

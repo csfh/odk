@@ -32,7 +32,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
         .fold(layout.stack(Space::Sm), |stack, (tone, name)| {
             stack.child(
                 Alert::new(format!("tone-{name}"), format!("{name} notice"))
-                    .variant(*tone)
+                    .tone(*tone)
                     .description("What happened, and what to do about it.")
                     .show(hosted),
             )
@@ -42,7 +42,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
         .fold(layout.stack(Space::Sm), |stack, emphasis| {
             stack.child(
                 Alert::new(format!("emphasis-{emphasis:?}"), format!("{emphasis:?}"))
-                    .variant(Tone::Warning)
+                    .tone(Tone::Warning)
                     .emphasis(*emphasis)
                     .description("The same notice at each emphasis.")
                     .show(hosted),
@@ -52,7 +52,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
         .stack(Space::Sm)
         .child(
             Alert::new("action", "Could not save")
-                .variant(Tone::Danger)
+                .tone(Tone::Danger)
                 .description("The disk is full.")
                 .action(
                     Button::new("retry", "Retry", |story: &mut Story| story.retried += 1)
@@ -77,7 +77,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
             "worst",
             "A title far longer than the room the alert gives it, in 日本語",
         )
-        .variant(Tone::Danger)
+        .tone(Tone::Danger)
         .description("Unbreakable_word_with_no_place_to_wrap_at_all_inside_the_alert")
         .action(Button::new("worst-act", "Retry", |_: &mut Story| {}).show(hosted))
         .on_dismiss(|_: &mut Story| {})

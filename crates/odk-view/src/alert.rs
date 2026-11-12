@@ -51,7 +51,7 @@ impl<T: 'static> Alert<T> {
     }
 
     /// Info (the default), success, warning or danger.
-    pub fn variant(mut self, tone: Tone) -> Self {
+    pub fn tone(mut self, tone: Tone) -> Self {
         self.tone = tone;
         self
     }

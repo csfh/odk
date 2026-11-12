@@ -67,7 +67,7 @@ Each component brings its `stories/rune/<name>.rs` in the same pull request (the
 3. Visual regression with `tools/headless-shot` baselines, since it is by eye now.
 4. The figures "not measured": memory, overlay opening and theme-watch latency; `cargo bench` and `tools/idle-cpu` against the story budgets on the Rune stories.
 5. `cargo audit` was run by hand on 2026-11-11 (0 vulnerabilities; the one yanked crate is fixed; the warnings are in `docs/checks.md`). `cargo deny` and `cargo udeps` are not installed here and have never been run.
-6. Rename `Alert::variant` and `Toast::variant` (they take a `Tone`) while a breaking change is still free.
+6. ~~Rename `Alert::variant` and `Toast::variant`~~ done on 2026-11-12: both are `tone(Tone)` now, as `Badge::tone` is (`docs/migration.md` has the line).
 
 ## Track E: Plugins (in v1, the owner, 2026-11-11; parallel with A)
 
