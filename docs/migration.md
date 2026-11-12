@@ -127,7 +127,18 @@ let tokens = hosted.components();
 
 ## Several windows
 
-Not yet: `run` opens one window. Rune has `Windows`; the process's poster (`configure`, `set_reduced_motion`, `preview_theme`) assumes one.
+`odk::ui::Windows` is `run` for an application of more than one window: the first is the application (closing it ends it), the others open and close while it runs, each with a state of its own.
+
+```rust,ignore
+let mut windows = Windows::new(App::default(), WindowConfig::new((960.0, 680.0)), view);
+let settings = windows.window("settings", Settings::default(),
+    WindowConfig::new((480.0, 360.0)).title("Settings"), settings_view);
+// A handler of the main window keeps `settings` (a `Window`, cheap to clone) and calls
+// `settings.show()`; `hide()` closes it keeping its state; `focus()` gives it the keyboard.
+windows.run()
+```
+
+Every window draws the same theme, follows it together, and takes a preview of it together. What reaches a window from outside (`configure::<T>`, `set_reduced_motion::<T>`, `on_host::<T>`, a `FileChooser` answer) names a type of state and reaches the first window whose state is that type, so give each window its own type. A window's own foundation settings (density, corner radius) are its own.
 
 ## Accessibility
 

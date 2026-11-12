@@ -106,7 +106,7 @@ pub fn set_colour_options(options: ResolveOptions) -> Result<(), ColourOptionsEr
     let commands = current().ok_or(ColourOptionsError::NoWindow)?;
     let _ = commands.0.send(Request::Options(options.clone()));
     // The host remembers what was asked, so an application can read it back.
-    let _ = crate::post::on_any_host(move |host| host.remember_colour_options(options));
+    let _ = crate::post::on_any_host(move |host| host.remember_colour_options(options.clone()));
     Ok(())
 }
 

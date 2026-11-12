@@ -109,7 +109,7 @@ impl FileChooser {
         self,
         done: impl FnOnce(&mut T, Result<Option<Vec<PathBuf>>, FileChooserError>) + Send + 'static,
     ) -> Result<(), FileChooserError> {
-        let post = post::current()
+        let post = post::current::<T>()
             .ok_or_else(|| FileChooserError::Failed("there is no window to answer to".into()))?;
         choose_at(files_socket_path(), self.request, post, done);
         Ok(())

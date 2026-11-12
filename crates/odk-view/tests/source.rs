@@ -347,13 +347,13 @@ const PROCESS_STATE: &[(&str, &str, &str)] = &[
     ),
     (
         "post.rs",
-        "POST",
-        "the way a job reaches the window's host from another thread, set by `run`",
+        "POSTS",
+        "the way a job reaches each window's host from another thread, with the type of its state, set by `run`",
     ),
     (
         "post.rs",
-        "POST_ANY",
-        "the same for what does not name the application's state type",
+        "POSTS_ANY",
+        "the same for what does not name the application's state type, which reaches every window",
     ),
     ("toast.rs", "NEXT", "the counter that numbers toasts"),
     (
