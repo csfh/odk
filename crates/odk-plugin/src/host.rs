@@ -12,6 +12,9 @@ use std::time::{Duration, Instant};
 use mlua::{Lua, MultiValue, Value, VmState};
 
 use crate::data::Data;
+use crate::extend::{
+    Contribution, NetworkRequest, Shared, install_network, install_subscribe, install_ui,
+};
 use crate::manifest::{Capability, Manifest};
 use crate::paths::{PathError, clean_relative, resolve_existing, resolve_new};
 
@@ -112,6 +115,12 @@ pub enum CallError {
     Unloaded(String),
     #[error("the Plugin has no function {0:?}")]
     NoSuchFunction(String),
+    /// `Host::activate` for a description that is not there (removed, or its Plugin unloaded).
+    #[error("no description has the identifier {0}")]
+    NoSuchContribution(u64),
+    /// `Host::answer` for a request that is not waiting.
+    #[error("no request {0} is waiting")]
+    NoSuchRequest(u64),
     #[error(transparent)]
     Failed(#[from] PluginError),
 }
@@ -144,6 +153,7 @@ pub struct Host {
     limits: Limits,
     report: Report,
     exposed: Exposed,
+    shared: Rc<Shared>,
     plugins: Vec<Plugin>,
 }
 
@@ -162,6 +172,7 @@ impl Host {
             limits,
             report: Rc::new(report),
             exposed: Rc::default(),
+            shared: Rc::default(),
             plugins: Vec::new(),
         }
     }
@@ -170,6 +181,90 @@ impl Host {
     /// to list names or to reach anything that was not exposed.
     pub fn expose(&self, name: impl Into<String>, value: Data) {
         self.exposed.borrow_mut().insert(name.into(), value);
+    }
+
+    /// Makes `value` readable as `expose` does, and calls the function of each Plugin that
+    /// subscribed to `name` (`app.subscribe`) with the name and the value. A Plugin that fails is
+    /// reported and the others are called all the same. Returns how many were called.
+    pub fn publish(&mut self, name: &str, value: Data) -> usize {
+        self.expose(name, value.clone());
+        let mut called = 0;
+        for (plugin, function) in self.shared.subscribers(name) {
+            // A Plugin that was unloaded since has no state to call: it is skipped.
+            if self
+                .call(
+                    &plugin,
+                    &function,
+                    &[Data::Text(name.to_owned()), value.clone()],
+                )
+                .is_ok()
+            {
+                called += 1;
+            }
+        }
+        called
+    }
+
+    /// Registers an extension point a Plugin with `ui` may add descriptions to. Only the
+    /// application can: a Plugin cannot make one.
+    pub fn register_point(&self, name: impl Into<String>) {
+        self.shared.register_point(name.into());
+    }
+
+    /// What the Plugins added to `point`, in the order they were added, for the application to
+    /// draw with its own components. Nothing a Plugin gave is drawn by anyone else.
+    pub fn contributions(&self, point: &str) -> Vec<Contribution> {
+        self.shared.contributions(point)
+    }
+
+    /// The user used a contribution: calls the Plugin's global named by its description's
+    /// `action` (text), with the contribution's identifier. A description with no `action` is
+    /// only shown, and this returns `Ok(Nil)`.
+    pub fn activate(&mut self, plugin: &str, contribution: u64) -> Result<Data, CallError> {
+        let Some(found) = self.shared.contribution(plugin, contribution) else {
+            return Err(CallError::NoSuchContribution(contribution));
+        };
+        let Data::Map(description) = &found.description else {
+            return Ok(Data::Nil);
+        };
+        match description.get("action") {
+            Some(Data::Text(action)) => {
+                let action = action.clone();
+                self.call(plugin, &action, &[Data::Number(contribution as f64)])
+            }
+            _ => Ok(Data::Nil),
+        }
+    }
+
+    /// Sets the application's handler of Plugin requests (`network`). Without one, a request is an
+    /// error the Plugin sees. The handler decides about a request, and answers it with
+    /// [`Host::answer`] now or later; it must not block, and must not call into the host.
+    pub fn on_network(&self, handler: impl Fn(NetworkRequest) + 'static) {
+        self.shared.set_handler(Rc::new(handler));
+    }
+
+    /// Answers request `id` of `plugin`: calls the Plugin's global `on_network` with the identifier,
+    /// whether it succeeded and the response (plain data) or the reason it failed (text). A
+    /// request that is not waiting (answered already, cancelled, or its Plugin unloaded) is an
+    /// error and calls nothing.
+    pub fn answer(
+        &mut self,
+        plugin: &str,
+        id: u64,
+        response: Result<Data, String>,
+    ) -> Result<Data, CallError> {
+        if !self.shared.take_pending(plugin, id) {
+            return Err(CallError::NoSuchRequest(id));
+        }
+        let (ok, payload) = match response {
+            Ok(data) => (true, data),
+            Err(reason) => (false, Data::Text(reason)),
+        };
+        self.call(
+            plugin,
+            "on_network",
+            &[Data::Number(id as f64), Data::Bool(ok), payload],
+        )
     }
 
     /// Where the Plugins are loaded from by default.
@@ -314,6 +409,7 @@ impl Host {
                             }
                         })?,
                     )?;
+                    install_subscribe(lua, &table, manifest.id.clone(), self.shared.clone())?;
                     lua.globals().set("app", table)?;
                 }
                 Capability::Storage => {
@@ -322,10 +418,14 @@ impl Host {
                     install_storage(lua, &table, root, self.limits.storage)?;
                     lua.globals().set("storage", table)?;
                 }
-                // Not built yet: the capability's table exists, and is empty, so a Plugin can see
-                // what it was granted (ADR 0092, point 2). `docs/spec/plugin-api.md` says so.
-                Capability::Ui => lua.globals().set("ui", table)?,
-                Capability::Network => lua.globals().set("network", table)?,
+                Capability::Ui => {
+                    install_ui(lua, &table, manifest.id.clone(), self.shared.clone())?;
+                    lua.globals().set("ui", table)?;
+                }
+                Capability::Network => {
+                    install_network(lua, &table, manifest.id.clone(), self.shared.clone())?;
+                    lua.globals().set("network", table)?;
+                }
             }
         }
         Ok(())
@@ -337,6 +437,7 @@ impl Host {
     pub fn call(&mut self, id: &str, function: &str, args: &[Data]) -> Result<Data, CallError> {
         let budget = self.limits.call_budget;
         let report = self.report.clone();
+        let shared = self.shared.clone();
         let plugin = self
             .plugins
             .iter_mut()
@@ -380,6 +481,8 @@ impl Host {
         };
         if matches!(error.kind, ErrorKind::Memory | ErrorKind::Timeout) {
             plugin.running = None;
+            // What it added, asked and subscribed to goes with it (ADR 0092, point 6).
+            shared.forget(id);
         }
         report(&error);
         Err(CallError::Failed(error))

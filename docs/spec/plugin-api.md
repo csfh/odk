@@ -30,7 +30,9 @@ Always present. It loads `<name>.luau` from inside the Plugin's directory, once 
 |---|---|
 | `app.get(name)` | The value the host exposed with `Host::expose(name, value)`, read when called, or `nil`. |
 
-There is no way to list names or to reach anything that was not exposed. Subscribing to changes is not built.
+| `app.subscribe(name, function_name)` | Names one of the Plugin's own global functions to call when the application publishes `name` (`Host::publish`): it is called with `name` and the value. Returns nothing. A Plugin may subscribe to 32 names (`MAX_SUBSCRIPTIONS`); a second subscription to a name replaces the first. |
+
+There is no way to list names or to reach anything that was not exposed or published.
 
 ### `storage` (capability `storage`)
 
@@ -43,9 +45,27 @@ The Plugin's private directory is `<application data directory>/plugin-data/<plu
 | `storage.list([path])` | The names in a directory (the Plugin's own when `path` is omitted), sorted, as a list. |
 | `storage.remove(path)` | Removes a file, and only a file. |
 
-### `ui` and `network`
+### `ui` (capability `ui`)
 
-Not built. A Plugin granted either has the global table, which is empty, so it can see the grant. `ui` will take declarative descriptions for the extension points an application registers, and `network` will hand a request to a handler the application supplies and answer later (ADR 0092, point 5); neither is specified further until built.
+A Plugin adds a declarative description to an extension point that the application registered (`Host::register_point(name)`), and the application draws what it finds (`Host::contributions(point)`) with its own components. A Plugin is never handed a toolkit element, so a screen reader meets what a component says. A Plugin cannot make a point: a name the application did not register is an error.
+
+| Function | Does |
+|---|---|
+| `ui.add(point, description)` | Adds `description`, a table with string keys of plain data, to `point` and returns its identifier (a number). If `description.action` is text, it names a global function of the Plugin that `Host::activate(plugin, id)` calls with the identifier when the user uses the item. |
+| `ui.remove(id)` | Removes one of the Plugin's own descriptions. Returns whether there was one. |
+
+A description may hold 16 KiB of text, keys included (`MAX_DESCRIPTION_BYTES`), and a Plugin may have 64 added at once (`MAX_CONTRIBUTIONS`); both are provisional. What a description may say (`label`, `icon`, `items`, ...) is the application's to define for each point, so the host checks the shape of the plain data and not its meaning. A Plugin that is unloaded loses its descriptions.
+
+### `network` (capability `network`)
+
+A Plugin hands a request to the application and hears the answer later; it never blocks and never touches a socket. ODK ships no HTTP client for applications (ADR 0092): the application's handler (`Host::on_network`) decides about each request, makes it however it likes, and answers with `Host::answer(plugin, id, Ok(data) | Err(reason))`, now or later. With no handler set, `network.request` is an error.
+
+| Function | Does |
+|---|---|
+| `network.request(request)` | Checks `request` and gives it to the handler, and returns its identifier (a number). `request` is a table with `url` (text, `https://` or `http://`, at most 2048 bytes), `method` (`GET`, `HEAD`, `POST`, `PUT`, `PATCH` or `DELETE`; `GET` if omitted), `headers` (a table of text, at most 32, names without `:` or space, values with no line break) and `body` (text, at most 64 KiB). Any other field is an error. A Plugin may have 8 requests waiting (`MAX_PENDING_REQUESTS`); the limits are provisional. |
+| `network.cancel(id)` | Forgets one of its waiting requests, so an answer to it is refused. Returns whether it was waiting. |
+
+The answer calls the Plugin's global `on_network(id, ok, payload)`: `ok` is true and `payload` the response (plain data) or `ok` is false and `payload` the reason (text). A request is answered once: answering one that was answered, cancelled or whose Plugin was unloaded is `CallError::NoSuchRequest`. The handler must not block and must not call into the host from inside the handler. What the handler allows, and the application's own sandbox network permission, bound what a Plugin can reach (ADR 0020).
 
 ## What crosses
 
@@ -60,7 +80,13 @@ Every failure is a `PluginError` the host's callback hears: the Plugin's `id` (i
 ```text
 Host::new(data_dir, Grants, Limits, report)   data_dir = ~/.local/share/oma/data/<identifier>
 Host::load_dir(plugins_dir)                   at start; plugins_dir() is data_dir/plugins
-Host::expose(name, Data)
+Host::expose(name, Data)                      a value Plugins can read with app.get
+Host::publish(name, Data) -> usize            expose it and call each subscriber; how many were called
+Host::register_point(name)                    an extension point a Plugin with `ui` may add to
+Host::contributions(point) -> Vec<Contribution>
+Host::activate(plugin, id) -> Result<Data, CallError>   the user used a description
+Host::on_network(handler: Fn(NetworkRequest))
+Host::answer(plugin, id, Result<Data, String>) -> Result<Data, CallError>
 Host::call(plugin id, function, &[Data]) -> Result<Data, CallError>
 Host::loaded() -> ids
 ```
