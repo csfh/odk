@@ -92,6 +92,7 @@ impl<T: 'static> Switch<T> {
         let g = s.geometry;
         let (left, top) = thumb_origin(&g);
         let thumb = el()
+            .key(format!("{}-thumb", self.id))
             .absolute(left, top)
             .size(g.thumb, g.thumb)
             .radius(g.thumb_shape.corner_radius(g.thumb, g.thumb))

@@ -351,7 +351,8 @@ impl<T: 'static> Toaster<T> {
             .map(|e| e.toast.id);
         drop(state);
         layers.push(
-            stack
+            paint
+                .present(stack)
                 .on_hover_change(move |_: &mut Hosted<T>, over: bool, tx: &mut Tx| {
                     hover.set_paused(over);
                     // The clocks run again from the next frame.

@@ -162,7 +162,7 @@ impl<T: 'static> Popover<T> {
         let wrapper = pressable(wrapper, &self.id, true, toggle);
 
         if open {
-            let mut panel = apply(col(), &accessible)
+            let mut panel = apply(col().key(format!("{}-panel", self.id)), &accessible)
                 .px(g.padding_x)
                 .py(g.padding_y)
                 .gap(g.gap)
