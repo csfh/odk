@@ -1418,10 +1418,11 @@ pub fn register(
     done
 }
 
-/// Cleans up after every pair whose installed Bundle file is no longer in `~/Applications`,
-/// whatever removed it (ADR 0099), under the state lock, so a file an upgrade or a rollback has
-/// out of the directory for a moment is not taken for one that is gone. A pair that was never
-/// installed, or was declined, is passed over. For one that was:
+/// Cleans up after every installed pair with no Bundle file of its app id under its root left in
+/// `~/Applications`, whatever removed it (ADR 0099), under the state lock, so a file an upgrade
+/// or a rollback has out of the directory for a moment is not taken for one that is gone. Nothing
+/// is cleaned up when `~/Applications` cannot be listed or a file's prefix cannot be read. A pair
+/// that was never installed, or was declined, is passed over. For one that was:
 ///
 /// - its daemon is stopped and the program written out of its image is removed (ADR 0084);
 /// - its previous file, its inbox, its icon and any held file under its root are deleted;
@@ -1436,13 +1437,32 @@ fn clean_up_after(
     stopper: &dyn Stopper,
 ) -> Result<Vec<Registered>, Error> {
     let _lock = StateLock::take(layout)?;
+    // Only a directory that was listed, with every file's prefix read, says what is gone: an
+    // unreadable `~/Applications` or file is never taken for an uninstall.
+    let files = install::listed_bundle_files(layout).map_err(|source| install::Error::Io {
+        path: layout.applications(),
+        source,
+    })?;
+    if let Some((unread, _)) = files.iter().find(|(_, signed)| signed.is_none()) {
+        return Err(install::Error::Io {
+            path: unread.clone(),
+            source: std::io::Error::other("its prefix could not be read"),
+        }
+        .into());
+    }
+    let present: Vec<(Identifier, KeyId)> = files
+        .into_iter()
+        .filter_map(|(_, signed)| signed)
+        .map(|signed| (signed.app_id, signed.root_key_id))
+        .collect();
     let mut done = Vec::new();
     for (app, pair) in grants::pairs(layout)? {
         if pair.denied || pair.installed.or(pair.mark).is_none() {
             continue;
         }
         let root = pair.root.key_id();
-        if installed_copy(layout, &app)?.is_some_and(|(_, installed)| installed == root) {
+        // Any file of the app under its root, installed or waiting to be, keeps everything.
+        if present.contains(&(app.clone(), root)) {
             continue;
         }
         let dir = layout.pair_dir(&root, &app);
@@ -1714,13 +1734,25 @@ fn register_one(layout: &Layout, path: &Path, now: i64, fetch: Fetch) -> Result<
     let file = checked.signed();
     let signed = file.manifest();
     let (app, root_id) = (&signed.app_id, &signed.root_key_id);
+    let pair = grants::load_pair(layout, root_id, app)?.filter(|pair| !pair.denied);
+    // The installed copy keeps running past its signature window (ADR 0060), so it is kept, and
+    // never taken for one that is gone (ADR 0099).
+    let installed = pair.as_ref().and_then(|p| p.installed.or(p.mark));
+    if installed
+        == Some(Mark {
+            version: signed.version,
+            payload_sha256: signed.payload_sha256,
+        })
+    {
+        return Ok(Registered::Kept(path.to_owned()));
+    }
     if signed.expires_at.unix_seconds() < now {
         return delete(format!(
             "its signature expired at {}",
             signed.expires_at.as_str()
         ));
     }
-    let Some(pair) = grants::load_pair(layout, root_id, app)?.filter(|pair| !pair.denied) else {
+    let Some(pair) = pair else {
         let held = layout.held_file(root_id, app);
         let _ = fs::remove_file(&held);
         install::place_file(&sealed, &held)?;
@@ -3918,6 +3950,96 @@ mod signed_tests {
             install_with(&layout, &v7, false, soon(), &Dialog::answering(&[]), &site).unwrap(),
             target
         );
+    }
+
+    /// v7 installed with data, and the layout, the site, the app id, the root and the data
+    /// directory.
+    fn installed_v7_with_data(dir: &TempDir) -> (Layout, Site, Identifier, KeyId, PathBuf) {
+        let layout = layout(dir);
+        let app: Identifier = APP.parse().unwrap();
+        let root_id = root(1).public_key().key_id();
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let data = layout.pair_data_dir(&root_id, &app);
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("notes.db"), "notes").unwrap();
+        (layout, site, app, root_id, data)
+    }
+
+    fn uninstalled(done: &[Registered]) -> bool {
+        done.iter()
+            .any(|d| matches!(d, Registered::Uninstalled { .. }))
+    }
+
+    #[test]
+    fn a_newer_file_left_waiting_in_place_of_the_installed_one_keeps_everything() {
+        let dir = TempDir::new().unwrap();
+        let (layout, site, _, _, data) = installed_v7_with_data(&dir);
+        let installed = layout.applications().join("Notes.oma");
+        // v8 from a release key the key set does not name: it waits, and v7 is gone.
+        let stranger = SigningKey::from_seed(&[0x77; 32]).unwrap();
+        let v8 = bundle_file_by(&dir, &stranger, |t| t, |m| m.version = 8);
+        std::fs::rename(&v8, &installed).unwrap();
+        let stops = crate::testutil::Stops::default();
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        assert!(
+            matches!(&done[..], [Registered::Waiting { path, .. }] if *path == installed),
+            "{done:?}"
+        );
+        assert!(data.join("notes.db").is_file());
+        assert!(!layout.trash_dir().exists());
+    }
+
+    #[test]
+    fn nothing_is_cleaned_up_when_applications_or_a_file_in_it_cannot_be_read() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let (layout, site, _, _, data) = installed_v7_with_data(&dir);
+        let apps = layout.applications();
+        let stops = crate::testutil::Stops::default();
+
+        // A file whose prefix cannot be read: a directory would be passed over, so a file
+        // nobody may read.
+        let unreadable = apps.join("Other.oma");
+        std::fs::write(&unreadable, vec![0u8; 2048]).unwrap();
+        std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o000)).unwrap();
+        std::fs::remove_file(apps.join("Notes.oma")).unwrap();
+        if std::fs::File::open(&unreadable).is_ok() {
+            eprintln!("skipped: running as a user who can read anything");
+            return;
+        }
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        assert!(!uninstalled(&done), "{done:?}");
+        assert!(data.join("notes.db").is_file());
+
+        // `~/Applications` itself cannot be listed.
+        std::fs::remove_file(&unreadable).unwrap();
+        std::fs::set_permissions(&apps, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        std::fs::set_permissions(&apps, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(!uninstalled(&done), "{done:?}");
+        assert!(data.join("notes.db").is_file());
+        assert!(!layout.trash_dir().exists());
+
+        // Once it can be read and the file is gone, it is cleaned up.
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        assert!(uninstalled(&done), "{done:?}");
+    }
+
+    #[test]
+    fn an_installed_file_past_its_signature_window_is_kept_with_its_data() {
+        let dir = TempDir::new().unwrap();
+        let (layout, site, _, _, data) = installed_v7_with_data(&dir);
+        let later = Timestamp::parse("2099-06-01T00:00:00Z")
+            .unwrap()
+            .unix_seconds();
+        let stops = crate::testutil::Stops::default();
+        let done = register(&layout, later, &|p| site.fetch(p), &|_| Ok(()), &stops);
+        assert!(matches!(&done[..], [Registered::Kept(_)]), "{done:?}");
+        assert!(layout.applications().join("Notes.oma").is_file());
+        assert!(data.join("notes.db").is_file());
     }
 
     #[test]

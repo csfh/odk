@@ -79,6 +79,14 @@ pub fn place_file(file: &Sealed, target: &Path) -> Result<(), Error> {
 /// the prefix parses. Nothing here is verified: it is for finding files, and what is run or
 /// installed is checked in full (`flow`).
 pub fn bundle_files(layout: &Layout) -> Vec<(PathBuf, Option<SignedManifest>)> {
+    listed_bundle_files(layout).unwrap_or_default()
+}
+
+/// [`bundle_files`], with an error when `~/Applications` cannot be listed, for what must not take
+/// an unreadable directory for an empty one (`flow`'s cleanup, ADR 0099).
+pub fn listed_bundle_files(
+    layout: &Layout,
+) -> std::io::Result<Vec<(PathBuf, Option<SignedManifest>)>> {
     use crate::trust::{Prefix, container::PREFIX_LEN};
     use std::io::Read;
     let says = |path: &Path| -> Option<SignedManifest> {
@@ -89,11 +97,10 @@ pub fn bundle_files(layout: &Layout) -> Vec<(PathBuf, Option<SignedManifest>)> {
         let prefix = Prefix::parse(&prefix, len).ok()?;
         SignedManifest::parse(&prefix.manifest).ok()
     };
-    let Ok(entries) = fs::read_dir(layout.applications()) else {
-        return Vec::new();
-    };
+    let entries = fs::read_dir(layout.applications())?;
     let mut files: Vec<_> = entries
-        .filter_map(Result::ok)
+        .collect::<std::io::Result<Vec<_>>>()?
+        .into_iter()
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "oma"))
         .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_file()))
@@ -103,7 +110,7 @@ pub fn bundle_files(layout: &Layout) -> Vec<(PathBuf, Option<SignedManifest>)> {
         })
         .collect();
     files.sort_by(|a, b| a.0.cmp(&b.0));
-    files
+    Ok(files)
 }
 
 /// A Bundle file in `~/Applications` whose signed manifest names `id`, if there is one.
