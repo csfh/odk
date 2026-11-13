@@ -12,7 +12,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::fmt::{Bundle, Daemon, Identifier};
+#[cfg(test)]
+use crate::fmt::Bundle;
+use crate::fmt::{Daemon, Identifier};
 
 /// How long to wait for the socket to appear once the unit has been started.
 const WAIT: Duration = Duration::from_secs(5);
@@ -208,12 +210,15 @@ fn is_socket(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|m| m.file_type().is_socket())
 }
 
-/// Makes sure the Bundle's daemon is there. `None` when the Bundle declares none.
+/// Makes sure a Bundle directory's daemon is there, for the tests of [`ensure_program`], which
+/// build their Bundle as a directory. `None` when the Bundle declares none. No Bundle directory
+/// is run (ADR 0099).
 ///
 /// If the socket accepts connections, something is serving it already, perhaps a daemon the
 /// application installed units for, and a second must not run. Otherwise a unit is started and
 /// the socket waited for.
-pub fn ensure(
+#[cfg(test)]
+fn ensure(
     bundle: &Bundle,
     runtime_dir: &Path,
     env: &dyn Fn(&str) -> Option<String>,
@@ -230,8 +235,12 @@ pub fn ensure(
     ensure_program(id, daemon, executable, runtime_dir, env, starter, wait).map(Some)
 }
 
-/// [`ensure`] for the daemon `daemon` of the application `id`, run from the program at
-/// `executable`: a directory Bundle's, or the one written out of a Bundle file (ADR 0084).
+/// Makes sure the daemon `daemon` of the application `id` is there, run from the program at
+/// `executable`, the one written out of its Bundle file (ADR 0084).
+///
+/// If the socket accepts connections, something is serving it already, perhaps a daemon the
+/// application installed units for, and a second must not run. Otherwise a unit is started and
+/// the socket waited for.
 pub fn ensure_program(
     id: &Identifier,
     daemon: &Daemon,
@@ -269,15 +278,6 @@ pub fn ensure_program_for_run(
     env: &dyn Fn(&str) -> Option<String>,
 ) -> Result<Outcome, Error> {
     ensure_program(id, daemon, executable, runtime_dir, env, &SystemdRun, WAIT)
-}
-
-/// [`ensure`] with the real starter and the time to wait that `odk oma run` allows.
-pub fn ensure_for_run(
-    bundle: &Bundle,
-    runtime_dir: &Path,
-    env: &dyn Fn(&str) -> Option<String>,
-) -> Result<Option<Outcome>, Error> {
-    ensure(bundle, runtime_dir, env, &SystemdRun, WAIT)
 }
 
 #[cfg(test)]

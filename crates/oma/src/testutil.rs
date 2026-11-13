@@ -62,3 +62,24 @@ pub fn in_child(test_name: &str) {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+/// Copies a Bundle directory into `~/Applications` under its own name, as `odk oma install` did
+/// before v1 (ADR 0099), and returns where it is. Only the tests that check what is left of such
+/// an install make one.
+pub fn put_in_applications(layout: &crate::layout::Layout, source: &Path) -> PathBuf {
+    fn copy(from: &Path, to: &Path) {
+        fs::create_dir_all(to).unwrap();
+        for entry in fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), &target).unwrap();
+            }
+        }
+    }
+    let target = layout.applications().join(source.file_name().unwrap());
+    copy(source, &target);
+    target
+}

@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use oma::fmt::Bundle;
 
 #[derive(Parser)]
 #[command(name = "odk oma", bin_name = "odk oma", version, about)]
@@ -18,12 +17,12 @@ struct Cli {
 enum Command {
     /// Print a Bundle's name, Identifier, version and the permissions it requests
     Inspect {
-        /// Path to a Bundle file or directory
-        bundle_dir: PathBuf,
+        /// A Bundle file
+        bundle: PathBuf,
     },
     /// Run an application in its sandbox
     Run {
-        /// An installed application's Identifier, or a path to a Bundle directory
+        /// An installed application's Identifier, or a Bundle file
         target: String,
         /// Stay, relay terminal signals and exit with the application's status
         #[arg(long)]
@@ -31,12 +30,12 @@ enum Command {
     },
     /// Ask for the permissions a Bundle requests and record the answer
     Consent {
-        /// An installed application's Identifier, or a path to a Bundle directory
+        /// An installed application's Identifier, or its installed Bundle file
         target: String,
     },
-    /// Copy a Bundle into ~/Applications
+    /// Verify a Bundle file and install it into ~/Applications
     Install {
-        /// A Bundle file, or a Bundle directory
+        /// A Bundle file
         bundle: PathBuf,
         /// Record consent for exactly the permissions the Bundle asks for now, without a dialog
         #[arg(long)]
@@ -74,14 +73,14 @@ enum Command {
         /// The directory holding install.sh and the tarball
         dir: PathBuf,
     },
-    /// Assemble `<Name>.oma/` from a built executable and a manifest.toml (compiles nothing)
+    /// Write and sign `<Name>.oma` from a built executable and a manifest.toml (compiles nothing)
     Bundle {
         /// The built x86_64 ELF executable
         executable: PathBuf,
         /// The Bundle's manifest.toml; an icon it names is read from beside it
         #[arg(long)]
         manifest: PathBuf,
-        /// Directory to create the Bundle in
+        /// Directory to write the Bundle file in
         #[arg(short, long, default_value = ".")]
         out: PathBuf,
         /// A regular file to put in the Bundle too: `FILE` or `FILE=PATH/IN/BUNDLE`. Repeat it.
@@ -150,9 +149,9 @@ fn main() -> ExitCode {
     }
 
     match Cli::parse().command {
-        Command::Inspect { bundle_dir } if bundle_dir.is_file() => {
+        Command::Inspect { bundle } => {
             let layout = oma::layout::Layout::from_env();
-            match oma::flow::inspect_file(layout.as_ref(), &bundle_dir) {
+            match oma::flow::inspect_file(layout.as_ref(), &bundle) {
                 Ok(inspected) => {
                     print!("{}", inspect_file_text(&inspected));
                     ExitCode::SUCCESS
@@ -163,16 +162,6 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Command::Inspect { bundle_dir } => match Bundle::open(&bundle_dir) {
-            Ok(bundle) => {
-                print!("{}", inspect_text(bundle.manifest(), None));
-                ExitCode::SUCCESS
-            }
-            Err(e) => {
-                eprintln!("odk oma: {e}");
-                ExitCode::FAILURE
-            }
-        },
         Command::Run { target, wait } => {
             let Some(layout) = oma::layout::Layout::from_env() else {
                 eprintln!("odk oma: $HOME is not set");
@@ -214,22 +203,18 @@ fn main() -> ExitCode {
                 eprintln!("odk oma: $HOME is not set");
                 return ExitCode::FAILURE;
             };
-            let installed = if bundle.is_file() {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_or(0, |d| d.as_secs() as i64);
-                let agent = oma::fetch::agent();
-                oma::flow::install_file(
-                    &layout,
-                    &bundle,
-                    accept_permissions,
-                    now,
-                    &oma::consent::ask,
-                    &|publisher| oma::fetch::oma_keys(&agent, publisher),
-                )
-            } else {
-                oma::flow::install(&layout, &bundle, accept_permissions, &oma::consent::ask)
-            };
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs() as i64);
+            let agent = oma::fetch::agent();
+            let installed = oma::flow::install_file(
+                &layout,
+                &bundle,
+                accept_permissions,
+                now,
+                &oma::consent::ask,
+                &|publisher| oma::fetch::oma_keys(&agent, publisher),
+            );
             match installed {
                 Ok(path) => {
                     println!("{}", path.display());
@@ -245,8 +230,11 @@ fn main() -> ExitCode {
             oma::flow::rollback(layout, app).map(|path| println!("{}", path.display()))
         }),
         Command::Purge { identifier } => by_identifier(&identifier, |layout, app| {
-            oma::flow::purge(layout, app).map(|roots| {
-                for root in roots {
+            oma::flow::purge(layout, app).map(|purged| {
+                if let Some(dir) = purged.directory {
+                    println!("purged {app}'s Bundle directory {}", dir.display());
+                }
+                for root in purged.roots {
                     println!("purged {app} under publisher key {root}");
                 }
             })

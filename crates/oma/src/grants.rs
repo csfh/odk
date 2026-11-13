@@ -18,6 +18,8 @@ use crate::fmt::{Access, Daemon, FsGrant, Identifier, Permissions, UserDir};
 use crate::layout::Layout;
 use crate::trust::{KeyId, Mark, PublicKey, Publisher};
 
+/// A consent record from before v1 (ADR 0099), which only tests write.
+#[cfg(test)]
 const VERSION: u32 = 1;
 /// A pair's record. Its own number, so neither kind of record is read as the other.
 const PAIR_VERSION: u32 = 2;
@@ -33,6 +35,7 @@ pub enum Error {
     Damaged { path: PathBuf, reason: String },
 }
 
+#[cfg(test)]
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct File {
@@ -174,7 +177,9 @@ fn write_private(path: &Path, text: impl AsRef<[u8]>) -> Result<(), Error> {
     Ok(())
 }
 
-/// What the user has consented to for one application.
+/// What a consent record from before v1 says (ADR 0099): only tests read one, to set up or check
+/// the state that `purge` removes.
+#[cfg(test)]
 pub fn load(layout: &Layout, id: &Identifier) -> Result<Option<Permissions>, Error> {
     let path = layout.grants_file(id);
     let Some(text) = read(&path)? else {
@@ -206,8 +211,9 @@ pub fn load(layout: &Layout, id: &Identifier) -> Result<Option<Permissions>, Err
     granted.permissions().map(Some).map_err(damaged)
 }
 
-/// Records consent for exactly `permissions`, replacing any earlier record. The file is
-/// private to the user and replaced atomically.
+/// Writes a consent record as `odk oma install` of a Bundle directory did before v1 (ADR 0099),
+/// for tests. The file is private to the user and replaced atomically.
+#[cfg(test)]
 pub fn save(layout: &Layout, id: &Identifier, permissions: &Permissions) -> Result<(), Error> {
     let granted = Granted::of(permissions);
     let file = File {
