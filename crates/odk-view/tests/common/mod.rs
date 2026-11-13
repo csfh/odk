@@ -61,6 +61,14 @@ pub const CONTENT: &[Content] = &[
         text: "日本語の文字を含む、とても長いラベルで、枠に収まらないテキストです。",
     },
     Content {
+        name: "arabic",
+        text: "حفظ جميع التغييرات في المستند قبل إغلاق النافذة والانتقال إلى الصفحة التالية",
+    },
+    Content {
+        name: "mixed",
+        text: "Open ملف التقرير السنوي 2026 in Notes",
+    },
+    Content {
         name: "emoji",
         text: "Family 👨‍👩‍👧‍👦 and flags 🇩🇰 🇯🇵 with text 🎉 end",
     },
