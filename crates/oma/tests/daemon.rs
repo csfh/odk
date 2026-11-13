@@ -51,7 +51,7 @@ fn the_application_reaches_its_daemons_socket_and_nothing_beside_it() {
         return;
     }
     let w = World::new();
-    w.install_with_daemon("", DAEMON);
+    w.install_file_with("", Some(DAEMON));
     serve(&w.runtime.join("probe/d.sock"));
     fs::write(w.runtime.join("probe/cache.json"), "{}").unwrap();
     let other = UnixListener::bind(w.runtime.join("other.sock")).unwrap();
@@ -92,7 +92,7 @@ fn without_a_daemon_oma_starts_one_unit_and_the_application_goes_on() {
         return;
     }
     let w = World::new();
-    let bundle = w.install_with_daemon("", DAEMON);
+    w.install_file_with("", Some(DAEMON));
     w.control("daemon-socket", "probe/d.sock");
     let fakes = w.fake_systemd_run();
     // What the user manager would do: the socket appears once the unit is asked for.
@@ -127,20 +127,14 @@ fn without_a_daemon_oma_starts_one_unit_and_the_application_goes_on() {
         )),
         "{args:?}"
     );
-    // The program is the Bundle's own, by its real path, outside the sandbox's /app.
+    // The program is the Bundle's own, written out beside the pair's data, outside the
+    // sandbox's /app (ADR 0084).
     let dashes = args.iter().position(|a| a == "--").unwrap();
     let program = Path::new(&args[dashes + 1]);
-    assert!(program.ends_with("Probe.oma/bin/d"), "{program:?}");
-    assert!(
-        program.starts_with(
-            fs::canonicalize(&bundle)
-                .unwrap()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-        ) || program.starts_with(&w.home),
-        "{program:?}"
+    assert_eq!(
+        program,
+        w.data.parent().unwrap().join("daemon/d"),
+        "{args:?}"
     );
     assert_eq!(args[dashes + 2], "daemon");
     assert!(
@@ -161,7 +155,7 @@ fn a_unit_that_cannot_be_started_stops_the_launch() {
         return;
     }
     let w = World::new();
-    w.install_with_daemon("", DAEMON);
+    w.install_file_with("", Some(DAEMON));
     w.control("daemon-socket", "probe/d.sock");
     // `systemd-run` is not on this PATH at all.
     let (out, report) = w.run_wait_with_path("/nonexistent");
@@ -172,7 +166,7 @@ fn a_unit_that_cannot_be_started_stops_the_launch() {
 }
 
 /// A daemon that is not asked for does not appear, and a record without it grants none: a
-/// Bundle that adds a daemon in an update is asked again.
+/// Bundle that adds a daemon in an update is asked again, and nothing starts until then.
 #[test]
 fn a_bundle_that_adds_a_daemon_is_asked_again() {
     if !supported() {
@@ -186,76 +180,17 @@ fn a_bundle_that_adds_a_daemon_is_asked_again() {
             .contains("daemon"),
         "a record of a Bundle without one has none"
     );
-    // The same Identifier now declares a daemon; the old record does not cover it.
-    // `bundle` makes its Bundle where `install` did, so the installed one steps aside.
-    fs::rename(w.home.join("out"), w.home.join("out-installed")).unwrap();
-    let bundle = w.bundle("");
-    let manifest = bundle.join("manifest.toml");
-    let mut text = fs::read_to_string(&manifest).unwrap();
-    text.push_str(&format!("\n[daemon]\n{DAEMON}\n"));
-    fs::write(&manifest, text).unwrap();
-    fs::create_dir_all(bundle.join("bin")).unwrap();
-    fs::copy(probe_binary(), bundle.join("bin/d")).unwrap();
-    let out = w.oma(&["run", bundle.to_str().unwrap()]);
+    // The installed file now declares a daemon, as after an upgrade; the record does not
+    // cover it.
+    w.install_file_with("", Some(DAEMON));
+    w.set_consent("");
+    let fakes = w.fake_systemd_run();
+    let (out, report) = w.run_wait_with_path(&format!("{}:/usr/bin", fakes.display()));
     assert!(!out.status.success());
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        err.contains("oma-consent") || err.contains("no consent was recorded"),
-        "{err}"
-    );
-}
-
-/// The consent covers the installed program. A copy of the Bundle elsewhere, whether the
-/// application wrote it into its own data directory or it was downloaded, would otherwise have
-/// its `bin/d` started outside the sandbox with the installed one's consent and no question.
-#[test]
-fn a_copy_of_an_installed_bundle_never_starts_its_own_daemon() {
-    if !supported() {
-        return;
-    }
-    let w = World::new();
-    let installed = w.install_with_daemon("", DAEMON);
-    w.control("daemon-socket", "probe/d.sock");
-
-    let copy = w.home.join("downloads/Probe.oma");
-    fs::create_dir_all(copy.parent().unwrap()).unwrap();
-    let cp = std::process::Command::new("cp")
-        .arg("-a")
-        .arg(fs::canonicalize(w.home.join("Applications/Probe.oma")).unwrap())
-        .arg(&copy)
-        .status()
-        .unwrap();
-    assert!(cp.success());
-    // Its daemon is a different program from the one the user agreed to.
-    let other = copy.join("bin/d");
-    fs::remove_file(&other).unwrap();
-    let mut bytes = fs::read(probe_binary()).unwrap();
-    bytes.push(0);
-    fs::write(&other, bytes).unwrap();
-    fs::set_permissions(&other, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    assert!(installed.exists());
-
-    let fakes = w.fake_systemd_run();
-    let path = format!("{}:/usr/bin", fakes.display());
-    let (out, report) = w.run_target_with_path(copy.to_str().unwrap(), &path);
-    assert!(!out.status.success(), "the copy ran");
-    let err = String::from_utf8_lossy(&out.stderr);
-    assert!(err.contains("only the installed copy"), "{err}");
+    assert!(err.contains("no consent was recorded"), "{err}");
     assert!(report.is_empty(), "the application never started");
-    assert!(
-        !fakes.join("argv").exists(),
-        "nothing was started for it: {err}"
-    );
-
-    // The installed one still runs, by its Identifier or by its path.
-    serve(&w.runtime.join("probe/d.sock"));
-    let (out, report) = w.run_target_with_path(ID, &path);
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(report.contains_key("pid"));
+    assert!(!fakes.join("argv").exists(), "no daemon was started");
 }
 
 /// A Bundle file's daemon runs from its program written out of the verified image into the

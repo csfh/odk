@@ -93,12 +93,7 @@ fn consent_is_required_and_fails_closed() {
     }
     let w = World::new();
     w.install("gpu = true");
-    fs::remove_file(
-        w.home
-            .join(".local/share/oma/grants")
-            .join(format!("{ID}.toml")),
-    )
-    .unwrap();
+    w.set_consent("");
     // The test `oma` has no consent dialog helper next to it, so there is no way to ask.
     let out = w.oma(&["run", ID]);
     assert!(!out.status.success());
@@ -456,14 +451,13 @@ fn setup_errors_reach_the_terminal_even_when_detached() {
 
     // A Bundle that passes validation but whose program cannot start (a bare ELF header): the
     // failure comes back over the pipe, so a detached `odk oma run` still reports it.
-    let bundle = w.home.join("Applications/Probe.oma");
     let mut header = vec![0u8; 64];
     header[..4].copy_from_slice(b"\x7fELF");
     header[4] = 2;
     header[5] = 1;
     header[16] = 3;
     header[18] = 62;
-    fs::write(bundle.join("probe"), header).unwrap();
+    w.install_file_running("", &header);
     let out = w.oma(&["run", ID]);
     assert!(!out.status.success());
     let err = String::from_utf8_lossy(&out.stderr);
@@ -561,7 +555,7 @@ fn an_installed_bundle_file_runs_from_a_read_only_tmpfs_at_app() {
     assert_eq!(r["root"], "app,bin,dev,etc,lib,lib64,proc,run,sbin,tmp,usr");
     // Its data is the pair's (ADR 0060, section 2), not the Identifier's.
     assert!(data.join("written-by-probe").exists());
-    assert!(!w.data.join("written-by-probe").exists());
+    assert_eq!(data, w.data);
 
     // Another file under the same name is not the installed one, and does not run.
     let apps = w.home.join("Applications/Probe.oma");

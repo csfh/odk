@@ -52,7 +52,12 @@ impl World {
             "XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\nXDG_MUSIC_DIR=\"$HOME/Music\"\n",
         )
         .unwrap();
-        let data = home.join(".local/share/oma/data").join(ID);
+        // The pair's data directory: the fixture root's, for the probe (ADR 0060, section 2).
+        let data = home
+            .join(".local/share/oma/apps")
+            .join(fixture_root().public_key().key_id().to_string())
+            .join(ID)
+            .join("data");
         let bin = root.join("oma-bin");
         fs::create_dir_all(&bin).unwrap();
         let oma_bin = bin.join("odk-oma");
@@ -82,27 +87,9 @@ impl World {
         )
     }
 
-    /// Bundles the probe with the given `[permissions]` text and installs it with consent.
+    /// Installs the probe as a Bundle file with the given `[permissions]` text, with consent.
     pub fn install(&self, permissions: &str) {
-        let manifest = self.home.join("manifest.toml");
-        fs::write(
-            &manifest,
-            format!("manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\n\n[permissions]\n{permissions}\n"),
-        )
-        .unwrap();
-        let out = self.home.join("out");
-        // A directory Bundle, which `install` and `run` still take as well as a file.
-        oma::bundle::assemble_with(&probe_binary(), &manifest, &out, &[]).unwrap();
-        let installed = self.oma(&[
-            "install",
-            "--accept-permissions",
-            out.join("Probe.oma").to_str().unwrap(),
-        ]);
-        assert!(
-            installed.status.success(),
-            "{}",
-            String::from_utf8_lossy(&installed.stderr)
-        );
+        self.install_file(permissions);
     }
 
     /// Installs the probe as a Bundle file, as `odk oma install` leaves it at first contact: the
@@ -115,6 +102,15 @@ impl World {
 
     /// [`World::install_file`] with a `[daemon]` table, whose program, `bin/d`, is the probe.
     pub fn install_file_with(&self, permissions: &str, daemon: Option<&str>) -> PathBuf {
+        self.install_signed(permissions, daemon, &fs::read(probe_binary()).unwrap())
+    }
+
+    /// [`World::install_file`] with `program` as the probe's executable.
+    pub fn install_file_running(&self, permissions: &str, program: &[u8]) -> PathBuf {
+        self.install_signed(permissions, None, program)
+    }
+
+    fn install_signed(&self, permissions: &str, daemon: Option<&str>, program: &[u8]) -> PathBuf {
         use oma::trust::{Mark, Publisher, Sealed, SignedManifest, SigningKey, Timestamp};
         let tree = self.home.join("tree");
         fs::create_dir_all(tree.join("bin")).unwrap();
@@ -123,13 +119,17 @@ impl World {
             "manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\npublisher = \"apps.example.com\"\n\n[permissions]\n{permissions}\n{daemon}"
         );
         fs::write(tree.join("manifest.toml"), &text).unwrap();
-        fs::copy(probe_binary(), tree.join("probe")).unwrap();
+        fs::write(tree.join("probe"), program).unwrap();
+        fs::set_permissions(
+            tree.join("probe"),
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        )
+        .unwrap();
         fs::copy(probe_binary(), tree.join("bin/d")).unwrap();
         let mut image = Vec::new();
         oma::image::write(&tree, "Probe", &mut image).unwrap();
 
-        // Fixture keys, never real ones.
-        let root = SigningKey::from_seed(&[1; 32]).unwrap();
+        let root = fixture_root();
         let release = SigningKey::from_seed(&[0x42; 32]).unwrap();
         let publisher = Publisher::parse("apps.example.com").unwrap();
         let signed = SignedManifest {
@@ -170,37 +170,36 @@ impl World {
         layout.pair_data_dir(&root.public_key().key_id(), &id)
     }
 
-    /// [`World::install`] for a Bundle that declares a daemon: `daemon` is the text of its
-    /// `[daemon]` table, and the probe is also put in the Bundle as `bin/d`, the program it names.
-    pub fn install_with_daemon(&self, permissions: &str, daemon: &str) -> PathBuf {
-        let manifest = self.home.join("manifest.toml");
-        fs::write(
-            &manifest,
-            format!("manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\n\n[permissions]\n{permissions}\n\n[daemon]\n{daemon}\n"),
-        )
-        .unwrap();
-        let out = self.home.join("out");
-        let probe = probe_binary();
-        let helper = format!("{}=bin/d", probe.display());
-        // A directory Bundle, which `install` and `run` still take as well as a file.
-        oma::bundle::assemble_with(
-            &probe,
-            &manifest,
-            &out,
-            &[oma::bundle::Include::parse(&helper).unwrap()],
-        )
-        .unwrap();
-        let installed = self.oma(&[
-            "install",
-            "--accept-permissions",
-            out.join("Probe.oma").to_str().unwrap(),
-        ]);
-        assert!(
-            installed.status.success(),
-            "{}",
-            String::from_utf8_lossy(&installed.stderr)
+    /// Sets what the installed probe's pair allows to what `permissions`, the text under
+    /// `[permissions]`, says, as if it had been installed asking for that and then upgraded.
+    pub fn set_consent(&self, permissions: &str) {
+        let layout = oma::layout::Layout::new(&self.home, self.home.join(".local/share"));
+        let id: oma::fmt::Identifier = ID.parse().unwrap();
+        let root = fixture_root().public_key().key_id();
+        let mut pair = oma::grants::load_pair(&layout, &root, &id)
+            .unwrap()
+            .unwrap();
+        let text = format!(
+            "manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\n\n[permissions]\n{permissions}\n"
         );
-        out.join("Probe.oma")
+        pair.permissions = Some(oma::fmt::Manifest::parse(&text).unwrap().permissions);
+        oma::grants::save_pair(&layout, &id, &pair).unwrap();
+    }
+
+    /// The installed probe's pair record, which holds its consent.
+    pub fn grant_file(&self) -> PathBuf {
+        let layout = oma::layout::Layout::new(&self.home, self.home.join(".local/share"));
+        layout.pair_grants_file(&fixture_root().public_key().key_id(), &ID.parse().unwrap())
+    }
+
+    /// What the installed probe's pair allows, as the permission lines a dialog shows.
+    pub fn allowed(&self) -> Vec<String> {
+        let layout = oma::layout::Layout::new(&self.home, self.home.join(".local/share"));
+        let root = fixture_root().public_key().key_id();
+        let pair = oma::grants::load_pair(&layout, &root, &ID.parse().unwrap())
+            .unwrap()
+            .unwrap();
+        oma::fmt::permission_lines(&pair.permissions.unwrap_or_default())
     }
 
     /// `odk oma run --wait` with `PATH` set to `path`, so a fake `systemd-run` can stand in for the
@@ -278,27 +277,6 @@ impl World {
         output_retrying(&mut command)
     }
 
-    /// Writes a Bundle with the given `[permissions]` text and returns its directory, without
-    /// installing it.
-    pub fn bundle(&self, permissions: &str) -> PathBuf {
-        let manifest = self.home.join("manifest.toml");
-        fs::write(
-            &manifest,
-            format!("manifest_version = 1\nidentifier = \"{ID}\"\nname = \"Probe\"\nversion = \"1.0.0\"\nexecutable = \"probe\"\n\n[permissions]\n{permissions}\n"),
-        )
-        .unwrap();
-        let out = self.home.join("out");
-        // A directory Bundle, which `install` and `run` still take as well as a file.
-        oma::bundle::assemble_with(&probe_binary(), &manifest, &out, &[]).unwrap();
-        out.join("Probe.oma")
-    }
-
-    pub fn grant_file(&self) -> PathBuf {
-        self.home
-            .join(".local/share/oma/grants")
-            .join(format!("{ID}.toml"))
-    }
-
     pub fn control(&self, name: &str, content: &str) {
         fs::create_dir_all(&self.data).unwrap();
         fs::write(self.data.join(name), content).unwrap();
@@ -312,6 +290,11 @@ impl World {
             .collect();
         (out, report)
     }
+}
+
+/// The fixture publisher root the probe is signed under, never a real key.
+pub fn fixture_root() -> oma::trust::SigningKey {
+    oma::trust::SigningKey::from_seed(&[1; 32]).unwrap()
 }
 
 /// These tests need unprivileged user namespaces and Landlock ABI 6; elsewhere they are skipped.

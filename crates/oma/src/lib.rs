@@ -18,6 +18,7 @@ pub mod layout;
 pub mod odk_release;
 pub mod sandbox;
 pub mod self_upgrade;
+pub mod trash;
 pub mod trust;
 pub mod userdirs;
 pub mod view;

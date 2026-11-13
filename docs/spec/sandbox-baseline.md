@@ -8,7 +8,7 @@ Access is read-only unless a row says otherwise, and private tmpfs mounts are wr
 
 | What | Access |
 |---|---|
-| The application's own data directory, `~/.local/share/oma/data/<identifier>/`, appearing at the real home directory's path, so `$HOME` is that path (see below) | read-write |
+| The application's own data directory, its publisher pair's `~/.local/share/oma/apps/<root key id>/<identifier>/data/` (ADR 0060, ADR 0099), appearing at the real home directory's path, so `$HOME` is that path (see below) | read-write |
 | `~/.local/share/oma/inbox/<identifier>/`, the application's own inbox (ADR 0015), at `/inbox` with `$OMA_INBOX=/inbox` | read-write, only with `updates` |
 | The application's own Bundle contents, at `/app` | read-only |
 | `/usr` | read-only |

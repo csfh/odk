@@ -4,7 +4,7 @@ Normative. This spec defines the Manifest described in ADR 0006. It must not cha
 
 ## Location and format
 
-A Bundle (ADR 0052) contains one Manifest at `manifest.toml` on the root of the image a mount shows. The file on disk is one `<App>.oma`; the tree inside it is the tree this spec describes. The code still validates a Bundle directory until it follows ADR 0052. The Manifest is declarative; oma reads it without executing anything from the Bundle. The file name is cosmetic, and identity comes only from `identifier`.
+A Bundle (ADR 0052) contains one Manifest at `manifest.toml` on the root of the image a mount shows. The file on disk is one `<App>.oma`; the tree inside it is the tree this spec describes. The Manifest is declarative; oma reads it without executing anything from the Bundle. The file name is cosmetic, and identity comes only from `identifier`.
 
 Any key not listed here is an error. No text in the Manifest that oma later writes into a `.desktop` entry (`name`, `description`, `categories`, `icon`) may contain a control character, so a newline cannot add a line such as `Exec=` to it (ADR 0014); the same holds for `executable` and for D-Bus service names. Any invalid Manifest makes oma reject the Bundle: it is not run, installed or upgraded.
 

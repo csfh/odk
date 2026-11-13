@@ -15,7 +15,7 @@ _Avoid_: SDK, framework
 Omarchy Managed Application: the application bundle format and the ecosystem around it.
 
 **Bundle**:
-An application packaged as one `<App>.oma` file (ADR 0052): a read-only EROFS image of its Manifest, executable and resources, mounted rather than extracted. The code still installs a directory `<App>.oma/` until it catches up.
+An application packaged as one `<App>.oma` file (ADR 0052): a read-only EROFS image of its Manifest, executable and resources, mounted rather than extracted. A directory is not a Bundle: the unsigned Bundle directory of ADR 0022 is retired (ADR 0099).
 _Avoid_: package, archive, app image
 
 **Publisher**:

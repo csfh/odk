@@ -33,15 +33,6 @@ pub enum Op {
     Image(PathBuf),
 }
 
-/// What is at `/app`.
-#[derive(Debug, Clone, Copy)]
-pub enum App<'a> {
-    /// A Bundle directory, bound read-only.
-    Directory(&'a Path),
-    /// A Bundle file's image, unpacked as the mounts are made (`mounts::unpack_image`).
-    Image,
-}
-
 #[derive(Debug, Clone)]
 pub struct Plan {
     pub ops: Vec<Op>,
@@ -82,7 +73,6 @@ pub enum Error {
 
 /// Everything the plan depends on, so tests can replace the host.
 pub struct Inputs<'a> {
-    pub app: App<'a>,
     /// The Manifest's `executable`, relative to the Bundle.
     pub executable: &'a str,
     pub permissions: &'a Permissions,
@@ -339,16 +329,9 @@ impl Plan {
             etc_entry(&mut ops, &mut landlock, i.host_etc, name)?;
         }
 
-        // The Bundle, read-only.
-        ops.push(match i.app {
-            App::Directory(root) => Op::Bind {
-                src: root.to_owned(),
-                dst: APP.into(),
-                readonly: true,
-                device: false,
-            },
-            App::Image => Op::Image(APP.into()),
-        });
+        // The Bundle file's image, unpacked read-only as the mounts are made
+        // (`mounts::unpack_image`, ADR 0067).
+        ops.push(Op::Image(APP.into()));
         landlock.push((APP.into(), Rights::ReadExec));
 
         // $HOME is the real home's path, backed by the application's own data directory.
@@ -615,10 +598,8 @@ mod tests {
         let named = userdirs::resolve(&w.home, &w.home.join("user-dirs.dirs"));
         let data = w.dir.path().join("data");
         let inbox = w.dir.path().join("inbox");
-        let bundle = w.dir.path().join("Tee.oma");
         let env = |name: &str| (name == "LANG").then(|| "en_US.UTF-8".to_owned());
         Plan::new(&Inputs {
-            app: App::Directory(&bundle),
             executable: "bin/app",
             permissions,
             data_dir: Some(&data),
@@ -659,7 +640,11 @@ mod tests {
             .map(|(_, d, _)| d.to_owned())
             .collect();
         assert!(dsts.contains(&PathBuf::from("/usr")));
-        assert!(dsts.contains(&PathBuf::from("/app")));
+        assert!(
+            p.ops
+                .iter()
+                .any(|op| matches!(op, Op::Image(d) if d == Path::new("/app")))
+        );
         assert!(dsts.contains(&w.home));
         assert!(dsts.contains(&PathBuf::from("/etc/passwd")));
         assert!(dsts.contains(&PathBuf::from("/dev/null")));
@@ -984,7 +969,7 @@ mod tests {
         let p = plan(&w, &Permissions::default()).unwrap();
         for (src, dst, readonly) in binds(&p) {
             match dst.to_str().unwrap() {
-                "/usr" | "/app" => assert!(readonly, "{dst:?}"),
+                "/usr" => assert!(readonly, "{dst:?}"),
                 d if d == w.home.to_str().unwrap() => {
                     assert!(!readonly);
                     assert!(src.ends_with("data"));

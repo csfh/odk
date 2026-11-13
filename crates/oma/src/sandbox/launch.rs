@@ -16,19 +16,16 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use super::init::{self, Config};
 use super::landlock;
 use super::mounts;
-use super::plan::{self, App, Inputs, Plan};
-use crate::fmt::{self, Bundle, Identifier};
+use super::plan::{self, Inputs, Plan};
+use crate::fmt;
 use crate::grants;
 use crate::image::Image;
-use crate::install;
 use crate::layout::Layout;
 use crate::trust::KeyId;
 use crate::userdirs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("no installed application is called {0}")]
-    NotInstalled(Identifier),
     #[error(transparent)]
     Invalid(#[from] fmt::Error),
     #[error(transparent)]
@@ -43,10 +40,6 @@ pub enum Error {
         "this application declares a daemon, which keeps running after it closes, so it cannot be run once: install it first"
     )]
     DaemonNeedsInstall,
-    #[error(
-        "this application declares a daemon, which runs outside the sandbox, so only the installed copy of it can be run: use `odk oma run <identifier>`, or install this one"
-    )]
-    DaemonOnlyFromTheInstalledCopy,
     #[error(transparent)]
     Landlock(#[from] landlock::Error),
     #[error("cannot create the sandbox: {0}")]
@@ -87,29 +80,9 @@ impl HostEnv {
     }
 }
 
-pub struct Options {
-    /// Stay, relay terminal signals and return the application's status (ADR 0024).
-    pub wait: bool,
-    /// Run once (ADR 0018): a private tmpfs for data, no inbox, and no consent record needed,
-    /// because the permissions apply to this launch only.
-    pub run_once: bool,
-}
-
-/// An installed application by Identifier, or a Bundle directory by path.
-pub fn resolve(layout: &Layout, target: &str) -> Result<Bundle, Error> {
-    match target.parse::<Identifier>() {
-        Ok(id) => install::find(layout, &id).ok_or(Error::NotInstalled(id)),
-        Err(_) => Ok(Bundle::open(Path::new(target))?),
-    }
-}
-
 /// What must hold before anyone is asked for consent, so nobody agrees to something that then
 /// cannot start: the permissions this build can enforce, and a kernel that can enforce them.
-pub fn preflight(bundle: &Bundle) -> Result<(), Error> {
-    preflight_permissions(&bundle.manifest().permissions)
-}
-
-fn preflight_permissions(permissions: &fmt::Permissions) -> Result<(), Error> {
+pub fn preflight(permissions: &fmt::Permissions) -> Result<(), Error> {
     if !permissions.dbus_talk.is_empty() {
         return Err(plan::Error::DbusUnsupported.into());
     }
@@ -120,93 +93,6 @@ fn preflight_permissions(permissions: &fmt::Permissions) -> Result<(), Error> {
         return Err(landlock::Error::ScopingNeedsNewerAbi(abi).into());
     }
     Ok(())
-}
-
-/// Runs the Bundle. Returns the application's status under `wait`, and 0 once it has started
-/// otherwise. Fails closed when the consent record does not cover what the Bundle asks for.
-pub fn run(
-    layout: &Layout,
-    bundle: &Bundle,
-    host: &HostEnv,
-    options: &Options,
-) -> Result<i32, Error> {
-    let manifest = bundle.manifest();
-    let id = &manifest.identifier;
-
-    if !options.run_once {
-        let granted = grants::load(layout, id)?.unwrap_or_default();
-        let missing = grants::missing(&granted, &manifest.permissions);
-        if !grants::is_empty(&missing) {
-            return Err(Error::ConsentRequired(fmt::permission_lines(&missing)));
-        }
-    }
-    preflight(bundle)?;
-
-    // The daemon, if the Bundle declares one, is there before the sandbox is planned, since the
-    // plan binds its socket (ADR 0050). It outlives this launch, which a run once must not.
-    let env = |name: &str| std::env::var(name).ok();
-    if manifest.permissions.daemon.is_some() {
-        if options.run_once {
-            return Err(Error::DaemonNeedsInstall);
-        }
-        // The consent covers the installed program. A copy of the Bundle elsewhere, one the
-        // application wrote into its own data directory or one that was downloaded, would have
-        // its `bin/` started outside the sandbox with that consent and no question, so only
-        // the installed one runs a daemon.
-        let installed = install::find(layout, id);
-        if installed.as_ref().map(|b| b.root()) != Some(bundle.root()) {
-            return Err(Error::DaemonOnlyFromTheInstalledCopy);
-        }
-        if let Some(runtime) = host.runtime_dir.as_deref() {
-            let started = crate::daemon::ensure_for_run(bundle, runtime, &env)?;
-            if started == Some(crate::daemon::Outcome::Started) {
-                eprintln!("odk oma: note: started the application's daemon");
-            }
-        }
-    }
-
-    let named_dirs = userdirs::resolve(layout.home(), &layout.user_dirs_file());
-    let data_dir = layout.data_dir(id);
-    let inbox_dir = layout.inbox_dir(id);
-    if !options.run_once {
-        private_dir(&data_dir)?;
-        if manifest.permissions.updates {
-            private_dir(&inbox_dir)?;
-        }
-    }
-    let env = |name: &str| std::env::var(name).ok();
-    let plan = Plan::new(&Inputs {
-        app: App::Directory(bundle.root()),
-        executable: &manifest.executable,
-        permissions: &manifest.permissions,
-        data_dir: (!options.run_once).then_some(data_dir.as_path()),
-        inbox_dir: (!options.run_once).then_some(inbox_dir.as_path()),
-        home: layout.home(),
-        uid: host.uid,
-        runtime_dir: host.runtime_dir.as_deref(),
-        wayland_display: host.wayland_display.as_deref(),
-        named_dirs: &named_dirs,
-        host_etc: Path::new("/etc"),
-        host_root: Path::new("/"),
-        host_env: &env,
-    })?;
-    if plan.daemon_socket_missing {
-        eprintln!(
-            "odk oma: note: the application's daemon has no socket yet, so the application starts without it"
-        );
-    }
-    for (dir, why) in &plan.unavailable {
-        eprintln!(
-            "odk oma: note: the {} folder is not available ({why:?}), so the application starts without it",
-            dir.as_str()
-        );
-    }
-
-    let runtime = host
-        .runtime_dir
-        .as_deref()
-        .expect("the plan requires a runtime directory");
-    spawn(&plan, None, runtime, host, options.wait)
 }
 
 /// Runs a Bundle file whose envelope, image and pin, or Run once, the caller has settled
@@ -228,7 +114,7 @@ pub fn run_file(
     if !grants::is_empty(&missing) {
         return Err(Error::ConsentRequired(fmt::permission_lines(&missing)));
     }
-    preflight_permissions(&manifest.permissions)?;
+    preflight(&manifest.permissions)?;
     // A daemon runs outside the sandbox (ADR 0050), so its program, from the verified image, is
     // written out into the pair's own directory and started from there (ADR 0084). It outlives
     // the launch, which a run once must not.
@@ -264,7 +150,6 @@ pub fn run_file(
     }
     let env = |name: &str| std::env::var(name).ok();
     let plan = Plan::new(&Inputs {
-        app: App::Image,
         executable: &manifest.executable,
         permissions: &manifest.permissions,
         data_dir: (!run_once).then_some(data_dir.as_path()),

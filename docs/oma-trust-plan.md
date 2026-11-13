@@ -4,6 +4,8 @@ Not normative. This is the order in which to build what [ADR 0060](adr/0060-a-bu
 
 Checked first against the tree at `45310bd` on `cursor/adr-0060-bundle-trust-da7d`, and again against `main` at `5eee25c` (2026-10-27), which still installs a directory Bundle and verifies no signature. ADR 0056 is on `main` (pull request #17). There is no `impl/decisions.md` in the repository. Christoffer implements this. The phases are a suggested split of pull requests.
 
+**2026-11-13:** ADR 0099 retired the unsigned Bundle directory. Every command now takes a signed Bundle file and refuses a directory, so the rows below that describe a directory being installed, launched or listed, and line 175, are history. `--register` now cleans up after a deleted Bundle file.
+
 The two reviews of the superseded six-point model are [GPT-6.1-Sol](reviews/2026-10-25-signing-model-gpt-6.1-sol.md) and [Grok 4.7](reviews/2026-10-25-signing-model-grok-4.7.md), both 2026-10-25, both advisory.
 
 The phases are GitHub issues [#10](https://github.com/csfh/odk/issues/10) to [#16](https://github.com/csfh/odk/issues/16). The issue is the canonical text for that phase. This file keeps the order, what the code does today, and the questions that are still open. The index is [below](#issues).

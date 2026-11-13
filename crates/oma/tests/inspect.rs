@@ -4,6 +4,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
+/// A built program and its manifest.toml, which `bundle --sign` makes a Bundle file of.
 fn bundle(manifest: &str) -> TempDir {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("manifest.toml"), manifest).unwrap();
@@ -19,34 +20,28 @@ fn bundle(manifest: &str) -> TempDir {
     dir
 }
 
-fn inspect(dir: &TempDir) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_odk-oma"))
+/// A directory is not a Bundle (ADR 0099): `inspect` says so, and reads nothing in it.
+#[test]
+fn a_directory_is_refused_with_a_message() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("manifest.toml"),
+        "manifest_version = 1\nidentifier = \"com.example.notes\"\n",
+    )
+    .unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_odk-oma"))
         .arg("inspect")
         .arg(dir.path())
         .output()
-        .unwrap()
-}
-
-#[test]
-fn prints_name_identifier_version_and_permissions() {
-    let dir = bundle(
-        "manifest_version = 1\nidentifier = \"com.example.notes\"\nname = \"Notes\"\nversion = \"1.4.0\"\nexecutable = \"app\"\n\n[permissions]\ngpu = true\n",
-    );
-    let out = inspect(&dir);
-    assert!(out.status.success());
-    assert_eq!(
-        String::from_utf8(out.stdout).unwrap(),
-        "Notes 1.4.0\ncom.example.notes\n\nPermissions:\n  Can use the graphics card directly\n"
-    );
-}
-
-#[test]
-fn an_invalid_bundle_fails_with_a_message() {
-    let dir = bundle("manifest_version = 2\n");
-    let out = inspect(&dir);
+        .unwrap();
     assert!(!out.status.success());
     assert!(out.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&out.stderr).starts_with("odk oma: "));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.starts_with("odk oma: ")
+            && err.contains("is a directory; a Bundle is a signed .oma file"),
+        "{err}"
+    );
 }
 
 /// A Bundle file, signed by `odk-oma bundle --sign` with a fixture seed, inspected in a home of

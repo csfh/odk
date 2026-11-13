@@ -78,7 +78,7 @@ Every failure is a `PluginError` the host's callback hears: the Plugin's `id` (i
 ## Host side
 
 ```text
-Host::new(data_dir, Grants, Limits, report)   data_dir = ~/.local/share/oma/data/<identifier>
+Host::new(data_dir, Grants, Limits, report)   data_dir = $HOME in the sandbox (the pair's data directory, ADR 0099)
 Host::load_dir(plugins_dir)                   at start; plugins_dir() is data_dir/plugins
 Host::expose(name, Data)                      a value Plugins can read with app.get
 Host::publish(name, Data) -> usize            expose it and call each subscriber; how many were called

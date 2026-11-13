@@ -1,5 +1,5 @@
 ---
-status: amended by ADR 0052 and ADR 0053
+status: amended by ADR 0052, ADR 0053 and ADR 0099
 ---
 
 # Bundles live in `~/Applications`; data and rollback copies live under XDG directories

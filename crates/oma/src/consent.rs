@@ -11,7 +11,9 @@ use std::process::{Command, Stdio};
 
 use serde::Serialize;
 
-use crate::fmt::{Bundle, Identifier, Permissions, UserDir, permission_lines};
+#[cfg(test)]
+use crate::fmt::Bundle;
+use crate::fmt::{Identifier, Permissions, UserDir, permission_lines};
 use crate::trust::{PublicKey, Publisher};
 use crate::userdirs::Resolved;
 
@@ -69,7 +71,9 @@ pub struct Request {
 }
 
 impl Request {
-    /// `missing` is the part of the Bundle's request its consent record does not cover.
+    /// `missing` is the part of a Bundle directory's request that is not allowed. Only the tests of
+    /// the request's form build one from a directory; no Bundle directory is asked about (ADR 0099).
+    #[cfg(test)]
     pub fn new(
         bundle: &Bundle,
         missing: &Permissions,
