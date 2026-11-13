@@ -2,15 +2,9 @@
 
 Not normative, and it decides nothing: `docs/plan.md` stays the order of the build, the ADRs and specs stay the source of truth, and a scope choice below is settled by an ADR, by the owner. Written on 2026-11-11 from `docs/plan.md`, `docs/checks.md`, the checklist's "Known gaps" and `docs/release-readiness.md` (whose rows from before 2026-10-31 are partly stale; this file wins where they differ, and `CLAUDE.md` wins over both).
 
-## What v1 is (proposed, not yet accepted)
+## What v1 is
 
-v1 is a release the owner can call production-ready, which `docs/release-readiness.md` could not say while one High item was open. That is when all four hold:
-
-1. **A screen reader can read an ODK window.** The High item there is that GPUI 0.2.2 has no accessibility tree. ADR 0089 is the fix, so Track A ends with GPUI gone.
-2. **The OMA chain works end to end on a stock Omarchy machine:** a release signed by the owner's root key, `install.sh`, install, run, upgrade, rollback and purge, each run for real and written into `docs/checks.md` (ADR 0063, ADR 0086, ADR 0087).
-3. **`docs/checks.md` has no unverified claim.** Each is verified, or dropped with a line saying why.
-4. **Plugins work.** `odk::plugin` loads a Luau Plugin from its manifest under a sandbox, with the four capabilities of `docs/spec/plugin-manifest.md` (the owner, 2026-11-11: Plugins are in v1).
-5. **No known gap is left:** no row in the checklist's "Known gaps", no component without a story, no provisional value in a spec's "Open questions" that the owner has not settled or knowingly kept.
+Accepted by the owner on 2026-11-13: ADR 0098 is the definition, with seven criteria (Rune only; a Bundle is a signed `.oma` file and nothing else; the OMA chain run for real; Luau Plugins; no known gap; no unverified claim in `docs/checks.md`; the scope choices made). The five criteria that stood here are superseded by it.
 
 ## Where it stands (2026-11-11)
 
@@ -91,7 +85,7 @@ The design is ADR 0003 (Luau through `mlua`, `Lua::sandbox()`, in the applicatio
 ## Housekeeping
 
 - `docs/release-readiness.md` and `docs/plan.md` carry stale lines (CI, the Todo example, the gallery, "design phase"). A dated note at the top of each says which; the rows are left as measured on their dates.
-- The "v1" criteria above go into an ADR when the owner accepts them.
+- The v1 criteria are ADR 0098 (accepted 2026-11-13).
 
 ## Order
 
