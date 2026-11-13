@@ -266,6 +266,8 @@ Not checked: hover and press on screen (a headless display has no pointer) (`doc
 
 ## Open questions
 
+**Settled by the owner on 2026-11-12** (`docs/plan.md`, "Open questions"): all four items below are decided. The only change is `focus_offset`, now 1 px; every other value is kept, and the `!` stays the mark of a wrong value. They are left here as the record of what was asked.
+
 1. The provisional values: `focus_offset` and `thumb_gap` of 2 px (now also a field action's inset and a radio's dot), menu items as high as a control (now seen in every menu and a select's list), a field action's padding from the density one step tighter, the badge's and key's padding, a status dot's 8 px and a progress bar's 4 px, a compact alert's padding, and a text skeleton's last line at 60% of its column.
 2. Whether a control's `Size` as a step from its density (Geometry) is what the user wants; it is *provisional*.
 3. Still open: whether `Tooltip` should be the inverse surface (`text.primary` fill, `text.inverse` text), which the semantic layer offers, rather than the overlay surface every other overlay shares.

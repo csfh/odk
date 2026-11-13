@@ -31,7 +31,7 @@ const RADIUS_SUBTLE: f32 = 2.0;
 const BORDER_WIDTH: f32 = 1.0;
 const FOCUS_WIDTH: f32 = 2.0;
 /// The gap of the surface between a control and its focus indicator.
-const FOCUS_OFFSET: f32 = 2.0;
+const FOCUS_OFFSET: f32 = 1.0;
 /// The gap between a track's edge and the thumb that moves inside it.
 const THUMB_GAP: f32 = 2.0;
 /// The smallest pointer target, in CSS pixels (WCAG 2.5.8). It does not scale with the text
@@ -781,7 +781,7 @@ mod tests {
         let g = tokens(|_| {}).geometry;
         assert_eq!(g.border_width, 1.0);
         assert_eq!(g.focus_width, 2.0);
-        assert_eq!(g.focus_offset, 2.0);
+        assert_eq!(g.focus_offset, 1.0);
         assert_eq!(g.thumb_gap, 2.0);
         assert_eq!(g.target_min, 24.0);
     }

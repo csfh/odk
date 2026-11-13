@@ -63,7 +63,7 @@ Each component brings its `stories/rune/<name>.rs` in the same pull request (the
 ## Track C: verification and hardening (after A's components land)
 
 1. The hand checks listed in `docs/checks.md` and `docs/release-readiness.md`: reduced motion under a real Hyprland, hover, press and focus on the form controls, IME, real-pointer use of `DataTable`, `Resizable`, `Chart` and `Image`.
-2. The provisional values in `docs/plan.md`'s "Open questions": `Size` as a density step, the keyboard-only focus ring, `motion.cycle`, the status dot and progress bar sizes, focus offset, thumb gap. Settle each, or keep it knowingly.
+2. The provisional values in `docs/plan.md`'s "Open questions": **settled with the owner on 2026-11-12**, one question at a time. `focus_offset` is 1 px now; everything else is kept (`docs/plan.md` lists each).
 3. Visual regression with `tools/headless-shot` baselines, since it is by eye now.
 4. The figures "not measured": memory, overlay opening and theme-watch latency; `cargo bench` and `tools/idle-cpu` against the story budgets on the Rune stories.
 5. `cargo audit` was run by hand on 2026-11-11 (0 vulnerabilities; the one yanked crate is fixed; the warnings are in `docs/checks.md`). **Decided by the owner on 2026-11-12: `cargo deny` and `cargo udeps` are not run for v1**; `cargo audit` and `cargo machete` are enough. `cargo deny` would add a policy for licences, duplicate crates and sources (the Rune git dependency); `cargo udeps` needs a nightly toolchain and does a heavier `cargo machete`. Either can come later.
