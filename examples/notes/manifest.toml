@@ -1,0 +1,15 @@
+# The Manifest that goes into Notes.oma (`docs/spec/manifest.md`). `odk oma dev examples/notes`
+# builds the program by `oma.toml` and signs the Bundle file with this computer's dev key.
+manifest_version = 1
+identifier = "dev.example.notes"
+name = "Notes"
+version = "0.1.0"
+description = "A note that Plugins extend, kept in a database"
+executable = "notes"
+# A reserved name (RFC 2606): a dev build is pinned to the dev root and never fetched for, so the
+# host is only display text here.
+publisher = "apps.example.com"
+
+[permissions]
+# The window is drawn with wgpu, which needs the GPU's devices (`docs/checks.md`).
+gpu = true

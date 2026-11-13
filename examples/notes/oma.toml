@@ -1,0 +1,4 @@
+# How `odk oma dev examples/notes` builds this project (ADR 0051, ADR 0073). Never put in the
+# Bundle; `manifest.toml` is what ships. Paths are taken from this directory.
+build = [["cargo", "build", "--release", "--locked", "-p", "notes"]]
+executable = "../../target/release/notes"
