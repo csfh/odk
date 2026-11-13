@@ -124,6 +124,22 @@ impl Layout {
         (dir.join("oma-keys"), dir.join("oma-keys.sig"))
     }
 
+    /// The user's home trash, `$XDG_DATA_HOME/Trash` (the freedesktop.org Trash specification),
+    /// where `--register` moves the data of an application whose Bundle file was deleted
+    /// (ADR 0099).
+    pub fn trash_dir(&self) -> PathBuf {
+        self.state
+            .parent()
+            .expect("the state is inside the data home")
+            .join("Trash")
+    }
+
+    /// The lock that installing, upgrading, rolling back and purging take, and that `--register`
+    /// takes before it decides a Bundle file is gone (ADR 0099).
+    pub fn lock_file(&self) -> PathBuf {
+        self.state.join("lock")
+    }
+
     /// The inbox watches `--register` has enabled, one unit name a line (ADR 0015).
     pub fn inbox_watches_file(&self) -> PathBuf {
         self.state.join("inbox-watches")

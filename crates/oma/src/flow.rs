@@ -165,6 +165,57 @@ pub enum Error {
     NoDevKeySet,
 }
 
+/// How many [`StateLock`]s this process holds: the lock is taken once, and a flow that takes it
+/// inside another holding it goes on.
+static LOCKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The state lock ([`Layout::lock_file`]), held while a Bundle file and its pair's record
+/// change together: an install, an upgrade, a rollback, `dev` and `purge` take it, and
+/// `--register` takes it before it decides that a Bundle file is gone, so an upgrade's file,
+/// out of `~/Applications` for a moment, is never taken for an uninstall (ADR 0099).
+struct StateLock(Option<fs::File>);
+
+impl StateLock {
+    fn take(layout: &Layout) -> Result<Self, Error> {
+        use std::sync::atomic::Ordering;
+        if LOCKS.fetch_add(1, Ordering::SeqCst) > 0 {
+            return Ok(Self(None));
+        }
+        let path = layout.lock_file();
+        let opened = fs::create_dir_all(layout.state_dir())
+            .and_then(|()| {
+                fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(false)
+                    .write(true)
+                    .open(&path)
+            })
+            .and_then(|file| {
+                use std::os::fd::AsRawFd;
+                // SAFETY: `file` is open; `flock` blocks until the lock is this process's.
+                match unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } {
+                    0 => Ok(file),
+                    _ => Err(std::io::Error::last_os_error()),
+                }
+            });
+        match opened {
+            Ok(file) => Ok(Self(Some(file))),
+            Err(source) => {
+                LOCKS.fetch_sub(1, Ordering::SeqCst);
+                Err(install::Error::Io { path, source }.into())
+            }
+        }
+    }
+}
+
+impl Drop for StateLock {
+    fn drop(&mut self) {
+        LOCKS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        // Closing the file releases the lock.
+        self.0.take();
+    }
+}
+
 /// A directory is not a Bundle (ADR 0099): every command takes a signed Bundle file.
 fn refuse_directory(path: &Path) -> Result<(), Error> {
     if path.is_dir() {
@@ -406,6 +457,7 @@ pub fn dev(
     }
     // The directory Bundle goes aside, under a name listing skips, and its data moves to the
     // pair's. Both come back if the file cannot be placed, so an error leaves what was installed.
+    let _lock = StateLock::take(layout)?;
     let io = |path: &Path| {
         let path = path.to_owned();
         move |source| install::Error::Io { path, source }
@@ -932,6 +984,7 @@ fn commit(
     target: &Path,
     authorized: &Authorized,
 ) -> Result<(), Error> {
+    let _lock = StateLock::take(layout)?;
     let signed = file.manifest();
     let (root_id, app) = (&signed.root_key_id, &signed.app_id);
     let mark = Mark {
@@ -1063,6 +1116,7 @@ fn replace_installed(
 /// The high-water mark stays (ADR 0060, section 4): only the record of what is installed changes,
 /// so `run` runs the file now in `~/Applications`. Returns where it is.
 pub fn rollback(layout: &Layout, app: &Identifier) -> Result<PathBuf, Error> {
+    let _lock = StateLock::take(layout)?;
     let current = installed_file(layout, app)?.ok_or_else(|| Error::NoFile { app: app.clone() })?;
     let root = {
         let sealed = Sealed::memfd(&current)?;
@@ -1113,6 +1167,7 @@ pub struct Purged {
 /// Bundle directory from before v1 is not run any more, so it is removed itself, with its data,
 /// inbox and consent record, whether or not the app id has a pair (ADR 0099).
 pub fn purge(layout: &Layout, app: &Identifier) -> Result<Purged, Error> {
+    let _lock = StateLock::take(layout)?;
     if let Some(path) = install::find_file(layout, app) {
         return Err(Error::StillInstalled {
             app: app.clone(),
@@ -1268,6 +1323,22 @@ pub enum Registered {
     Deleted { path: PathBuf, why: String },
     /// Left where it is, and why.
     Waiting { path: PathBuf, why: String },
+    /// The pair's Bundle file is no longer in `~/Applications`, so what it left is cleaned up
+    /// (ADR 0099): `removed` lists what was deleted, `trashed` is where its data went in the
+    /// Trash, and `kept` is its data, when it could not be moved, with why. The record, with
+    /// the pin, the consent and the high-water mark, stays.
+    Uninstalled {
+        app: Identifier,
+        root: KeyId,
+        removed: Vec<PathBuf>,
+        trashed: Option<PathBuf>,
+        kept: Option<(PathBuf, String)>,
+    },
+    /// A Bundle directory from before v1, which is not run, and is left as it is (ADR 0099).
+    PreV1Directory {
+        path: PathBuf,
+        app: Option<Identifier>,
+    },
 }
 
 /// `odk oma --register` for Bundle files (ADR 0060, section 7): every `*.oma` file in
@@ -1276,10 +1347,17 @@ pub enum Registered {
 /// are deleted. A valid file under a root not pinned for its app id is held at
 /// `held/<root>/<app>.oma`, and not launched. A newer version under the pin, dropped there or
 /// staged in its application's inbox, is applied when its key set authorizes it, and takes
-/// effect even when it asks for more, which its next launch asks about (ADR 0015). Directory
-/// Bundles, and anything that is not a regular `*.oma` file, are not touched. It also writes the
-/// `.desktop` entries and the inbox watches.
-pub fn register(layout: &Layout, now: i64, fetch: Fetch, systemctl: Systemctl) -> Vec<Registered> {
+/// effect even when it asks for more, which its next launch asks about (ADR 0015). Anything that
+/// is not a regular `*.oma` file is not touched, and a Bundle directory from before v1 is only
+/// reported (ADR 0099). It also writes the `.desktop` entries and the inbox watches, and cleans
+/// up after an installed Bundle file that is no longer there ([`clean_up_after`]).
+pub fn register(
+    layout: &Layout,
+    now: i64,
+    fetch: Fetch,
+    systemctl: Systemctl,
+    stopper: &dyn Stopper,
+) -> Vec<Registered> {
     // The path unit watches `~/Applications`, which has to be there to be watched (ADR 0053).
     let _ = fs::create_dir_all(layout.applications());
     let or_waiting = |path: PathBuf, result: Result<Registered, Error>| {
@@ -1328,7 +1406,97 @@ pub fn register(layout: &Layout, now: i64, fetch: Fetch, systemctl: Systemctl) -
         }
         Err(e) => eprintln!("odk oma: the installed applications could not be read: {e}"),
     }
+    match clean_up_after(layout, now, stopper) {
+        Ok(cleaned) => done.extend(cleaned),
+        Err(e) => eprintln!("odk oma: nothing was cleaned up: {e}"),
+    }
+    done.extend(
+        install::directories(layout)
+            .into_iter()
+            .map(|(path, app)| Registered::PreV1Directory { path, app }),
+    );
     done
+}
+
+/// Cleans up after every pair whose installed Bundle file is no longer in `~/Applications`,
+/// whatever removed it (ADR 0099), under the state lock, so a file an upgrade or a rollback has
+/// out of the directory for a moment is not taken for one that is gone. A pair that was never
+/// installed, or was declined, is passed over. For one that was:
+///
+/// - its daemon is stopped and the program written out of its image is removed (ADR 0084);
+/// - its previous file, its inbox, its icon and any held file under its root are deleted;
+/// - its data directory is moved to the Trash, named after its app id, where a file manager can
+///   restore it; if that fails, the data stays where it is, and nothing deletes it;
+/// - its record, with the pin, the consent and the high-water mark, stays (ADR 0060).
+///
+/// What is already clean reports nothing, so a second run says nothing about it.
+fn clean_up_after(
+    layout: &Layout,
+    now: i64,
+    stopper: &dyn Stopper,
+) -> Result<Vec<Registered>, Error> {
+    let _lock = StateLock::take(layout)?;
+    let mut done = Vec::new();
+    for (app, pair) in grants::pairs(layout)? {
+        if pair.denied || pair.installed.or(pair.mark).is_none() {
+            continue;
+        }
+        let root = pair.root.key_id();
+        if installed_copy(layout, &app)?.is_some_and(|(_, installed)| installed == root) {
+            continue;
+        }
+        let dir = layout.pair_dir(&root, &app);
+        let data = layout.pair_data_dir(&root, &app);
+        let mut removed = Vec::new();
+        let daemon = layout.pair_daemon_dir(&root, &app);
+        if daemon.symlink_metadata().is_ok()
+            && let Err(why) = stopper.stop(&app)
+        {
+            eprintln!("odk oma: {app}'s daemon could not be stopped: {why}");
+        }
+        let mut remove = |path: &Path| -> Result<(), Error> {
+            let gone = match path.symlink_metadata() {
+                Err(_) => return Ok(()),
+                Ok(meta) if meta.is_dir() => fs::remove_dir_all(path),
+                Ok(_) => fs::remove_file(path),
+            };
+            gone.map_err(|source| install::Error::Io {
+                path: path.to_owned(),
+                source,
+            })?;
+            removed.push(path.to_owned());
+            Ok(())
+        };
+        remove(&layout.held_file(&root, &app))?;
+        if let Ok(entries) = fs::read_dir(&dir) {
+            let mut entries: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+            entries.sort();
+            for entry in entries.iter().filter(|e| **e != data) {
+                remove(entry)?;
+            }
+        }
+        let (mut trashed, mut kept) = (None, None);
+        if data.symlink_metadata().is_ok() {
+            match crate::trash::move_to(&layout.trash_dir(), &data, &format!("{app} data"), now) {
+                Ok(to) => trashed = Some(to),
+                Err(e) => kept = Some((data.clone(), e.to_string())),
+            }
+        }
+        if kept.is_none() {
+            let _ = fs::remove_dir(&dir);
+        }
+        if removed.is_empty() && trashed.is_none() && kept.is_none() {
+            continue;
+        }
+        done.push(Registered::Uninstalled {
+            app,
+            root,
+            removed,
+            trashed,
+            kept,
+        });
+    }
+    Ok(done)
 }
 
 /// One installed Bundle file, and the icon path its launcher entry names (ADR 0090).
@@ -2433,8 +2601,20 @@ mod tests {
         names_it(consent(&layout, app.as_str(), &asks).unwrap_err());
 
         // `--register` writes no launcher for it and leaves it where it is.
-        let registered = register(&layout, 0, &fetches, &|_| Ok(()));
-        assert!(registered.is_empty(), "{registered:?}");
+        let registered = register(
+            &layout,
+            0,
+            &fetches,
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
+        assert_eq!(
+            registered,
+            [Registered::PreV1Directory {
+                path: installed.clone(),
+                app: Some(app.clone()),
+            }]
+        );
         assert!(!desktop::path(&layout, &app).exists());
         assert!(installed.join("manifest.toml").is_file());
 
@@ -3490,7 +3670,13 @@ mod signed_tests {
         assert!(matches!(e, Error::Revoked { .. }), "{e}");
         // Nor does `--register` apply it from ~/Applications.
         std::fs::copy(&v10, layout.applications().join("Newer.oma")).unwrap();
-        let registered = register(&layout, soon(), &|p| again.fetch(p), &|_| Ok(()));
+        let registered = register(
+            &layout,
+            soon(),
+            &|p| again.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         assert!(
             registered
                 .iter()
@@ -3637,6 +3823,136 @@ mod signed_tests {
         assert_eq!(pair_of(&layout).unwrap().installed.unwrap().version, 8);
         assert_eq!(site.fetches.get(), fetches);
         assert!(quiet.shown.borrow().is_empty());
+    }
+
+    #[test]
+    fn a_deleted_file_is_cleaned_up_after_its_data_goes_to_the_trash_and_its_record_stays() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let app: Identifier = APP.parse().unwrap();
+        let root_id = root(1).public_key().key_id();
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        // What an installed application leaves under its pair.
+        let data = layout.pair_data_dir(&root_id, &app);
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("notes.db"), "notes").unwrap();
+        let previous = layout.pair_previous_file(&root_id, &app);
+        std::fs::write(&previous, "previous").unwrap();
+        let inbox = layout.pair_inbox_dir(&root_id, &app);
+        std::fs::create_dir_all(&inbox).unwrap();
+        // Not `*.oma`, so `--register` leaves it for the application.
+        std::fs::write(inbox.join("partial"), "staged").unwrap();
+        let daemon = layout.pair_daemon_dir(&root_id, &app);
+        std::fs::create_dir_all(&daemon).unwrap();
+        std::fs::write(daemon.join("d"), "program").unwrap();
+        let held = layout.held_file(&root_id, &app);
+        std::fs::create_dir_all(held.parent().unwrap()).unwrap();
+        std::fs::write(&held, "held").unwrap();
+
+        // While the file is there, nothing is cleaned up.
+        let stops = crate::testutil::Stops::default();
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        assert_eq!(done, [Registered::Kept(target.clone())]);
+        assert!(data.join("notes.db").is_file() && previous.is_file());
+
+        std::fs::remove_file(&target).unwrap();
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        let trashed = layout.trash_dir().join(format!("files/{APP} data"));
+        let pair_dir = layout.pair_dir(&root_id, &app);
+        match &done[..] {
+            [
+                Registered::Uninstalled {
+                    app: a,
+                    root,
+                    removed,
+                    trashed: Some(to),
+                    kept: None,
+                },
+            ] => {
+                assert_eq!((a, root, to), (&app, &root_id, &trashed));
+                for path in [&held, &daemon, &inbox, &previous] {
+                    assert!(removed.contains(path), "{path:?} in {removed:?}");
+                }
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(
+            *stops.0.borrow(),
+            std::slice::from_ref(&app),
+            "its daemon was stopped"
+        );
+        assert_eq!(
+            std::fs::read_to_string(trashed.join("notes.db")).unwrap(),
+            "notes"
+        );
+        let info = layout
+            .trash_dir()
+            .join(format!("info/{APP} data.trashinfo"));
+        assert!(
+            std::fs::read_to_string(info)
+                .unwrap()
+                .contains(&format!("Path={}", data.display())),
+        );
+        assert!(!pair_dir.exists(), "nothing is left under the pair");
+        // The record stays: the pin, the consent and the high-water mark.
+        let pair = pair_of(&layout).unwrap();
+        assert_eq!(pair.mark.unwrap().version, 7);
+
+        // A second run finds it clean and says nothing of it.
+        let stops = crate::testutil::Stops::default();
+        assert!(register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops).is_empty());
+        assert!(stops.0.borrow().is_empty());
+
+        // An older file is still refused, and the same one installs again without a question.
+        let v6 = bundle_file(&dir, |t| t, |m| m.version = 6);
+        assert!(matches!(
+            install_with(&layout, &v6, false, soon(), &Dialog::answering(&[]), &site),
+            Err(Error::Version { .. })
+        ));
+        // `bundle_file` writes one path, which v6 took.
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        assert_eq!(
+            install_with(&layout, &v7, false, soon(), &Dialog::answering(&[]), &site).unwrap(),
+            target
+        );
+    }
+
+    #[test]
+    fn data_that_cannot_go_to_the_trash_stays_where_it_is() {
+        let dir = TempDir::new().unwrap();
+        let layout = layout(&dir);
+        let app: Identifier = APP.parse().unwrap();
+        let root_id = root(1).public_key().key_id();
+        let site = Site::serving(key_set_bytes(1, &release_key()));
+        let v7 = bundle_file(&dir, |t| t, |_| {});
+        let first = Dialog::answering(&[Button::Install]);
+        let target = install_with(&layout, &v7, false, soon(), &first, &site).unwrap();
+        let data = layout.pair_data_dir(&root_id, &app);
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("notes.db"), "notes").unwrap();
+        // A file where the Trash should be: nothing can be moved into it.
+        std::fs::write(layout.trash_dir(), "not a directory").unwrap();
+
+        std::fs::remove_file(&target).unwrap();
+        let stops = crate::testutil::Stops::default();
+        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()), &stops);
+        match &done[..] {
+            [
+                Registered::Uninstalled {
+                    trashed: None,
+                    kept: Some((path, _)),
+                    ..
+                },
+            ] => assert_eq!(path, &data),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(
+            std::fs::read_to_string(data.join("notes.db")).unwrap(),
+            "notes"
+        );
     }
 
     #[test]
@@ -3820,7 +4136,13 @@ mod signed_tests {
         let directory = apps.join("Atmos.oma");
         std::fs::create_dir_all(directory.join("bin")).unwrap();
 
-        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        let done = register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         let deleted: Vec<_> = done
             .iter()
             .filter_map(|r| match r {
@@ -3858,8 +4180,23 @@ mod signed_tests {
         );
 
         // Run again, it keeps what is there.
-        let again = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
-        assert_eq!(again, [Registered::Kept(installed)]);
+        let again = register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
+        assert_eq!(
+            again,
+            [
+                Registered::Kept(installed),
+                Registered::PreV1Directory {
+                    path: directory,
+                    app: None,
+                },
+            ]
+        );
     }
 
     #[test]
@@ -3880,7 +4217,13 @@ mod signed_tests {
 
         let more = apps.join("More.oma");
         std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 8), &more).unwrap();
-        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        let done = register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         assert!(
             done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
@@ -3917,7 +4260,13 @@ mod signed_tests {
         let newer = apps.join("Newer.oma");
         std::fs::copy(bundle_file(&dir, with_network, |m| m.version = 9), &newer).unwrap();
         let offline = Site::failing(fetch::Failure::HostNotFound { host: HOST.into() });
-        let done = register(&layout, soon(), &|p| offline.fetch(p), &|_| Ok(()));
+        let done = register(
+            &layout,
+            soon(),
+            &|p| offline.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         assert!(
             done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
@@ -3955,7 +4304,13 @@ mod signed_tests {
         let staged = put("Up.oma", bundle_file(&dir, |t| t, |m| m.version = 8));
         let partial = put("Up.oma.stage", bundle_file(&dir, |t| t, |m| m.version = 8));
 
-        let done = register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        let done = register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         assert!(
             done.contains(&Registered::Applied(target.clone())),
             "{done:?}"
@@ -3977,7 +4332,16 @@ mod signed_tests {
     fn register_lists_each_installed_file_in_the_launcher_and_unlists_it_when_it_goes() {
         let dir = TempDir::new().unwrap();
         let layout = layout(&dir);
-        assert!(register(&layout, soon(), &|_| unreachable!(), &|_| Ok(())).is_empty());
+        assert!(
+            register(
+                &layout,
+                soon(),
+                &|_| unreachable!(),
+                &|_| Ok(()),
+                &crate::testutil::Stops::default()
+            )
+            .is_empty()
+        );
         assert!(layout.applications().is_dir(), "created for the path unit");
 
         let site = Site::serving(key_set_bytes(1, &release_key()));
@@ -3990,7 +4354,13 @@ mod signed_tests {
         let foreign = entries.join("oma-dev.csfh.foreign.desktop");
         std::fs::write(&foreign, "[Desktop Entry]\nName=Foreign\n").unwrap();
 
-        register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         let entry = entries.join(format!("{APP}.desktop"));
         let icon = layout
             .pair_dir(&root(1).public_key().key_id(), &APP.parse().unwrap())
@@ -4005,7 +4375,13 @@ mod signed_tests {
         assert_eq!(std::fs::read(&icon).unwrap(), b"\x89PNG");
 
         std::fs::remove_file(&target).unwrap();
-        register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         assert!(!entry.exists());
         assert!(foreign.exists());
     }
@@ -4037,7 +4413,13 @@ mod signed_tests {
         // A previous SVG is not left beside the PNG.
         let svg = icon.with_file_name("icon.svg");
         std::fs::write(&svg, b"<svg/>").unwrap();
-        register(&layout, soon(), &|p| site.fetch(p), &|_| Ok(()));
+        register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &|_| Ok(()),
+            &crate::testutil::Stops::default(),
+        );
         assert!(!svg.exists());
         assert_eq!(std::fs::read(&icon).unwrap(), b"\x89PNG");
 
@@ -4071,17 +4453,35 @@ mod signed_tests {
             root(1).public_key().key_id()
         );
 
-        register(&layout, soon(), &|p| site.fetch(p), &systemctl);
+        register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &systemctl,
+            &crate::testutil::Stops::default(),
+        );
         assert_eq!(
             *calls.borrow(),
             [vec!["--user", "enable", "--now", unit.as_str()]]
         );
         // Again: nothing changed, nothing asked.
-        register(&layout, soon(), &|p| site.fetch(p), &systemctl);
+        register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &systemctl,
+            &crate::testutil::Stops::default(),
+        );
         assert_eq!(calls.borrow().len(), 1);
 
         std::fs::remove_file(&target).unwrap();
-        register(&layout, soon(), &|p| site.fetch(p), &systemctl);
+        register(
+            &layout,
+            soon(),
+            &|p| site.fetch(p),
+            &systemctl,
+            &crate::testutil::Stops::default(),
+        );
         assert_eq!(
             calls.borrow()[1],
             ["--user", "disable", "--now", unit.as_str()]

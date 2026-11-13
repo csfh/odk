@@ -570,7 +570,13 @@ fn register() -> ExitCode {
     let agent = oma::fetch::agent();
     let fetch = |publisher: &oma::trust::Publisher| oma::fetch::oma_keys(&agent, publisher);
     use oma::flow::Registered;
-    for done in oma::flow::register(&layout, now, &fetch, &oma::flow::systemctl) {
+    for done in oma::flow::register(
+        &layout,
+        now,
+        &fetch,
+        &oma::flow::systemctl,
+        &oma::daemon::SystemctlStop,
+    ) {
         match done {
             Registered::Kept(_) => {}
             Registered::Applied(path) => eprintln!("odk oma: installed {}", path.display()),
@@ -583,6 +589,37 @@ fn register() -> ExitCode {
             Registered::Waiting { path, why } => {
                 eprintln!("odk oma: left {}: {why}", path.display())
             }
+            Registered::Uninstalled {
+                app,
+                removed,
+                trashed,
+                kept,
+                ..
+            } => {
+                eprintln!("odk oma: {app} is no longer in ~/Applications, so it is cleaned up");
+                for path in removed {
+                    eprintln!("odk oma:   removed {}", path.display());
+                }
+                if let Some(to) = trashed {
+                    eprintln!("odk oma:   moved its data to the Trash: {}", to.display());
+                }
+                if let Some((data, why)) = kept {
+                    eprintln!(
+                        "odk oma:   left its data at {}, which could not go to the Trash: {why}",
+                        data.display()
+                    );
+                }
+            }
+            Registered::PreV1Directory { path, app } => match app {
+                Some(app) => eprintln!(
+                    "odk oma: {} is a Bundle directory from before v1 and is not run; odk oma purge {app} removes it and its data",
+                    path.display()
+                ),
+                None => eprintln!(
+                    "odk oma: {} is a Bundle directory from before v1 and is not run; delete it to remove it",
+                    path.display()
+                ),
+            },
         }
     }
     ExitCode::SUCCESS

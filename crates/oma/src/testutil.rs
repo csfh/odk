@@ -83,3 +83,15 @@ pub fn put_in_applications(layout: &crate::layout::Layout, source: &Path) -> Pat
     copy(source, &target);
     target
 }
+
+/// A [`crate::daemon::Stopper`] that records which applications it was asked to stop, and stops
+/// nothing.
+#[derive(Default)]
+pub struct Stops(pub std::cell::RefCell<Vec<crate::fmt::Identifier>>);
+
+impl crate::daemon::Stopper for Stops {
+    fn stop(&self, id: &crate::fmt::Identifier) -> Result<(), String> {
+        self.0.borrow_mut().push(id.clone());
+        Ok(())
+    }
+}
