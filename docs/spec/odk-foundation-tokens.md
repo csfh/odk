@@ -29,8 +29,8 @@ Lengths are logical pixels, as `f32`. Every token is a field or method of `Found
 | `radius.overlay` | 2, or 0 with `CornerRadius::Square` | Surfaces that float: menus, popovers, tooltips, dialogs. |
 | `border_width` | 1 | Every border. |
 | `focus_width` | 2 | The keyboard focus indicator. |
-| `focus_offset` | 2 (*provisional*) | The gap of the surface between a control and its focus indicator, which is drawn outside it, so a solid fill never meets the indicator (`docs/spec/odk-semantic-tokens.md`, "Rules for component tokens"). |
-| `thumb_gap` | 2 (*provisional*) | Between a control's inner edge and a part nested inside it: a switch's thumb in its track, a radio's dot in its circle, a button inside a field (a field action). |
+| `focus_offset` | 1 (settled by the owner on 2026-11-12; was 2) | The gap of the surface between a control and its focus indicator, which is drawn outside it, so a solid fill never meets the indicator (`docs/spec/odk-semantic-tokens.md`, "Rules for component tokens"). |
+| `thumb_gap` | 2 (settled on 2026-11-12) | Between a control's inner edge and a part nested inside it: a switch's thumb in its track, a radio's dot in its circle, a button inside a field (a field action). |
 | `target_min` | 24 | The smallest pointer target (WCAG 2.5.8). It does not scale with the text size. |
 | `corner_radius` | `Subtle` | The application's choice that `radius.default` and `radius.overlay` follow. |
 
