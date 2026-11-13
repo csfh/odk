@@ -80,7 +80,7 @@ The design is ADR 0003 (Luau through `mlua`, `Lua::sandbox()`, in the applicatio
 - **Plugins.** Settled: in v1 (Track E).
 - **Motion (ADR 0059).** Settled: in v1 (the owner, 2026-11-13), all six steps of `docs/spec/odk-motion.md`'s "First implementation".
 - **Deferred components.** Settled: all in v1 (the owner, 2026-11-13): `Combobox`, `Pagination`, submenus, non-modal dialogs, and a dialog's default action on Enter. Each is added through a change to `docs/spec/odk-ui-components.md` (or `docs/spec/odk-overlays.md`), gets its component tokens first, and comes with its story and tests (`CLAUDE.md`, "Components"). `docs/spec/odk-ui-components.md`'s "Left out of v1" and `docs/spec/odk-overlays.md`'s "No submenus in v1" change with the first of them.
-- **`odk::db`.** Built and off by default, with no consumer in the workspace. Keep it in v1 with one, or mark it experimental.
+- **`odk::db`.** Settled: in v1 with a consumer (the owner, 2026-11-13). `examples/notes` keeps its notes through `odk::db`, so the feature is exercised by a real application, under `odk oma run` too.
 
 ## Housekeeping
 
