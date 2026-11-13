@@ -1,10 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # The unsigned Bundle directory is retired, and a deleted Bundle file is cleaned up after
 
-ADR 0098 makes criterion 2 of v1 "a Bundle is a signed `.oma` file, and nothing else". The code does not do that yet. ADR 0052 superseded ADR 0022 (a Bundle is a directory), but the directory path was never taken out, and it runs with no signature. This record says what is removed, what is kept, and what happens to a directory installed before v1. The owner added a second question on 2026-11-13: when a Bundle file is deleted from `~/Applications`, what it leaves behind should be cleaned up too. The owner asked for both on 2026-11-13; this record is `proposed` until the owner accepts the details below.
+ADR 0098 makes criterion 2 of v1 "a Bundle is a signed `.oma` file, and nothing else". The code does not do that yet. ADR 0052 superseded ADR 0022 (a Bundle is a directory), but the directory path was never taken out, and it runs with no signature. This record says what is removed, what is kept, and what happens to a directory installed before v1. The owner added a second question on 2026-11-13: when a Bundle file is deleted from `~/Applications`, what it leaves behind should be cleaned up too. The owner asked for both on 2026-11-13 and accepted this record as written the same day.
 
 ## What is true (read from the code on 2026-11-13)
 
