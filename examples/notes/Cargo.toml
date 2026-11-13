@@ -9,8 +9,8 @@ description = "A small application that uses ODK's Plugins: the template for one
 
 [dependencies]
 deps.workspace = true
-# `plugin` is off by default (ADR 0028); this application is the one that turns it on.
-odk = { workspace = true, features = ["plugin"] }
+# `plugin` and `db` are off by default (ADR 0028, ADR 0049); this application turns both on.
+odk = { workspace = true, features = ["db", "plugin"] }
 
 [dev-dependencies]
 rune.workspace = true

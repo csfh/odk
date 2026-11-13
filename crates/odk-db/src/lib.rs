@@ -11,7 +11,7 @@
 //! The schema is a [`Migrations`] list the application owns; the database says which of it has
 //! been applied (`PRAGMA user_version`), and one that is newer than the list is refused.
 //!
-//! Nothing here depends on GPUI. A view keeps what it draws in memory and sends writes with
+//! Nothing here depends on a UI toolkit. A view keeps what it draws in memory and sends writes with
 //! [`Database::call`] without waiting for them, so a test of the view never waits for a disk
 //! either.
 

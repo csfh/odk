@@ -1,13 +1,14 @@
-//! The notes application against its Plugins, headless: nothing here opens a window, touches the
-//! user's directories or makes a request.
+//! The notes application against its Plugins and its database, headless: nothing here opens a
+//! window, touches the user's directories or makes a request.
 
 use std::fs;
 use std::path::Path;
 
 use notes::{Notes, view};
+use odk::db::rusqlite::OptionalExtension;
 use odk::theme::ThemeSnapshot;
 use odk::ui::{Face, Hosted, headless};
-use rune::Runtime;
+use rune::{Key, KeyEvent, Runtime};
 
 type Rt = Runtime<Hosted<Notes>>;
 
@@ -79,6 +80,52 @@ fn menu_labels(runtime: &Rt) -> Vec<String> {
         .collect();
     rows.sort();
     rows.into_iter().map(|(_, label)| label).collect()
+}
+
+fn type_text(runtime: &mut Rt, text: &str) {
+    for c in text.chars() {
+        runtime.key(KeyEvent::from(Key::Text(c.to_string())));
+        runtime.key_up(KeyEvent::from(Key::Text(c.to_string())));
+    }
+    settle(runtime);
+}
+
+/// The note in the database, read through the application's own handle, so after every write.
+fn kept(runtime: &Rt) -> Option<String> {
+    let db = runtime.state.app.database().expect("the database is open");
+    db.call_blocking(|c| {
+        Ok(
+            c.query_row("SELECT text FROM note WHERE id = 1", [], |row| row.get(0))
+                .optional()?,
+        )
+    })
+    .unwrap()
+}
+
+/// The key of the Actions menu's row labelled `label`: a separator takes a number too.
+fn item_key(runtime: &Rt, label: &str) -> String {
+    runtime
+        .elements()
+        .into_iter()
+        .filter(|e| !e.exiting)
+        .find(|e| {
+            e.label.as_deref() == Some(label)
+                && e.key
+                    .as_deref()
+                    .is_some_and(|k| k.starts_with("actions-item-"))
+        })
+        .and_then(|e| e.key)
+        .unwrap_or_else(|| panic!("no item {label}"))
+}
+
+/// Whether a notice that the note is not kept is drawn.
+fn notice_drawn(runtime: &Rt) -> bool {
+    runtime.elements().into_iter().any(|e| {
+        [e.text.as_deref(), e.label.as_deref()]
+            .into_iter()
+            .flatten()
+            .any(|t| t.contains("not saved") || t.contains("not kept"))
+    })
 }
 
 fn status(runtime: &Rt) -> String {
@@ -170,4 +217,92 @@ fn with_no_plugins_the_application_has_only_its_own_items() {
     let mut runtime = open(dir.path());
     tap(&mut runtime, "actions");
     assert_eq!(menu_labels(&runtime), ["Clear note".to_string()]);
+}
+
+#[test]
+fn a_typed_note_is_kept_and_is_there_when_the_application_opens_again() {
+    let dir = data_dir(&[]);
+    let mut runtime = open(dir.path());
+    tap(&mut runtime, "note");
+    type_text(&mut runtime, "milk, eggs");
+    assert_eq!(kept(&runtime).as_deref(), Some("milk, eggs"));
+    assert!(!notice_drawn(&runtime));
+    drop(runtime);
+
+    let mut again = open(dir.path());
+    assert_eq!(again.state.app.note, "milk, eggs");
+    // The field starts with it, and an edit goes on from it.
+    tap(&mut again, "note");
+    again.key(KeyEvent::from(Key::End));
+    type_text(&mut again, "!");
+    assert_eq!(kept(&again).as_deref(), Some("milk, eggs!"));
+}
+
+#[test]
+fn clearing_the_note_keeps_an_empty_note() {
+    let dir = data_dir(&[]);
+    let mut runtime = open(dir.path());
+    tap(&mut runtime, "note");
+    type_text(&mut runtime, "gone soon");
+    tap(&mut runtime, "actions");
+    let labels = menu_labels(&runtime);
+    assert!(labels.contains(&"Clear note".to_string()), "{labels:?}");
+    let clear = item_key(&runtime, "Clear note");
+    tap(&mut runtime, &clear);
+    assert_eq!(kept(&runtime).as_deref(), Some(""));
+}
+
+#[test]
+fn a_change_that_fails_shows_a_notice_and_the_next_that_works_takes_it_away() {
+    let dir = data_dir(&[]);
+    let mut runtime = open(dir.path());
+    tap(&mut runtime, "note");
+    type_text(&mut runtime, "a");
+    let db = runtime.state.app.database().unwrap().clone();
+    db.call_blocking(|c| Ok(c.execute_batch("DROP TABLE note")?))
+        .unwrap();
+    type_text(&mut runtime, "b");
+    // The write is on the database's thread; a read through the handle waits for it. In a
+    // window, the write then wakes it through `on_host`, which is Rune's `update`; a headless
+    // runtime has no window to post to, so the test makes that update.
+    db.call_blocking(|_| Ok(())).unwrap();
+    runtime.update(|_, _| {});
+    settle(&mut runtime);
+    let notice = runtime.state.app.notice().expect("a notice");
+    assert!(notice.contains("not saved"), "{notice}");
+    assert!(notice_drawn(&runtime), "the notice is drawn");
+
+    db.call_blocking(|c| {
+        Ok(c.execute_batch(
+            "CREATE TABLE note (id INTEGER PRIMARY KEY CHECK (id = 1), text TEXT NOT NULL)",
+        )?)
+    })
+    .unwrap();
+    type_text(&mut runtime, "c");
+    // The change that worked wrote the whole note, so nothing is missing.
+    assert_eq!(kept(&runtime).as_deref(), Some("abc"));
+    runtime.update(|_, _| {});
+    settle(&mut runtime);
+    assert_eq!(runtime.state.app.notice(), None);
+    assert!(!notice_drawn(&runtime), "the notice is gone");
+}
+
+#[test]
+fn a_database_that_does_not_open_is_a_notice_and_the_application_goes_on() {
+    let dir = data_dir(&[]);
+    // A directory where the file would be: SQLite cannot open it.
+    fs::create_dir_all(dir.path().join("notes.sqlite")).unwrap();
+    let mut runtime = open(dir.path());
+    assert!(runtime.state.app.database().is_none());
+    let notice = runtime.state.app.notice().expect("a notice");
+    assert!(notice.contains("not kept"), "{notice}");
+    assert!(notice_drawn(&runtime));
+    tap(&mut runtime, "note");
+    type_text(&mut runtime, "one two");
+    assert_eq!(runtime.state.app.note, "one two");
+    tap(&mut runtime, "actions");
+    let labels = menu_labels(&runtime);
+    let count = labels.iter().position(|l| l == "Count words").unwrap();
+    tap(&mut runtime, &format!("actions-item-{count}"));
+    assert_eq!(status(&runtime), "2 words");
 }

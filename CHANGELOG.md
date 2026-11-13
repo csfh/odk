@@ -4,6 +4,10 @@ Every crate has the workspace's version (ADR 0064). The pre-releases `v0.1.0-rc.
 
 ## Unreleased
 
+### examples/notes keeps its note (2026-11-13)
+
+- `examples/notes` turns on the `db` feature and keeps its note in `notes.sqlite` in its data directory through `odk::db` (ADR 0049): read before the window, each change sent without waiting, a notice when one fails until the next one works, and a notice and the note in memory when the database cannot be opened. It has a `manifest.toml` and an `oma.toml`, so `odk oma dev examples/notes` builds, signs and runs it.
+
 ### The design language (ADR 0040 to 0047)
 
 - Four token layers, each specified on its own: the source palette from Omarchy's `colors.toml`, an adaptive colour resolver that makes semantic colours in OKLCH with contrast checked on what is drawn, foundation tokens (geometry, density, type, spacing, motion) and a component layer of typed styles by variant, density and state. `odk::ui::theme_snapshot()`, `foundation()` and `components()` reach them.
