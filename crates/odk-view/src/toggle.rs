@@ -88,6 +88,9 @@ pub(crate) fn labelled<T: 'static>(
         );
     }
     // As wide as its content and no wider than its column, so a long label wraps beside the box.
+    // Rune wraps a label whose width is a whole number of pixels though it fits (anomalyco/rune#907,
+    // `docs/checks.md`): "I agree to the terms" in Omarchy's monospace font. Nothing is done about
+    // it here; it goes when the pinned Rune has the fix.
     if !usable {
         return inline(labelled);
     }
