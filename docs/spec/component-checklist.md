@@ -93,6 +93,5 @@ Where built components fail the checklist, by item number. Remove a line when it
 
 | Component | Fails | What is wrong |
 |---|---|---|
-| `Checkbox` | 23 | An Arabic label is not checked on Rune: the worst-case strings of `generic.rs` are Latin, Japanese and emoji. The GPUI version drew it below the box, clipped. |
-| `Switch` | 23 | The same as `Checkbox`. |
-| `ToggleGroup` | 23 | The same as `Checkbox`, and seven options in a 260 px column are not checked on Rune either. |
+
+None since 2026-11-13, when item 23 was closed for `Checkbox`, `Switch` and `ToggleGroup` (`tests/item_23.rs`).

@@ -37,7 +37,10 @@ struct Item {
 ///
 /// Tab reaches the group, the arrow keys move between options without choosing, Home and End
 /// jump to the ends, and Space or Enter toggles the focused one. The arrow keys skip a disabled
-/// option, and a disabled group is not a tab stop. A long label is cut with an ellipsis. A group
+/// option, and a disabled group is not a tab stop. A long label is cut with an ellipsis, so a
+/// group with more options than its room shows little of each (seven Arabic day names in 260
+/// points keep one letter); an application with that many choices in that little room uses a
+/// `Select`. Every option keeps its whole label for assistive technology. A group
 /// with no options draws nothing.
 ///
 /// Uncontrolled by default, keeping its own selection from `default_value` in the host's store;

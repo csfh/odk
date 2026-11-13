@@ -28,7 +28,7 @@ Work left to take GPUI out (a scout's list on 2026-11-11; ADR 0094 is the decisi
 2. **Menus.** `DropdownMenu`, `ContextMenu` and `Breadcrumb`, on the overlay layer and the shared menu list.
 3. **Primary selection, then the text fields.** `Textarea`, `InputGroup`, `SearchInput`, `PasswordInput`, `NumberInput` and `Command`'s field wait on it (ADR 0089).
 4. **The rest of step 3.** Done: `DataTable`, `Chart` and `Command` were the last. (`FormField`, `Image` and `Resizable` are done.)
-5. **Rune-port gaps.** ToggleGroup's single mode is radios, a NavList's current page has a state, manual-activation Tabs are tabs (`docs/checks.md`); Arabic labels in `Checkbox`, `Switch` and `ToggleGroup` (checklist item 23); a `Checkbox`'s label wraps at about 150 px in a stretched column, in `rune-checkbox` too (seen 2026-11-11).
+5. **Rune-port gaps.** ToggleGroup's single mode is radios, a NavList's current page has a state, manual-activation Tabs are tabs (`docs/checks.md`); Arabic labels in `Checkbox`, `Switch` and `ToggleGroup` (checklist item 23) are done (2026-11-13, `tests/item_23.rs`); a `Checkbox`'s label wrapping at about 150 px is Rune's, a label whose width is a whole number of pixels (`docs/checks.md`).
 6. **`oma-consent` on Rune** (plan step 4): done. The icon and the upgrade screen it lacks (`docs/checks.md`) remain.
 7. **The screen-reader grant** (plan step 5): how a sandboxed window reaches the screen reader while the session bus stays refused, written into `docs/checks.md`.
 8. **GPUI leaves** (plan step 6): `odk::gpui`, `patches/gpui` and the GPUI stories go, the `odk` facade turns to `odk-view`, and `cargo machete` and `tools/check-deps` are clean.
