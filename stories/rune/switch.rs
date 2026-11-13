@@ -72,7 +72,9 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
             "A label far longer than the room its row gives it, with 日本語の文字 and Unbreakable_word_with_no_place_to_wrap_at_all",
         )
         .show(hosted),
-    );
+    )
+    .child(Switch::new("worst-arabic", "حفظ جميع التغييرات في المستند قبل إغلاق النافذة").show(hosted))
+    .child(Switch::new("worst-mixed", "Open ملف التقرير السنوي 2026 in Notes").show(hosted));
 
     page(
         hosted,

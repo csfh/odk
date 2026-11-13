@@ -107,6 +107,22 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
             .item("b", "Another long label for the group, 日本語の文字")
             .show(hosted),
     );
+    // Seven options in a 260-point column, the checklist's case (item 23).
+    let week = col().w(hosted.theme().text.px(260.0)).child(
+        ToggleGroup::<Story>::new("worst-arabic", "يوم")
+            .item("sun", "الأحد")
+            .item("mon", "الاثنين")
+            .item("tue", "الثلاثاء")
+            .item("wed", "الأربعاء")
+            .item("thu", "الخميس")
+            .item("fri", "الجمعة")
+            .item("sat", "السبت")
+            .show(hosted),
+    );
+    let worst = col()
+        .gap(hosted.theme().text.px(8.0))
+        .child(worst)
+        .child(week);
 
     page(
         hosted,
