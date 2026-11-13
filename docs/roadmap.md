@@ -17,7 +17,7 @@ Accepted by the owner on 2026-11-13: ADR 0098 is the definition, with seven crit
 | Rune port, step 4 (`oma-consent`) | Done, 2026-11-11, headless; a real click and the `hyprctl` float were not checked. |
 | Rune port, steps 5 and 6 (screen-reader grant, GPUI leaves) | Not started. |
 | `odk-plugin` (Luau host and Plugin loader) | First slice built. In v1 (the owner, 2026-11-11). ADR 0091 (vets `mlua`) and ADR 0092 (one state each, the API's shape, limits, errors) were accepted by the owner on 2026-11-11. `odk-plugin`'s first slice is built (`ui` and `network` are not). |
-| Motion (ADR 0059) | Accepted, not built. |
+| Motion (ADR 0059) | Accepted, not built. In v1 (the owner, 2026-11-13). |
 
 ## Track A: finish the Rune port (the critical path)
 
@@ -78,9 +78,9 @@ The design is ADR 0003 (Luau through `mlua`, `Lua::sandbox()`, in the applicatio
 ## Track D: scope choices for the owner (each an ADR)
 
 - **Plugins.** Settled: in v1 (Track E).
-- **Motion (ADR 0059).** Build the declarative driver before v1, or after.
-- **Deferred components:** `Combobox`, `Pagination`, submenus, non-modal dialogs, a dialog's default action on Enter.
-- **`odk::db`.** Built and off by default, with no consumer in the workspace. Keep it in v1 with one, or mark it experimental.
+- **Motion (ADR 0059).** Settled: in v1 (the owner, 2026-11-13), all six steps of `docs/spec/odk-motion.md`'s "First implementation".
+- **Deferred components.** Settled: all in v1 (the owner, 2026-11-13): `Combobox`, `Pagination`, submenus, non-modal dialogs, and a dialog's default action on Enter. Each is added through a change to `docs/spec/odk-ui-components.md` (or `docs/spec/odk-overlays.md`), gets its component tokens first, and comes with its story and tests (`CLAUDE.md`, "Components"). `docs/spec/odk-ui-components.md`'s "Left out of v1" and `docs/spec/odk-overlays.md`'s "No submenus in v1" change with the first of them.
+- **`odk::db`.** Settled: in v1 with a consumer (the owner, 2026-11-13). `examples/notes` keeps its notes through `odk::db`, so the feature is exercised by a real application, under `odk oma run` too.
 
 ## Housekeeping
 
