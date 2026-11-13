@@ -62,8 +62,8 @@ pub struct Notes {
 
 impl Notes {
     /// The application with the Plugins in `<data_dir>/plugins` (the samples are written there
-    /// first when it holds none). `data_dir` is `~/.local/share/oma/data/<identifier>` for an
-    /// installed Bundle.
+    /// first when it holds none). `data_dir` is [`data_dir`]: `$HOME` inside the sandbox, which is
+    /// the pair's data directory on the host (ADR 0099).
     pub fn new(data_dir: impl Into<PathBuf>) -> Self {
         let data_dir = data_dir.into();
         let plugins = data_dir.join("plugins");
@@ -210,11 +210,18 @@ pub fn view(hosted: &Hosted<Notes>, cx: &mut Cx<Hosted<Notes>>) -> El {
     frame(hosted, cx, body, layers)
 }
 
-/// The data directory of the installed Bundle, or the user's, for running the example by hand.
+/// The application's data directory. Under `odk oma run` the program is at `/app` and its data
+/// directory is `$HOME` (`docs/spec/sandbox-baseline.md`); run by hand, it is a directory of its
+/// own in the user's data home.
 pub fn data_dir() -> PathBuf {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let sandboxed = std::env::current_exe().is_ok_and(|exe| exe.starts_with("/app"));
+    if sandboxed && let Some(home) = home {
+        return home;
+    }
     let base = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .or_else(|| home.map(|h| h.join(".local/share")))
         .unwrap_or_else(std::env::temp_dir);
-    base.join("oma/data/dev.example.notes")
+    base.join("odk-examples/dev.example.notes")
 }

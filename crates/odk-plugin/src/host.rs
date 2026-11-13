@@ -158,7 +158,8 @@ pub struct Host {
 }
 
 impl Host {
-    /// `data_dir` is the application's own data directory, `~/.local/share/oma/data/<identifier>`.
+    /// `data_dir` is the application's own data directory: `$HOME` inside its sandbox, which is
+    /// `~/.local/share/oma/apps/<root key id>/<identifier>/data` on the host (ADR 0099).
     /// `report` hears every Plugin failure.
     pub fn new(
         data_dir: impl Into<PathBuf>,

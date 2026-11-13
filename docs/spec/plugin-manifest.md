@@ -4,7 +4,7 @@ Normative. This spec defines the manifest of an ODK Plugin (ADR 0003, ADR 0020).
 
 ## Layout and discovery
 
-A Plugin is a directory holding a `plugin.toml` at its root and its Luau source files. Plugins are installed by the host application itself, not by oma. By default the host application loads Plugins from the subdirectories of `~/.local/share/oma/data/<identifier>/plugins/`, its own data directory (ADR 0012). The host application can configure the plugin directories through ODK, but only to places its sandbox already exposes: its data directory, its own Bundle contents, and named user directories it holds a Filesystem permission for.
+A Plugin is a directory holding a `plugin.toml` at its root and its Luau source files. Plugins are installed by the host application itself, not by oma. By default the host application loads Plugins from the subdirectories of `plugins/` in its own data directory (ADR 0012): `$HOME/plugins/` inside its sandbox, which is `~/.local/share/oma/apps/<root key id>/<identifier>/data/plugins/` on the host (ADR 0060, ADR 0099). The host application can configure the plugin directories through ODK, but only to places its sandbox already exposes: its data directory, its own Bundle contents, and named user directories it holds a Filesystem permission for.
 
 Plugins are loaded when the host application starts and unloaded when it exits. Hot-reload and enabling or disabling Plugins at runtime are out of v1; changing the Plugins in use needs an application restart.
 
