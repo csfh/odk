@@ -33,6 +33,8 @@ pub struct Button<F> {
     in_field: bool,
     /// Whether Tab reaches it. A field's clear button is not a stop.
     tab_stop: bool,
+    /// Whether Enter presses it from anywhere in its dialog, sheet or window.
+    default: bool,
     on_press: F,
 }
 
@@ -50,6 +52,7 @@ impl<F> Button<F> {
             density: None,
             in_field: false,
             tab_stop: true,
+            default: false,
             on_press,
         }
     }
@@ -130,6 +133,17 @@ impl<F> Button<F> {
         self.busy = busy;
         self
     }
+
+    /// Makes it the default button of the open dialog or sheet it is in, or of the window when no
+    /// modal is open: plain Enter presses it, on the key's press and once for each hold, wherever
+    /// focus is, unless the focused control takes Enter itself (another button, a field, a select,
+    /// a menu or list row, a tab). Give it to the action the dialog is for, which is its primary
+    /// button. A disabled or busy default button is not pressed, nor one behind an open modal
+    /// (`docs/spec/odk-overlays.md`).
+    pub fn default_button(mut self, default: bool) -> Self {
+        self.default = default;
+        self
+    }
 }
 
 impl<F> Describe for Button<F> {
@@ -162,6 +176,7 @@ impl<F> Button<F> {
             density,
             in_field,
             tab_stop,
+            default,
             on_press,
         } = self;
         let rest = Button {
@@ -176,6 +191,7 @@ impl<F> Button<F> {
             density,
             in_field,
             tab_stop,
+            default,
             on_press: (),
         };
         rest.show_hosted(
@@ -202,6 +218,7 @@ impl Button<()> {
             density,
             in_field,
             tab_stop,
+            default,
             on_press: _,
         } = self;
         let paint = style::paint(hosted);
@@ -268,6 +285,12 @@ impl Button<()> {
             });
         if in_field {
             button = button.preserve_focus_on_press(true);
+        }
+        // Rune's default button: Return reaches it from anywhere in the open modal, or the window,
+        // unless the focused element takes Return. Only while it can act, so a disabled or busy
+        // one passes Return by.
+        if default && responds && !disabled {
+            button = button.default_button();
         }
         // An icon-only button is a square as wide as it is high.
         if let Some(width) = style.width {

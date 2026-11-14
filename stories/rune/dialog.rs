@@ -1,5 +1,6 @@
 //! The Dialog story on Rune: a confirmation, a destructive confirmation that turns the ways out
-//! off, a form, and a body too tall for the window. Run it with `tools/story rune-dialog`.
+//! off, a form, and a body too tall for the window. Save and Create are default buttons: Enter
+//! presses them. Run it with `tools/story rune-dialog`.
 
 use odk_theme::component::ButtonVariant;
 use odk_view::{Button, Dialog, Hosted, Input, Layout, Space, Text};
@@ -55,6 +56,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
         .action(
             Button::new("c-yes", "Save", |s: &mut Story| close(s, "Saved."))
                 .variant(ButtonVariant::Primary)
+                .default_button(true)
                 .show(hosted),
         )
         .show(hosted, &mut layers);
@@ -85,7 +87,8 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
                 "p-name",
                 "Project name",
                 |s: &mut Story, text| s.name = text,
-                |_: &mut Story| {},
+                // The field's Enter does what the default button does.
+                |s: &mut Story| close(s, "Created."),
             )
             .show(hosted),
         )
@@ -95,6 +98,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
         .action(
             Button::new("f-ok", "Create", |s: &mut Story| close(s, "Created."))
                 .variant(ButtonVariant::Primary)
+                .default_button(true)
                 .show(hosted),
         )
         .show(hosted, &mut layers);
@@ -112,7 +116,7 @@ fn view(hosted: &Hosted<Story>, cx: &mut Cx<Hosted<Story>>) -> El {
     long.show(hosted, &mut layers);
 
     let said = if story.last.is_empty() {
-        "Open a dialog; Escape, the close button and the scrim close the first, third and fourth."
+        "Open a dialog; Escape, the close button and the scrim close the first, third and fourth. Enter presses Save in the first and Create in the third."
             .to_string()
     } else {
         story.last.clone()

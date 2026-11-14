@@ -4,6 +4,10 @@ Every crate has the workspace's version (ADR 0064). The pre-releases `v0.1.0-rc.
 
 ## Unreleased
 
+### A dialog's default button (2026-11-13)
+
+- `Button::default_button(true)` makes a button the one plain Enter presses from anywhere in its open dialog or sheet, or its window when no modal is open, unless the focused control takes Enter itself (a button, a field, a select, a list or menu row, a tab). A disabled or busy one is not pressed, and one behind an open modal never is. The Dialog story marks Save and Create.
+
 ### examples/notes keeps its note (2026-11-13)
 
 - `examples/notes` turns on the `db` feature and keeps its note in `notes.sqlite` in its data directory through `odk::db` (ADR 0049): read before the window, each change sent without waiting, a notice when one fails until the next one works, and a notice and the note in memory when the database cannot be opened. It has a `manifest.toml` and an `oma.toml`, so `odk oma dev examples/notes` builds, signs and runs it.
