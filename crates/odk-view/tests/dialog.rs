@@ -33,6 +33,16 @@ struct App {
     tall: bool,
     returns: bool,
     name: String,
+    /// Whether Delete is the dialog's default button, and whether it is busy or disabled.
+    default: bool,
+    busy: bool,
+    disabled: bool,
+    /// Whether the page has a default button of its own, behind the dialog.
+    page_default: bool,
+    deletes: u32,
+    cancels: u32,
+    submits: u32,
+    page_presses: u32,
 }
 
 impl Default for App {
@@ -47,6 +57,14 @@ impl Default for App {
             tall: false,
             returns: false,
             name: String::new(),
+            default: false,
+            busy: false,
+            disabled: false,
+            page_default: false,
+            deletes: 0,
+            cancels: 0,
+            submits: 0,
+            page_presses: 0,
         }
     }
 }
@@ -60,6 +78,11 @@ fn page(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
         .gap(8.0)
         .child(Button::new("open", "Open", |app: &mut App| app.behind += 1).show(hosted));
     body = body.child(Button::new("other", "Other", |app: &mut App| app.behind += 1).show(hosted));
+    body = body.child(
+        Button::new("go", "Go", |app: &mut App| app.page_presses += 1)
+            .default_button(app.page_default)
+            .show(hosted),
+    );
     let mut dialog = Dialog::<App>::new("dlg", "Delete the project?")
         .open(app.open)
         .description("This cannot be undone.")
@@ -75,12 +98,27 @@ fn page(hosted: &Hosted<App>, cx: &mut Cx<Hosted<App>>) -> El {
                 "name",
                 "Project name",
                 |app: &mut App, text| app.name = text,
-                |_: &mut App| {},
+                |app: &mut App| app.submits += 1,
             )
             .show(hosted),
         )
-        .action(Button::new("cancel", "Cancel", |app: &mut App| app.open = false).show(hosted))
-        .action(Button::new("confirm", "Delete", |app: &mut App| app.open = false).show(hosted));
+        .action(
+            Button::new("cancel", "Cancel", |app: &mut App| {
+                app.cancels += 1;
+                app.open = false;
+            })
+            .show(hosted),
+        )
+        .action(
+            Button::new("confirm", "Delete", |app: &mut App| {
+                app.deletes += 1;
+                app.open = false;
+            })
+            .default_button(app.default)
+            .busy(app.busy)
+            .disabled(app.disabled)
+            .show(hosted),
+        );
     if app.tall {
         for i in 0..40 {
             dialog = dialog.content(
@@ -309,4 +347,137 @@ fn a_body_too_tall_scrolls_and_the_dialog_stays_inside_its_window() {
         confirm[1] + confirm[3] <= 300.5,
         "the actions stay in reach: {confirm:?}"
     );
+}
+
+fn tab_to(runtime: &mut Rt, key: &str) {
+    for _ in 0..12 {
+        if focused(runtime).as_deref() == Some(key) {
+            return;
+        }
+        press(runtime, Key::Tab);
+    }
+    panic!("Tab never reached {key}: {:?}", focused(runtime));
+}
+
+#[test]
+fn enter_presses_the_default_button_from_the_panel_once_for_a_held_key() {
+    let mut runtime = open_dialog(App {
+        default: true,
+        ..App::default()
+    });
+    // Focus starts on the panel itself, which takes no Enter.
+    runtime.key(KeyEvent::from(Key::Enter));
+    runtime.repeat_key(KeyEvent::from(Key::Enter));
+    runtime.repeat_key(KeyEvent::from(Key::Enter));
+    runtime.key_up(KeyEvent::from(Key::Enter));
+    settle(&mut runtime);
+    assert_eq!(runtime.state.app.deletes, 1, "pressed once for the hold");
+    assert!(!has(&runtime, "dlg"), "and its action closed the dialog");
+    assert_eq!(runtime.state.app.cancels, 0);
+}
+
+#[test]
+fn without_a_default_button_enter_presses_nothing() {
+    let mut runtime = open_dialog(App::default());
+    press(&mut runtime, Key::Enter);
+    assert_eq!(runtime.state.app.deletes, 0);
+    assert!(has(&runtime, "dlg"));
+}
+
+#[test]
+fn a_focused_button_and_a_field_keep_their_own_enter() {
+    let mut runtime = open_dialog(App {
+        default: true,
+        ..App::default()
+    });
+    tab_to(&mut runtime, "cancel");
+    press(&mut runtime, Key::Enter);
+    assert_eq!(
+        (runtime.state.app.cancels, runtime.state.app.deletes),
+        (1, 0),
+        "Enter on Cancel is Cancel's"
+    );
+
+    let mut runtime = open_dialog(App {
+        default: true,
+        ..App::default()
+    });
+    tab_to(&mut runtime, "name");
+    press(&mut runtime, Key::Enter);
+    assert_eq!(
+        (runtime.state.app.submits, runtime.state.app.deletes),
+        (1, 0),
+        "Enter in the field submits the field"
+    );
+}
+
+#[test]
+fn a_modified_enter_is_not_the_default_buttons() {
+    let mut runtime = open_dialog(App {
+        default: true,
+        ..App::default()
+    });
+    let shift = rune::Mods {
+        shift: true,
+        ..rune::Mods::default()
+    };
+    let shifted = || KeyEvent {
+        key: Key::Enter,
+        mods: shift,
+    };
+    runtime.key(shifted());
+    runtime.key_up(shifted());
+    settle(&mut runtime);
+    assert_eq!(runtime.state.app.deletes, 0);
+}
+
+#[test]
+fn a_busy_or_disabled_default_button_is_not_pressed() {
+    for (busy, disabled) in [(true, false), (false, true)] {
+        let mut runtime = open_dialog(App {
+            default: true,
+            busy,
+            disabled,
+            ..App::default()
+        });
+        press(&mut runtime, Key::Enter);
+        assert_eq!(
+            runtime.state.app.deletes, 0,
+            "busy {busy}, disabled {disabled}"
+        );
+        assert!(has(&runtime, "dlg"));
+    }
+}
+
+#[test]
+fn the_default_button_behind_an_open_dialog_is_never_pressed() {
+    // The page's own default button, with the dialog open and one of its own.
+    let mut runtime = open_dialog(App {
+        default: true,
+        page_default: true,
+        ..App::default()
+    });
+    press(&mut runtime, Key::Enter);
+    assert_eq!(
+        (runtime.state.app.deletes, runtime.state.app.page_presses),
+        (1, 0),
+        "the dialog's, not the page's"
+    );
+    // With the dialog open and no default of its own, the page's still is not reached.
+    let mut runtime = open_dialog(App {
+        page_default: true,
+        ..App::default()
+    });
+    press(&mut runtime, Key::Enter);
+    assert_eq!(runtime.state.app.page_presses, 0);
+    // Closed, Enter reaches the page's.
+    let mut runtime = open_in(
+        App {
+            page_default: true,
+            ..App::default()
+        },
+        (480.0, 360.0),
+    );
+    press(&mut runtime, Key::Enter);
+    assert_eq!(runtime.state.app.page_presses, 1);
 }
